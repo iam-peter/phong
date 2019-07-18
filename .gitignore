@@ -1,0 +1,17 @@
+# ignore *.user files
+*.user
+*.user.*
+
+.vscode
+
+.qmake.cache
+.qmake.stash
+
+.moc
+.obj
+.pch
+.rcc
+
+qdoc_wrapper.sh
+
+Makefile
