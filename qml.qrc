@@ -1,8 +1,9 @@
 <RCC>
     <qresource prefix="/">
         <file>main.qml</file>
-        <file>GameCanvas.qml</file>
-        <file>MenuScreen.qml</file>
+        <file>GameScene.qml</file>
+        <file>MenuScene.qml</file>
         <file>Scene.qml</file>
+        <file>ExtrudedTextWrapper.qml</file>
     </qresource>
 </RCC>

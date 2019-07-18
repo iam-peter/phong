@@ -38,6 +38,18 @@ Item {
                 position: Qt.vector3d(0.0, 0.0, 34.0)
                 upVector: Qt.vector3d(0.0, 1.0, 0.0)
                 viewCenter: Qt.vector3d(0.0, 0.0, 0.0)
+
+                Behavior on position {
+                    Vector3dAnimation {
+                        duration: 400
+                    }
+                }
+
+                Behavior on viewCenter {
+                    Vector3dAnimation {
+                        duration: 400
+                    }
+                }
             }
 
             //FirstPersonCameraController { camera: camera }
@@ -53,39 +65,37 @@ Item {
             ]
 
 
-            MenuScreen {
-                id: menu
+            MenuScene {
+                id: menuScene
                 root: root
                 camera: camera
+                position: Qt.vector3d(0, 0, 0)
             }
 
-            GameCanvas {
-                id: game
+            GameScene {
+                id: gameScene
                 root: root
                 camera: camera
+                position: Qt.vector3d(40, 0, 0)
             }
         }
     }
 
-
-    Timer {
-        id: gameStarter
-        interval: 4000
-        running: false
-        repeat: false
-        onTriggered: Logic.startGame(canvas);
-    }
-
     states: [
         State {
-            name: "gameOn"
-            when: gameState.gameOver === false && passedSplash
-            //PropertyChanges { target: view; y: -(height - 960) }
-            //StateChangeScript { script: root.countdown = 0; }
-            //PropertyChanges { target: gameStarter; running: true }
+            name: "play"
+            //when: gameState.gameOver === false && passedSplash
+            PropertyChanges {
+                target: camera
+                viewCenter: gameScene.position
+            }
+            PropertyChanges {
+                target: camera
+                position: gameScene.position.plus(Qt.vector3d(0, 0, 34))
+            }
         },
         State {
-            name: "gameOver"
+            name: "menu"
             when: gameState.gameOver === true
             //PropertyChanges { target: view; y: 0 }
         }
@@ -94,8 +104,8 @@ Item {
     function changeScene(name) {
         switch (name) {
             case "play":
-                camera.viewCenter = Qt.vector3d(game.x, game.y, 0.0)
-                camera.position = Qt.vector3d(game.x, game.y, 34.0)
+                camera.viewCenter = gameScene.position
+                camera.position = gameScene.position.plus(Qt.vector3d(0, 0, 34))
                 break;
             default:
                 break;

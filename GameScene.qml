@@ -1,3 +1,4 @@
+import QtQuick 2.13
 import Qt3D.Core 2.13
 import Qt3D.Render 2.13
 import Qt3D.Input 2.13
@@ -5,9 +6,17 @@ import Qt3D.Extras 2.13
 
 Scene {
     id: sceneRoot
+/*
+    property int countdown: 10
 
-    x: 10.0
-    y: 10.0
+    Timer {
+        id: countdownTimer
+        interval: 1000
+        running: root.countdown < 5
+        repeat: true
+        onTriggered: root.countdown++
+    }
+*/
 
     PhongMaterial {
         id: fieldMaterial

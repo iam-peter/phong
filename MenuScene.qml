@@ -7,9 +7,6 @@ import Qt3D.Extras 2.13
 Scene {
     id: menu
 
-    x: 0.0
-    y: 0.0
-
     property int currentIdx: 0
 
     PhongMaterial {
@@ -28,10 +25,7 @@ Scene {
         Entity {
             id: title1Entity
 
-            ExtrudedTextMesh {
-                property var minExt: geometry.minExtent
-                property var maxExt: geometry.maxExtent
-
+            ExtrudedTextWrapper {
                 id: title1Mesh
                 text: "p(h)"
                 depth: 1.0
@@ -73,10 +67,7 @@ Scene {
         Entity {
             id: title2Entity
 
-            ExtrudedTextMesh {
-                property var minExt: geometry.minExtent
-                property var maxExt: geometry.maxExtent
-
+            ExtrudedTextWrapper {
                 id: title2Mesh
                 text: "ng"
                 depth: 1.0
@@ -121,10 +112,7 @@ Scene {
             Entity {
                 id: textEntity
 
-                ExtrudedTextMesh {
-                    property var minExt: geometry.minExtent
-                    property var maxExt: geometry.maxExtent
-
+                ExtrudedTextWrapper {
                     id: textMesh
                     text: name
                     depth: 1.0
@@ -181,7 +169,7 @@ Scene {
             if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
                 console.log("Selected: " + menuModel.get(currentIdx).name)
 
-                root.changeScene(menuModel.get(currentIdx).name)
+                root.state = menuModel.get(currentIdx).name
 
                 event.accepted = true;
             }
