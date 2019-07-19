@@ -6,9 +6,9 @@ import Qt3D.Extras 2.13
 import "logic.js" as Logic
 
 Scene {
-    id: sceneRoot
+    id: scene
 
-    onActiveChanged: console.log("IntroScene active: " + active)
+    onActiveChanged: console.log("Intro | onActiveChanged: " + active)
 
     Entity {
         ExtrudedTextWrapper {
@@ -47,19 +47,18 @@ Scene {
     KeyboardHandler {
         id: keyboardHandler
         sourceDevice: keyboardDevice
-        focus: sceneRoot.active
-        enabled: sceneRoot.active
+        focus: scene.active
+
         onPressed: {
+            if (!scene.active) return;
 
-
-            console.log("INTRO onPressed")
-            console.log("focus " + focus)
-            console.log("enabled " + enabled)
+            console.log("Intro | onPressed")
 
             Logic.nextScene(root.menuScene)
             event.accepted = true;
         }
-        onFocusChanged: console.log("KeyboardHandler focus: " + focus)
-        onEnabledChanged: console.log("KeyboardHandler enabled: " + focus)
+
+        onFocusChanged: console.log("Intro | onFocusChanged: " + focus)
+        onEnabledChanged: console.log("Intro | onEnabledChanged: " + enabled)
     }
 }

@@ -6,7 +6,7 @@ import Qt3D.Extras 2.13
 import "logic.js" as Logic
 
 Scene {
-    id: sceneRoot
+    id: scene
 
 
     onActiveChanged: console.log("GameScene active: " + active)
@@ -63,5 +63,28 @@ Scene {
     Entity {
         id: torusEntity
         components: [torusMesh, fieldMaterial, torusTransform]
+    }
+
+    KeyboardDevice {
+        id: keyboardDevice
+    }
+
+    KeyboardHandler {
+        id: keyboardHandler
+        sourceDevice: keyboardDevice
+        focus: scene.active
+
+        onPressed: {
+            if (!scene.active) return;
+        }
+
+        onEscapePressed: {
+            if (!scene.active) return;
+
+            Logic.previousScene();
+        }
+
+        onFocusChanged: console.log("Game | onFocusChanged: " + focus)
+        onEnabledChanged: console.log("Game | onEnabledChanged: " + enabled)
     }
 }

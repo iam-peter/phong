@@ -19,12 +19,4 @@ Entity {
     }
 
     components: [sceneTransform]
-
-/*
-    property KeyboardHandler keyboardHandler: KeyboardHandler {
-        sourceDevice: root.keyboardDevice
-        focus: true
-        enabled: true
-    }
-*/
 }

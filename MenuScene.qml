@@ -6,9 +6,9 @@ import Qt3D.Extras 2.13
 import "logic.js" as Logic
 
 Scene {
-    id: sceneRoot
+    id: scene
 
-    onActiveChanged: console.log("MenuScene active: " + active)
+    onActiveChanged: console.log("Menu | onActiveChanged: " + active)
 
     Entity {
         id: titleEntity
@@ -144,12 +144,17 @@ Scene {
     KeyboardHandler {
         id: keyboardHandler
         sourceDevice: keyboardDevice
-        focus: sceneRoot.active
+        focus: scene.active
+
         onPressed: {
+            if (!scene.active) return;
+
+            console.log("Menu | onPressed")
+
             if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
                 currentIdx = Math.max(0, Math.min(currentIdx + ((event.key === Qt.Key_Up) ? -1 : 1), nodeInstantiator.model.length - 1))
-                camera.viewCenter = sceneRoot.position.plus(Qt.vector3d(0.0, currentIdx * -2, 0.0))
-                camera.position = sceneRoot.position.plus(Qt.vector3d(0.0, currentIdx * -2, 34.0))
+                camera.viewCenter = scene.position.plus(Qt.vector3d(0.0, currentIdx * -2, 0.0))
+                camera.position = scene.position.plus(Qt.vector3d(0.0, currentIdx * -2, 34.0))
                 event.accepted = true;
             }
 
@@ -164,5 +169,8 @@ Scene {
                 event.accepted = true;
             }
         }
+
+        onFocusChanged: console.log("Menu | onFocusChanged: " + focus)
+        onEnabledChanged: console.log("Menu | onEnabledChanged: " + enabled)
     }
 }

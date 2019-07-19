@@ -18,8 +18,6 @@ Item {
         color: "black"
     }
 
-    property KeyboardDevice keyboardDevice: KeyboardDevice {}
-
     property var gameState
 
     Scene3D {
@@ -109,7 +107,8 @@ Item {
       } ]
 */
     Component.onCompleted: {
-        gameState = Logic.newGameState()
+        console.log(">>> onCompleted")
+        gameState = Logic.initialise(camera)
         Logic.nextScene(introScene)
     }
 }
