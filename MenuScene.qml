@@ -3,24 +3,16 @@ import Qt3D.Core 2.13
 import Qt3D.Render 2.13
 import Qt3D.Input 2.13
 import Qt3D.Extras 2.13
+import "logic.js" as Logic
 
 Scene {
-    id: menu
+    id: sceneRoot
 
-    property int currentIdx: 0
-
-    PhongMaterial {
-        id: textMaterial
-        ambient: "#FFFFFF"
-    }
-
-    PhongMaterial {
-        id: underlineMaterial
-        ambient: "#00FF00"
-    }
+    onActiveChanged: console.log("MenuScene active: " + active)
 
     Entity {
         id: titleEntity
+        property real ballTextGap: 0.2
 
         Entity {
             id: title1Entity
@@ -38,7 +30,7 @@ Scene {
                 translation: Qt.vector3d(0, 0, 0)
             }
 
-            components: [title1Mesh, textMaterial, title1Transform]
+            components: [title1Mesh, title1Transform]
         }
 
         Entity {
@@ -57,7 +49,7 @@ Scene {
 
             Transform {
                 id: titleBallTransform
-                translation: Qt.vector3d(title1Mesh.maxExt.x + 1.0, (title1Mesh.maxExt.y - title1Mesh.minExt.y) * 0.5, 0)
+                translation: Qt.vector3d(title1Mesh.width + titleBallMesh.radius + titleEntity.ballTextGap, titleBallMesh.length * 0.5, 0)
                 rotationX: 90.0
             }
 
@@ -77,34 +69,30 @@ Scene {
 
             Transform {
                 id: title2Transform
-                translation: Qt.vector3d(title1Mesh.maxExt.x + 2.0, 0, 0)
+                translation: Qt.vector3d(titleBallTransform.translation.x + titleBallMesh.radius + titleEntity.ballTextGap, 0, 0)
             }
 
-            components: [title2Mesh, textMaterial, title2Transform]
+            components: [title2Mesh, title2Transform]
         }
 
-        Transform {
-            id: titleTransform
-            translation: Qt.vector3d(((title1Mesh.maxExt.x - title1Mesh.minExt.x) + 2.0 +(title2Mesh.maxExt.x - title2Mesh.minExt.x)) * -1 , 4, 0)
+        components: Transform {
+            property var tmpTranslation: Qt.vector3d((title1Mesh.width + title2Mesh.width + (titleBallMesh.radius + titleEntity.ballTextGap) * 2) * -0.5 , 2, 0)
+
+            translation: tmpTranslation.times(scale)
             scale: 2
         }
-
-         components: [titleTransform]
     }
 
+    property int currentIdx: 0
 
-    ListModel {
-        id: menuModel
-
-        ListElement { name: "play" }
-        ListElement { name: "settings" }
-        ListElement { name: "help" }
-        ListElement { name: "credits" }
-        ListElement { name: "quit" }
+    PhongMaterial {
+        id: underlineMaterial
+        ambient: "#00FF00"
     }
 
     NodeInstantiator {
-        model: menuModel
+        id: nodeInstantiator
+        model: root.menuScenes
 
         Entity {
             id: menuItemEntity
@@ -114,20 +102,20 @@ Scene {
 
                 ExtrudedTextWrapper {
                     id: textMesh
-                    text: name
+                    text: modelData.menuItemName
                     depth: 1.0
                     font.family: "monospace"
                     //font.bold: true
                     font.capitalization: Font.AllUppercase
+                    horizontalAlignment: Text.AlignHCenter
                 }
 
                 Transform {
                     id: textTransform
-                    translation: Qt.vector3d((textMesh.maxExt.x - textMesh.minExt.x) * -0.5, index * -2, 0)
-                    //scale: 2
+                    translation: Qt.vector3d(0, index * -2, 0)
                 }
 
-                components: [textMesh, textMaterial, textTransform]
+                components: [textMesh, textTransform]
             }
 
             Entity {
@@ -156,21 +144,23 @@ Scene {
     KeyboardHandler {
         id: keyboardHandler
         sourceDevice: keyboardDevice
-        focus: true
+        focus: sceneRoot.active
         onPressed: {
             if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
-                currentIdx = Math.max(0, Math.min(currentIdx + ((event.key === Qt.Key_Up) ? -1 : 1), menuModel.count - 1))
-                camera.viewCenter = Qt.vector3d(0.0, currentIdx * -2, 0.0)
-                camera.position = Qt.vector3d(0.0, currentIdx * -2, 34.0)
-
+                currentIdx = Math.max(0, Math.min(currentIdx + ((event.key === Qt.Key_Up) ? -1 : 1), nodeInstantiator.model.length - 1))
+                camera.viewCenter = sceneRoot.position.plus(Qt.vector3d(0.0, currentIdx * -2, 0.0))
+                camera.position = sceneRoot.position.plus(Qt.vector3d(0.0, currentIdx * -2, 34.0))
                 event.accepted = true;
             }
 
             if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                console.log("Selected: " + menuModel.get(currentIdx).name)
+                console.log("Selected: " + nodeInstantiator.model[currentIdx].menuItemName)
+                Logic.nextScene(nodeInstantiator.model[currentIdx])
+                event.accepted = true;
+            }
 
-                root.state = menuModel.get(currentIdx).name
-
+            if (event.key === Qt.Key_Escape) {
+                Logic.previousScene()
                 event.accepted = true;
             }
         }

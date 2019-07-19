@@ -3,10 +3,14 @@ import Qt3D.Core 2.13
 import Qt3D.Render 2.13
 import Qt3D.Input 2.13
 import Qt3D.Extras 2.13
+import "logic.js" as Logic
 
 Scene {
     id: sceneRoot
-/*
+
+
+    onActiveChanged: console.log("GameScene active: " + active)
+    /*
     property int countdown: 10
 
     Timer {

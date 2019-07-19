@@ -5,5 +5,7 @@
         <file>MenuScene.qml</file>
         <file>Scene.qml</file>
         <file>ExtrudedTextWrapper.qml</file>
+        <file>logic.js</file>
+        <file>IntroScene.qml</file>
     </qresource>
 </RCC>

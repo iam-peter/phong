@@ -4,17 +4,21 @@ import Qt3D.Core 2.13
 import Qt3D.Render 2.13
 import Qt3D.Input 2.13
 import Qt3D.Extras 2.13
+import "logic.js" as Logic
 
 Item {
     id: root
     visible: true
     width: 640
     height: 480
+    state: "intro" // default state
 
     Rectangle {
         anchors.fill: parent
         color: "black"
     }
+
+    property KeyboardDevice keyboardDevice: KeyboardDevice {}
 
     property var gameState
 
@@ -38,21 +42,7 @@ Item {
                 position: Qt.vector3d(0.0, 0.0, 34.0)
                 upVector: Qt.vector3d(0.0, 1.0, 0.0)
                 viewCenter: Qt.vector3d(0.0, 0.0, 0.0)
-
-                Behavior on position {
-                    Vector3dAnimation {
-                        duration: 400
-                    }
-                }
-
-                Behavior on viewCenter {
-                    Vector3dAnimation {
-                        duration: 400
-                    }
-                }
             }
-
-            //FirstPersonCameraController { camera: camera }
 
             components: [
                 RenderSettings {
@@ -64,11 +54,19 @@ Item {
                 InputSettings {}
             ]
 
+            IntroScene {
+                id: introScene
+                root: root
+                camera: camera
+                menuItemName: "intro"
+                position: Qt.vector3d(-30, 0, 0)
+            }
 
             MenuScene {
                 id: menuScene
                 root: root
                 camera: camera
+                menuItemName: "menu"
                 position: Qt.vector3d(0, 0, 0)
             }
 
@@ -76,42 +74,42 @@ Item {
                 id: gameScene
                 root: root
                 camera: camera
-                position: Qt.vector3d(40, 0, 0)
+                menuItemName: "play"
+                position: Qt.vector3d(30, 0, 0)
+            }
+
+            Scene {
+                id: settingsScene
+                root: root
+                camera: camera
+                menuItemName: "settings"
+                position: Qt.vector3d(60, 0, 0)
             }
         }
     }
 
-    states: [
-        State {
-            name: "play"
-            //when: gameState.gameOver === false && passedSplash
-            PropertyChanges {
-                target: camera
-                viewCenter: gameScene.position
-            }
-            PropertyChanges {
-                target: camera
-                position: gameScene.position.plus(Qt.vector3d(0, 0, 34))
-            }
-        },
-        State {
-            name: "menu"
-            when: gameState.gameOver === true
-            //PropertyChanges { target: view; y: 0 }
-        }
+    property var menuScene: menuScene
+    property var menuScenes: [
+        gameScene,
+        settingsScene
     ]
 
-    function changeScene(name) {
-        switch (name) {
-            case "play":
-                camera.viewCenter = gameScene.position
-                camera.position = gameScene.position.plus(Qt.vector3d(0, 0, 34))
-                break;
-            default:
-                break;
-        }
-
+    /*
+    transitions: [
+      Transition {
+          SequentialAnimation {
+              ScriptAction { script: Logic.transitionStarted() }
+              Vector3dAnimation {
+                  target: camera
+                  properties: "position,viewCenter"
+                  duration: 400
+              }
+              ScriptAction { script: Logic.transitionFinished() }
+          }
+      } ]
+*/
+    Component.onCompleted: {
+        gameState = Logic.newGameState()
+        Logic.nextScene(introScene)
     }
-
-    //Component.onCompleted: gameState = Logic.newGameState(canvas);
 }
