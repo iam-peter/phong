@@ -11,7 +11,6 @@ Item {
     visible: true
     width: 640
     height: 480
-    state: "intro" // default state
 
     Rectangle {
         anchors.fill: parent
@@ -82,6 +81,18 @@ Item {
                 camera: camera
                 menuItemName: "settings"
                 position: Qt.vector3d(60, 0, 0)
+            }
+            KeyboardDevice {
+                id: keyboardDevice
+            }
+
+            KeyboardHandler {
+                id: keyboardHandler
+                sourceDevice: keyboardDevice
+                focus: true
+
+                onPressed: Logic.currentScene().onPressed(event)
+                onEscapePressed: Logic.currentScene().onEscapePressed(event)
             }
         }
     }

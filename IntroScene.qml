@@ -40,25 +40,11 @@ Scene {
         components: [anotherTextMesh, anotherTextTransform]
     }
 
-    KeyboardDevice {
-        id: keyboardDevice
+    onPressed: function (event) {
+        console.log("Intro | KeyboardHandler | onPressed")
+
+        Logic.nextScene(root.menuScene)
+        event.accepted = true;
     }
 
-    KeyboardHandler {
-        id: keyboardHandler
-        sourceDevice: keyboardDevice
-        focus: scene.active
-
-        onPressed: {
-            if (!scene.active) return;
-
-            console.log("Intro | onPressed")
-
-            Logic.nextScene(root.menuScene)
-            event.accepted = true;
-        }
-
-        onFocusChanged: console.log("Intro | onFocusChanged: " + focus)
-        onEnabledChanged: console.log("Intro | onEnabledChanged: " + enabled)
-    }
 }

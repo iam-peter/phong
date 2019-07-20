@@ -6,6 +6,13 @@ var gameState = {};
 var camera = {};
 function getGameState() { return gameState; }
 
+function currentScene() {
+    if (gameState.sceneStack.length)
+        return gameState.sceneStack[gameState.sceneStack.length - 1];
+
+    return null;
+}
+
 function nextScene(scene) {
     var nextScene = scene;
 

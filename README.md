@@ -24,3 +24,5 @@ Share your solution as a git link to start discussion about used Qt features and
 - Couldn't use `onStarted`, `onFinished` and `onRunningChanged` signals in a nested `Vector3dAnimation` inside of a `Transition`. Solved by using a `SequentialAnimation` combined with two `ScriptAction`s at the beginning and end.
 
 - Can't use `Camera`s `void translate(vLocal, enumeration option)` together with `Transition`. This is why setting of the camera `position` and `viewCenter` is done manually.
+
+- I had trouble using `KeyboardHandler` together with `KeyboardDevice` in each of the different `Scene` types I've created. Using `focus` or `enabled` wasn't work toggle each individual on and of. Once focused each `KeyboardHandler` received the same event even though it was `accepted`.

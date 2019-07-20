@@ -137,40 +137,20 @@ Scene {
         }
     }
 
-    KeyboardDevice {
-        id: keyboardDevice
-    }
+    onPressed: function (event) {
+        console.log("MenuScene | onPressed")
 
-    KeyboardHandler {
-        id: keyboardHandler
-        sourceDevice: keyboardDevice
-        focus: scene.active
-
-        onPressed: {
-            if (!scene.active) return;
-
-            console.log("Menu | onPressed")
-
-            if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
-                currentIdx = Math.max(0, Math.min(currentIdx + ((event.key === Qt.Key_Up) ? -1 : 1), nodeInstantiator.model.length - 1))
-                camera.viewCenter = scene.position.plus(Qt.vector3d(0.0, currentIdx * -2, 0.0))
-                camera.position = scene.position.plus(Qt.vector3d(0.0, currentIdx * -2, 34.0))
-                event.accepted = true;
-            }
-
-            if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                console.log("Selected: " + nodeInstantiator.model[currentIdx].menuItemName)
-                Logic.nextScene(nodeInstantiator.model[currentIdx])
-                event.accepted = true;
-            }
-
-            if (event.key === Qt.Key_Escape) {
-                Logic.previousScene()
-                event.accepted = true;
-            }
+        if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
+            currentIdx = Math.max(0, Math.min(currentIdx + ((event.key === Qt.Key_Up) ? -1 : 1), nodeInstantiator.model.length - 1))
+            camera.viewCenter = scene.position.plus(Qt.vector3d(0.0, currentIdx * -2, 0.0))
+            camera.position = scene.position.plus(Qt.vector3d(0.0, currentIdx * -2, 34.0))
+            event.accepted = true;
         }
 
-        onFocusChanged: console.log("Menu | onFocusChanged: " + focus)
-        onEnabledChanged: console.log("Menu | onEnabledChanged: " + enabled)
+        if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+            console.log("Selected: " + nodeInstantiator.model[currentIdx].menuItemName)
+            Logic.nextScene(nodeInstantiator.model[currentIdx])
+            event.accepted = true;
+        }
     }
 }
