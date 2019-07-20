@@ -25,4 +25,6 @@ Share your solution as a git link to start discussion about used Qt features and
 
 - Can't use `Camera`s `void translate(vLocal, enumeration option)` together with `Transition`. This is why setting of the camera `position` and `viewCenter` is done manually.
 
-- I had trouble using `KeyboardHandler` together with `KeyboardDevice` in each of the different `Scene` types I've created. Using `focus` or `enabled` wasn't work toggle each individual on and of. Once focused each `KeyboardHandler` received the same event even though it was `accepted`.
+- I had trouble using `KeyboardHandler` together with `KeyboardDevice` in each of the different `Scene` types I've created. Using `focus` or `enabled` wasn't work toggle each individual on and off. Once focused each `KeyboardHandler` received the same event even though it was `accepted`.
+
+TODO: Hint about **resetting code model** `Tools > QML/JS > Reset Code Model`

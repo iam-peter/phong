@@ -9,6 +9,9 @@ Scene {
     id: scene
 
 
+    property var players
+    property var ball
+
     onActiveChanged: console.log("GameScene active: " + active)
     /*
     property int countdown: 10

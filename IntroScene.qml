@@ -8,6 +8,8 @@ import "logic.js" as Logic
 Scene {
     id: scene
 
+    property Scene nextScene
+
     onActiveChanged: console.log("Intro | onActiveChanged: " + active)
 
     Entity {
@@ -43,7 +45,7 @@ Scene {
     onPressed: function (event) {
         console.log("Intro | KeyboardHandler | onPressed")
 
-        Logic.nextScene(root.menuScene)
+        Logic.nextScene(nextScene)
         event.accepted = true;
     }
 

@@ -57,6 +57,7 @@ Item {
                 camera: camera
                 menuItemName: "intro"
                 position: Qt.vector3d(-30, 0, 0)
+                nextScene: menuScene
             }
 
             MenuScene {
@@ -65,6 +66,10 @@ Item {
                 camera: camera
                 menuItemName: "menu"
                 position: Qt.vector3d(0, 0, 0)
+                menuScenes: [
+                    gameScene,
+                    settingsScene
+                ]
             }
 
             GameScene {
@@ -90,18 +95,11 @@ Item {
                 id: keyboardHandler
                 sourceDevice: keyboardDevice
                 focus: true
-
                 onPressed: Logic.currentScene().onPressed(event)
                 onEscapePressed: Logic.currentScene().onEscapePressed(event)
             }
         }
     }
-
-    property var menuScene: menuScene
-    property var menuScenes: [
-        gameScene,
-        settingsScene
-    ]
 
     /*
     transitions: [

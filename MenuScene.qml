@@ -8,6 +8,8 @@ import "logic.js" as Logic
 Scene {
     id: scene
 
+    property list<Scene> menuScenes
+
     onActiveChanged: console.log("Menu | onActiveChanged: " + active)
 
     Entity {
@@ -92,7 +94,7 @@ Scene {
 
     NodeInstantiator {
         id: nodeInstantiator
-        model: root.menuScenes
+        model: menuScenes
 
         Entity {
             id: menuItemEntity

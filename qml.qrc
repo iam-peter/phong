@@ -7,5 +7,6 @@
         <file>ExtrudedTextWrapper.qml</file>
         <file>logic.js</file>
         <file>IntroScene.qml</file>
+        <file>Player.qml</file>
     </qresource>
 </RCC>
