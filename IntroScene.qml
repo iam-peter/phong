@@ -48,5 +48,7 @@ Scene {
         Logic.nextScene(nextScene)
         event.accepted = true;
     }
-
+    onEscapePressed: function (event) {
+        event.accepted = true;
+    }
 }

@@ -8,9 +8,8 @@ import "logic.js" as Logic
 Scene {
     id: scene
 
-
-    property var players
-    property var ball
+    property list<Player> players
+    property Ball ball
 
     onActiveChanged: console.log("GameScene active: " + active)
     /*
@@ -25,48 +24,26 @@ Scene {
     }
 */
 
-    PhongMaterial {
-        id: fieldMaterial
-        ambient: "blue"
-    }
-
-    PhongMaterial {
-        id: scoreMaterial
-        ambient: "yellow"
-    }
-
-    ExtrudedTextMesh {
-        id: textMesh
-        text: "0 : 99"
-        depth: 1.0
-    }
-
-    Transform {
-        id: textTransform
-        //scale3D: Qt.vector3d(2, 2, 2)
-        translation: Qt.vector3d(0, 0, 2)
-    }
-
+    /* Score */
     Entity {
-        id: textEntity
-        components: [textMesh, scoreMaterial, textTransform]
-    }
+        id: scoreEntity
 
-
-    PlaneMesh {
-        id: torusMesh
+        ExtrudedTextWrapper {
+            id: scoreMesh
+            text: players[0].score + " : " + players[1].score
+            depth: 1.0
+            horizontalAlignment: Text.AlignHCenter
+        }
     }
+    /* Score */
 
-    Transform {
-        id: torusTransform
-        scale3D: Qt.vector3d(10, 1, 10)
-        rotation: fromAxisAndAngle(Qt.vector3d(1, 0, 0), 90)
+    /* Stage */
+    Stage {
+        id: stageEntity
+        width: 30
+        height: 20
     }
-
-    Entity {
-        id: torusEntity
-        components: [torusMesh, fieldMaterial, torusTransform]
-    }
+    /* Stage */
 
     onPressed: function (event) {
         console.log("Game | KeyboardHandler | onPressed")

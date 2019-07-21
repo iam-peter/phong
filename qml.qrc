@@ -8,5 +8,9 @@
         <file>logic.js</file>
         <file>IntroScene.qml</file>
         <file>Player.qml</file>
+        <file>Racket.qml</file>
+        <file>Ball.qml</file>
+        <file>Wall.qml</file>
+        <file>Stage.qml</file>
     </qresource>
 </RCC>

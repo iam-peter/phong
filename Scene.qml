@@ -8,11 +8,11 @@ Entity {
     id: scene
 
     property bool active: false
-    property var position: Qt.vector3d(0, 0, 0)
+    property vector3d position: Qt.vector3d(0, 0, 0)
 
     property Item root
     property Camera camera
-    property string menuItemName: "unknown"
+    property string title: "unknown"
 
     property var onPressed: function (event) {
         console.log("Scene | onPressed")

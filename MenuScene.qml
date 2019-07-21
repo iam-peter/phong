@@ -104,7 +104,7 @@ Scene {
 
                 ExtrudedTextWrapper {
                     id: textMesh
-                    text: modelData.menuItemName
+                    text: modelData.title
                     depth: 1.0
                     font.family: "monospace"
                     //font.bold: true

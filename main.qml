@@ -4,6 +4,7 @@ import Qt3D.Core 2.13
 import Qt3D.Render 2.13
 import Qt3D.Input 2.13
 import Qt3D.Extras 2.13
+import Qt3D.Logic 2.13
 import "logic.js" as Logic
 
 Item {
@@ -41,6 +42,9 @@ Item {
                 viewCenter: Qt.vector3d(0.0, 0.0, 0.0)
             }
 
+            // TODO: Debug camera
+            FirstPersonCameraController { camera: camera }
+
             components: [
                 RenderSettings {
                     activeFrameGraph: ForwardRenderer {
@@ -55,7 +59,7 @@ Item {
                 id: introScene
                 root: root
                 camera: camera
-                menuItemName: "intro"
+                title: "intro"
                 position: Qt.vector3d(-30, 0, 0)
                 nextScene: menuScene
             }
@@ -64,7 +68,7 @@ Item {
                 id: menuScene
                 root: root
                 camera: camera
-                menuItemName: "menu"
+                title: "menu"
                 position: Qt.vector3d(0, 0, 0)
                 menuScenes: [
                     gameScene,
@@ -76,17 +80,26 @@ Item {
                 id: gameScene
                 root: root
                 camera: camera
-                menuItemName: "play"
+                title: "play"
                 position: Qt.vector3d(30, 0, 0)
+                players: [
+                    Player {
+                        name: "Player #1"
+                    },
+                    Player {
+                        name: "Player #2"
+                    }
+                ]
             }
 
             Scene {
                 id: settingsScene
                 root: root
                 camera: camera
-                menuItemName: "settings"
+                title: "settings"
                 position: Qt.vector3d(60, 0, 0)
             }
+
             KeyboardDevice {
                 id: keyboardDevice
             }
@@ -97,6 +110,11 @@ Item {
                 focus: true
                 onPressed: Logic.currentScene().onPressed(event)
                 onEscapePressed: Logic.currentScene().onEscapePressed(event)
+            }
+
+            FrameAction {
+                id: gameLoop
+                //onTriggered: console.log("FrameAction.triggered() " + dt)
             }
         }
     }
