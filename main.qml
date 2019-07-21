@@ -43,7 +43,7 @@ Item {
             }
 
             // TODO: Debug camera
-            FirstPersonCameraController { camera: camera }
+            //FirstPersonCameraController { camera: camera }
 
             components: [
                 RenderSettings {
@@ -82,14 +82,6 @@ Item {
                 camera: camera
                 title: "play"
                 position: Qt.vector3d(30, 0, 0)
-                players: [
-                    Player {
-                        name: "Player #1"
-                    },
-                    Player {
-                        name: "Player #2"
-                    }
-                ]
             }
 
             Scene {

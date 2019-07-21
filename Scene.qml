@@ -16,6 +16,7 @@ Entity {
 
     property var onPressed: function (event) {
         console.log("Scene | onPressed")
+        event.accepted = true;
     }
 
     property var onEscapePressed: function (event) {

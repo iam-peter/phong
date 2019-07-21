@@ -27,4 +27,24 @@ Share your solution as a git link to start discussion about used Qt features and
 
 - I had trouble using `KeyboardHandler` together with `KeyboardDevice` in each of the different `Scene` types I've created. Using `focus` or `enabled` wasn't work toggle each individual on and off. Once focused each `KeyboardHandler` received the same event even though it was `accepted`.
 
+- `KeyboardHandler` `onPressed` and `onEscapePressed` will bothe be triggered even pressing the escape key even though it was accepted in the `onPressed` call already.
+    ```
+        KeyboardHandler {
+            id: keyboardHandler
+            sourceDevice: keyboardDevice
+            focus: true
+            onPressed: {
+                console.log("KeyboardHandler | onPressed")
+                console.log("event " + event + " " + event.accepted)
+                Logic.currentScene().onPressed(event)
+            }
+            onEscapePressed: {
+                console.log("KeyboardHandler | onEscapePressed")
+                console.log("event " + event + " " + event.accepted)
+                Logic.currentScene().onEscapePressed(event)
+            }
+        }
+    ```
+    Has strange side effects when used together with `FirstPersonCameraController`. The camera `position` and `viewCenter` will be set to a strange value, not set by the scene logic.
+
 TODO: Hint about **resetting code model** `Tools > QML/JS > Reset Code Model`

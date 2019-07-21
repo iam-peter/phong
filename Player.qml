@@ -1,10 +1,17 @@
-import QtQuick 2.0
+import QtQuick 2.13
+import Qt3D.Core 2.13
 
-Item {
+Entity {
+    id: playerEntity
+
     property string name: "PlayerUnknown #n"
     property int score: 0
+    property color color: "purple"
 
-    property Racket racket
+
+    property Racket racket: Racket{
+        ambientColor: playerEntity.color
+    }
 
     // Keyboard layout
     property int up: Qt.Key_Up

@@ -8,13 +8,25 @@ import "logic.js" as Logic
 Scene {
     id: scene
 
-    property list<Player> players
-    property Ball ball
+    property Ball ball: Ball {
+    }
+    property list<Player> players: [
+        Player { /* left */
+            name: "Joe"
+            color: "red"
+            racket.position: Qt.vector3d((-0.5 * stageEntity.width) + stageEntity.baseDepth, 0, 0)
+            racket.scale: Qt.vector3d(1, 4, 1)
+        },
+        Player { /* right */
+            name: "Peter"
+            color: "green"
+            racket.position: Qt.vector3d((0.5 * stageEntity.width) - stageEntity.baseDepth, 0, 0)
+            racket.scale: Qt.vector3d(1, 4, 1)
+        }
+    ]
 
-    onActiveChanged: console.log("GameScene active: " + active)
-    /*
+/*
     property int countdown: 10
-
     Timer {
         id: countdownTimer
         interval: 1000
@@ -24,7 +36,6 @@ Scene {
     }
 */
 
-    /* Score */
     Entity {
         id: scoreEntity
 
@@ -35,15 +46,12 @@ Scene {
             horizontalAlignment: Text.AlignHCenter
         }
     }
-    /* Score */
 
-    /* Stage */
     Stage {
         id: stageEntity
         width: 30
         height: 20
     }
-    /* Stage */
 
     onPressed: function (event) {
         console.log("Game | KeyboardHandler | onPressed")

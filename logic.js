@@ -16,7 +16,7 @@ function currentScene() {
 function nextScene(scene) {
     var nextScene = scene;
 
-    console.log(">>> Next scene " + nextScene + " " + nextScene.menuItemName)
+    console.log(">>> Next scene " + nextScene + " " + nextScene.title)
 
     if (gameState.sceneStack.length) {
         var currScene = gameState.sceneStack[gameState.sceneStack.length - 1];
@@ -43,7 +43,7 @@ function previousScene() {
         var prevScene = gameState.sceneStack[gameState.sceneStack.length - 1];
         prevScene.active = true;
 
-        console.log(">>> Previous scene " + prevScene + " " + prevScene.menuItemName)
+        console.log(">>> Previous scene " + prevScene + " " + prevScene.title)
 
         // Transform camera
         var pos = prevScene.position;
