@@ -123,8 +123,12 @@ Item {
                 id: keyboardHandler
                 sourceDevice: keyboardDevice
                 focus: true
-                onPressed: Logic.getLastSceneOnStack().onPressed(event)
-                onEscapePressed: Logic.getLastSceneOnStack().onEscapePressed(event)
+                onPressed: {
+                    if (event.key === Qt.Key_Escape)
+                        Logic.getLastSceneOnStack().onEscapePressed(event)
+                    else
+                        Logic.getLastSceneOnStack().onPressed(event)
+                }
             }
 
             FrameAction {
@@ -134,20 +138,6 @@ Item {
         }
     }
 
-    /*
-    transitions: [
-      Transition {
-          SequentialAnimation {
-              ScriptAction { script: Logic.transitionStarted() }
-              Vector3dAnimation {
-                  target: camera
-                  properties: "position,viewCenter"
-                  duration: 400
-              }
-              ScriptAction { script: Logic.transitionFinished() }
-          }
-      } ]
-*/
     Component.onCompleted: {
         gameState = Logic.initialise(root, camera)
         Logic.nextScene(introScene)

@@ -11,7 +11,7 @@ Entity {
     property real width: 40
     property real height: 30
 
-    property real baseDepth: 4
+    property real playerBaseDepth: 4
 
     property list<Wall> walls: [ /* Order: top, right, bottom, left */
         Wall {
@@ -50,9 +50,9 @@ Entity {
 
         Transform {
             id: leftBaseTransform
-            scale3D: Qt.vector3d(baseDepth, 1, height)
+            scale3D: Qt.vector3d(playerBaseDepth, 1, height)
             rotation: fromAxisAndAngle(Qt.vector3d(1, 0, 0), 90)
-            translation: Qt.vector3d(leftWall.position.x + baseDepth * 0.5, 0, 0)
+            translation: Qt.vector3d(leftWall.position.x + playerBaseDepth * 0.5, 0, 0)
         }
 
         components: [baseMesh, baseMaterial, leftBaseTransform]
@@ -63,9 +63,9 @@ Entity {
 
         Transform {
             id: rightBaseTransform
-            scale3D: Qt.vector3d(baseDepth, 1, height)
+            scale3D: Qt.vector3d(playerBaseDepth, 1, height)
             rotation: fromAxisAndAngle(Qt.vector3d(1, 0, 0), 90)
-            translation: Qt.vector3d(rightWall.position.x - baseDepth * 0.5, 0, 0)
+            translation: Qt.vector3d(rightWall.position.x - playerBaseDepth * 0.5, 0, 0)
         }
 
         components: [baseMesh, baseMaterial, rightBaseTransform]

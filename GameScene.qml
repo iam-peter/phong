@@ -14,13 +14,13 @@ Scene {
         Player { /* left */
             name: "Joe"
             color: "red"
-            racket.position: Qt.vector3d((-0.5 * stageEntity.width) + stageEntity.baseDepth, 0, 0)
+            racket.position: Qt.vector3d((-0.5 * stageEntity.width) + stageEntity.playerBaseDepth, 0, 0)
             racket.scale: Qt.vector3d(1, 4, 1)
         },
         Player { /* right */
             name: "Peter"
             color: "green"
-            racket.position: Qt.vector3d((0.5 * stageEntity.width) - stageEntity.baseDepth, 0, 0)
+            racket.position: Qt.vector3d((0.5 * stageEntity.width) - stageEntity.playerBaseDepth, 0, 0)
             racket.scale: Qt.vector3d(1, 4, 1)
         }
     ]

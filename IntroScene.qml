@@ -49,6 +49,7 @@ Scene {
         event.accepted = true;
     }
     onEscapePressed: function (event) {
+        console.log("Intro | KeyboardHandler | onPressed")
         event.accepted = true;
     }
 }
