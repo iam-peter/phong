@@ -20,6 +20,29 @@ Item {
 
     property var gameState
 
+    property Scene intro: introScene
+    property Scene menu: menuScene
+    property Scene game: gameScene
+
+    property alias cameraAnimation: cameraAnimation
+    property alias cameraPositionAnimation: cameraPositionAnimation
+    property alias cameraViewCenterAnimation: cameraViewCenterAnimation
+
+    ParallelAnimation {
+        id: cameraAnimation
+
+        Vector3dAnimation {
+            id: cameraPositionAnimation
+            target: camera
+            property: "position"
+        }
+        Vector3dAnimation {
+            id: cameraViewCenterAnimation
+            target: camera
+            property: "viewCenter"
+        }
+    }
+
     Scene3D {
         id: scene3d
         anchors.fill: parent
@@ -100,8 +123,8 @@ Item {
                 id: keyboardHandler
                 sourceDevice: keyboardDevice
                 focus: true
-                onPressed: Logic.currentScene().onPressed(event)
-                onEscapePressed: Logic.currentScene().onEscapePressed(event)
+                onPressed: Logic.getLastSceneOnStack().onPressed(event)
+                onEscapePressed: Logic.getLastSceneOnStack().onEscapePressed(event)
             }
 
             FrameAction {
@@ -126,8 +149,7 @@ Item {
       } ]
 */
     Component.onCompleted: {
-        console.log(">>> onCompleted")
-        gameState = Logic.initialise(camera)
+        gameState = Logic.initialise(root, camera)
         Logic.nextScene(introScene)
     }
 }

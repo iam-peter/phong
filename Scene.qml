@@ -14,16 +14,23 @@ Entity {
     property Camera camera
     property string title: "unknown"
 
-    property var onPressed: function (event) {
+    property var onPressed: function(event) {
         console.log("Scene | onPressed")
         event.accepted = true;
     }
 
-    property var onEscapePressed: function (event) {
+    property var onEscapePressed: function(event) {
         console.log("Scene | onEscapePressed")
 
         Logic.previousScene()
         event.accepted = true;
+    }
+
+    property var onTransitionStarted: function() {
+        console.log("Scene | onTransitionStarted " + title)
+    }
+    property var onTransitionFinished: function() {
+        console.log("Scene | onTransitionFinished " + title)
     }
 
     Transform {

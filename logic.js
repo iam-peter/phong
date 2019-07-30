@@ -2,62 +2,73 @@
 .import QtQuick 2.0 as QQ
 
 // Game Stuff
-var gameState = {};
-var camera = {};
-function getGameState() { return gameState; }
+var m_root = null;
+var m_gameState = {};
+var m_camera = {};
+function getGameState() { return m_gameState; }
 
-function currentScene() {
-    if (gameState.sceneStack.length)
-        return gameState.sceneStack[gameState.sceneStack.length - 1];
+function initialise(root, camera)
+{
+    m_root = root;
+    m_camera = camera;
+    m_gameState.sceneStack = [];
+    return m_gameState;
+}
 
-    return null;
+function getLastSceneOnStack() {
+    return (m_gameState.sceneStack.length) ? m_gameState.sceneStack[m_gameState.sceneStack.length - 1] : null;
 }
 
 function nextScene(scene) {
     var nextScene = scene;
+    var currScene = getLastSceneOnStack();
 
     console.log(">>> Next scene " + nextScene + " " + nextScene.title)
 
-    if (gameState.sceneStack.length) {
-        var currScene = gameState.sceneStack[gameState.sceneStack.length - 1];
+    if (currScene !== null) {
         currScene.active = false;
     }
 
     // Transform camera
-    var pos = nextScene.position;
-    camera.viewCenter = pos;
-    camera.position = pos.plus(Qt.vector3d(0, 0, 34));
+    transformCamera(nextScene.position);
 
     // Push next scene to stack
-    gameState.sceneStack.push(nextScene);
+    m_gameState.sceneStack.push(nextScene);
     nextScene.active = true;
 }
 
 function previousScene() {
     // Pop current scene of stack
-    var currScene = gameState.sceneStack.pop();
+    var currScene = m_gameState.sceneStack.pop();
     currScene.active = false;
+    var prevScene = getLastSceneOnStack();
 
     // Set remaining scene as current
-    if (gameState.sceneStack.length) {
-        var prevScene = gameState.sceneStack[gameState.sceneStack.length - 1];
+    if (prevScene !== null) {
         prevScene.active = true;
 
         console.log(">>> Previous scene " + prevScene + " " + prevScene.title)
 
+        m_root.cameraAnimation.started.connect(function() {
+            prevScene.onTransitionStarted()
+        })
+        m_root.cameraAnimation.finished.connect(function() {
+            prevScene.onTransitionFinished()
+        })
+
         // Transform camera
-        var pos = prevScene.position;
-        camera.viewCenter = pos;
-        camera.position = pos.plus(Qt.vector3d(0, 0, 34));
+        transformCamera(prevScene.position)
     }
 }
 
-function initialise(cam)
-{
-    camera = cam;
+function transformCamera(position) {
 
-    gameState.sceneStack = [];
-    return gameState;
+    if (m_root.cameraAnimation.running)
+        m_root.cameraAnimation.complete()
+
+    m_root.cameraViewCenterAnimation.to = position;
+    m_root.cameraPositionAnimation.to = position.plus(Qt.vector3d(0, 0, 34));
+    m_root.cameraAnimation.start();
 }
 
 

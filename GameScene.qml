@@ -25,16 +25,16 @@ Scene {
         }
     ]
 
-/*
+
     property int countdown: 10
+
     Timer {
         id: countdownTimer
         interval: 1000
-        running: root.countdown < 5
+        running: scene.countdown < 5
         repeat: true
-        onTriggered: root.countdown++
+        onTriggered: scene.countdown++
     }
-*/
 
     Entity {
         id: scoreEntity
@@ -45,6 +45,24 @@ Scene {
             depth: 1.0
             horizontalAlignment: Text.AlignHCenter
         }
+    }
+
+    Entity {
+        id: countdownEntity
+
+        ExtrudedTextWrapper {
+            id: countdownMesh
+            text: scene.countdown
+            depth: 1.0
+            ambientColor: "pink"
+            horizontalAlignment: Text.AlignHCenter
+        }
+        Transform {
+            id: countdownTransform
+            translation: Qt.vector3d(0, -3, 0)
+        }
+
+        components: [countdownMesh, countdownTransform]
     }
 
     Stage {
