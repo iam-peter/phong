@@ -24,7 +24,6 @@ qt_add_qml_module(phong-cpp
         qml/Scene.qml
         qml/Text3D.qml
         qml/Disc.qml
-        qml/IntroScene.qml
         qml/MenuScene.qml
         qml/GameScene.qml
         qml/SettingsScene.qml

@@ -111,7 +111,7 @@ Window {
         PerspectiveCamera {
             id: camera
 
-            position: Qt.vector3d(introScene.x, introScene.y, Theme.cameraDistance)
+            position: Qt.vector3d(menuScene.x, menuScene.y, Theme.cameraDistance)
             fieldOfView: 45
             clipNear: 0.1
             clipFar: 1000
@@ -131,13 +131,6 @@ Window {
             property: "position"
             duration: Theme.cameraDuration
             easing.type: Easing.InOutQuad
-        }
-
-        IntroScene {
-            id: introScene
-            phong: phong
-            position: Qt.vector3d(-40, 0, 0)
-            followingScene: menuScene
         }
 
         MenuScene {
@@ -203,5 +196,5 @@ Window {
         }
     }
 
-    Component.onCompleted: nextScene(introScene)
+    Component.onCompleted: nextScene(menuScene)
 }
