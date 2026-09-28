@@ -1,5 +1,9 @@
 #include "lan.h"
 
+#if defined(PHONG_HAVE_RELAY)
+#include "relayserver.h"
+#endif
+
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTest>
@@ -63,6 +67,76 @@ private slots:
         QCOMPARE(peerLeft.last().at(0).toInt(), id);
         QVERIFY(host.peers().isEmpty());
     }
+
+#if defined(PHONG_HAVE_RELAY)
+    void throughTheServer()
+    {
+        RelayServer server;
+        QVERIFY(server.listen(0));
+        const QString url = QStringLiteral("127.0.0.1:%1").arg(server.port());
+
+        Lan host;
+        QSignalSpy joined(&host, &Lan::peerJoined);
+        QSignalSpy received(&host, &Lan::received);
+        QSignalSpy peerLeft(&host, &Lan::peerLeft);
+        host.hostOnline(url, QStringLiteral("Host"), {});
+        QTRY_COMPARE(host.role(), Lan::Host);
+        QVERIFY(host.isOnline());
+        QCOMPARE(host.roomCode().size(), RelayServer::codeLength);
+
+        // A wrong code
+        Lan lost;
+        QSignalSpy lostLeft(&lost, &Lan::left);
+        lost.joinOnline(url, QStringLiteral("QQQQ"), QStringLiteral("Lost"));
+        QTRY_COMPARE(lostLeft.count(), 1);
+        QVERIFY(!lost.error().isEmpty());
+
+        Lan client;
+        QSignalSpy fromHost(&client, &Lan::receivedFromHost);
+        QSignalSpy latency(&client, &Lan::latencyChanged);
+        client.joinOnline(url, host.roomCode().toLower(), QStringLiteral("Guest"));
+        QTRY_COMPARE(client.role(), Lan::Client);
+        QVERIFY(client.isOnline());
+        QTRY_COMPARE(joined.count(), 1);
+        QCOMPARE(joined.last().at(1).toString(), QStringLiteral("Guest"));
+        const int id = joined.last().at(0).toInt();
+        QCOMPARE(client.clientId(), id);
+
+        // Both ways, and the latency is measured without the game seeing it
+        client.sendToHost({ { QStringLiteral("t"), QStringLiteral("input") }, { QStringLiteral("move"), 1 } });
+        QTRY_COMPARE(received.count(), 1);
+        QCOMPARE(received.last().at(0).toInt(), id);
+        host.send(id, { { QStringLiteral("t"), QStringLiteral("one") } });
+        host.sendAll({ { QStringLiteral("t"), QStringLiteral("all") } });
+        QTRY_COMPARE(fromHost.count(), 2);
+        QCOMPARE(fromHost.at(0).at(0).toMap().value(QStringLiteral("t")).toString(), QStringLiteral("one"));
+        QTRY_VERIFY(latency.count() > 0);
+        QVERIFY(client.latency() >= 0);
+        QCOMPARE(received.count(), 1);
+
+        // Kicked through the server
+        QSignalSpy left(&client, &Lan::left);
+        host.kick(id);
+        QTRY_COMPARE(left.count(), 1);
+        QTRY_COMPARE(peerLeft.count(), 1);
+
+        // The host goes, so does the room
+        host.leave();
+        QTRY_COMPARE(server.roomCount(), 0);
+    }
+
+    void onlineNeverShowsTheMachine()
+    {
+        Lan lan;
+        QCOMPARE(lan.localName(), lan.machineName());
+        lan.setPlayerName(QStringLiteral("  Ace of spades and more  "));
+        QCOMPARE(lan.localName(), QStringLiteral("Ace of spade"));
+        QCOMPARE(Lan::serverUrl(QStringLiteral("example.com"), 45460).toString(),
+                 QStringLiteral("ws://example.com:45460"));
+        QCOMPARE(Lan::serverUrl(QStringLiteral("https://example.com/phong"), 45460).toString(),
+                 QStringLiteral("wss://example.com/phong"));
+    }
+#endif
 
     void hostGoesAway()
     {

@@ -31,7 +31,10 @@ Scene {
     property var remoteSlots: []
     property int remoteSlot: -1
 
+    // Open to others, on the LAN or through the server
     readonly property bool hostingLan: Lan.role === Lan.Host
+    readonly property bool lanOpen: hostingLan && !Lan.online
+    readonly property bool onlineOpen: Lan.online && (Lan.role === Lan.Host || Lan.role === Lan.Joining)
     readonly property var colors: [Theme.leftPlayer, Theme.rightPlayer, Theme.tint("#ffd24d"),
                                    Theme.tint("#66ff66"), Theme.tint("#ff8c1a"), Theme.tint("#a64dff")]
 
@@ -65,8 +68,11 @@ Scene {
             items.push({ text: qsTr("Keyboards"), value: keyboards, cycles: true, change: () => root.cycleKeyboards() })
         }
         if (Lan.canHost)
-            items.push({ text: hostingLan ? qsTr("LAN open") : qsTr("LAN closed"), cycles: true,
+            items.push({ text: lanOpen ? qsTr("LAN open") : qsTr("LAN closed"), cycles: true,
                          change: () => root.toggleLan() })
+        items.push({ text: !onlineOpen ? qsTr("Online closed") : Lan.role === Lan.Host ? qsTr("Online open")
+                                                                        : qsTr("Online..."),
+                     cycles: true, change: () => root.toggleOnline() })
         items.push({ text: qsTr("Start"), activate: () => root.start() })
         items.push({ text: qsTr("Back"), activate: () => root.back() })
         return items
@@ -88,7 +94,7 @@ Scene {
             case "pad":
                 return slot.pad?.name ?? qsTr("Gamepad")
             case "remote":
-                return qsTr("%1 on the LAN").arg(slot.name)
+                return (Lan.online ? qsTr("%1 online") : qsTr("%1 on the LAN")).arg(slot.name)
             case "host":
                 return qsTr("%1, the host").arg(slot.name)
             default:
@@ -103,7 +109,7 @@ Scene {
                 return { kind: "remote", name: slot.name, id: slot.id }
             if (slot.kind === "cpu")
                 return { kind: "cpu" }
-            return { kind: "host", name: Lan.machineName }
+            return { kind: "host", name: Lan.localName }
         })
     }
 
@@ -143,17 +149,27 @@ Scene {
         SoundEffects.play(SoundEffects.MenuMove)
     }
 
+    // Only one at a time, the LAN or the server
+    function closeGame() {
+        joiners = joiners.filter((j) => j.kind !== "remote")
+        watchers = []
+        Lan.leave()
+    }
+
     function toggleLan() {
         SoundEffects.play(SoundEffects.MenuSelect)
-        if (hostingLan) {
-            for (const joiner of joiners.filter((j) => j.kind === "remote"))
-                dropJoiner(joiner)
-            watchers = []
-            Lan.leave()
-        }
-        else {
-            Lan.host(Lan.machineName, { mode: party ? "party" : "classic", players: players, open: capacity })
-        }
+        const open = lanOpen
+        closeGame()
+        if (!open)
+            Lan.host(Lan.localName, { mode: party ? "party" : "classic", players: players, open: capacity })
+    }
+
+    function toggleOnline() {
+        SoundEffects.play(SoundEffects.MenuSelect)
+        const open = onlineOpen
+        closeGame()
+        if (!open)
+            Lan.hostOnline(GameSettings.serverUrl, Lan.localName, {})
     }
 
     // A player on the network who no longer fits watches instead
@@ -270,6 +286,18 @@ Scene {
         }
     }
 
+    // A lost connection to the server takes the players with it
+    Connections {
+        target: Lan
+        enabled: !root.remote
+        function onRoleChanged() {
+            if (Lan.role === Lan.NoRole) {
+                root.joiners = root.joiners.filter((j) => j.kind !== "remote")
+                root.watchers = []
+            }
+        }
+    }
+
     Connections {
         target: Lan
         enabled: root.hostingLan && !root.remote
@@ -322,6 +350,17 @@ Scene {
         text: root.party ? qsTr("%1 Players").arg(root.players) : qsTr("2 Players")
     }
 
+    // The code others join the room with
+    Text3D {
+        visible: root.onlineOpen && root.hostingLan && !root.remote
+        y: -2.0
+        scale: Qt.vector3d(0.9, 0.9, 0.9)
+        horizontalAlignment: Text.AlignHCenter
+        color: Theme.title
+        glow: 0.6
+        text: qsTr("Room code %1").arg(Lan.roomCode)
+    }
+
     // The sides and who plays them
     Repeater3D {
         model: root.slots
@@ -332,7 +371,7 @@ Scene {
             required property var modelData
             required property int index
 
-            y: 5.8 - index * 1.4
+            y: 5.8 - index * 1.3
 
             Disc {
                 position: Qt.vector3d(-11.0, 0.3, 0)
@@ -362,14 +401,17 @@ Scene {
     }
 
     Text3D {
-        y: -2.8
+        y: -2.9
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
         color: root.hostingLan ? Theme.title : Theme.dimmed
+        readonly property string watching: root.watchers.length > 0 ? qsTr(", %n watching", "", root.watchers.length) : ""
         text: root.remote ? (root.remoteSlot < 0 ? qsTr("Every side is taken, you watch once the host starts")
                                                  : qsTr("Waiting for the host to start"))
-              : root.hostingLan ? qsTr("Open on the LAN, from a browser join %1").arg(Lan.addresses.slice(0, 2).join(qsTr(" or ")))
-                                  + (root.watchers.length > 0 ? qsTr(", %n watching", "", root.watchers.length) : "")
+              : root.lanOpen ? qsTr("Open on the LAN, from a browser join %1").arg(Lan.addresses.slice(0, 2).join(qsTr(" or ")))
+                               + watching
+              : root.onlineOpen && root.hostingLan ? qsTr("Open online, others join with the room code") + watching
+              : root.onlineOpen ? qsTr("Opening a room on the server")
               : Lan.error !== "" ? Lan.error
               : ""
     }
@@ -395,7 +437,7 @@ Scene {
 
             readonly property bool selected: index === root.currentItem
 
-            y: -5.4 - index * 1.3
+            y: -4.9 - index * 1.2
             horizontalAlignment: Text.AlignHCenter
             text: modelData.text + (modelData.value !== undefined ? "  " + modelData.value : "")
             clickable: true

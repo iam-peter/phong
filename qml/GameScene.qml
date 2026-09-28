@@ -1620,9 +1620,9 @@ Scene {
         serveDelay: GameSettings.kickoffTime
 
         // On the LAN the machines' names
-        left.name: root.remotes[0]?.name ?? (root.hostingLan ? Lan.machineName
+        left.name: root.remotes[0]?.name ?? (root.hostingLan ? Lan.localName
                    : root.mode !== GameScene.TwoPlayers ? qsTr("You") : qsTr("Ping"))
-        right.name: root.remotes[1]?.name ?? (root.hostingLan ? Lan.machineName
+        right.name: root.remotes[1]?.name ?? (root.hostingLan ? Lan.localName
                     : root.tournament ? root.opponent.name ?? ""
                     : root.squash ? qsTr("Wall")
                     : root.againstComputer ? qsTr("CPU") : qsTr("Pong"))

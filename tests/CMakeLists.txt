@@ -70,6 +70,10 @@ phong_add_test(tst_lan
     ${PROJECT_SOURCE_DIR}/src/lan.cpp
 )
 target_link_libraries(tst_lan PRIVATE Qt6::Network Qt6::WebSockets)
+if(TARGET phongrelay)
+    target_link_libraries(tst_lan PRIVATE phongrelay)
+    target_compile_definitions(tst_lan PRIVATE PHONG_HAVE_RELAY)
+endif()
 
 if(TARGET phongrelay)
     phong_add_test(tst_server)

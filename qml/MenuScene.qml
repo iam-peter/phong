@@ -40,7 +40,7 @@ Scene {
     readonly property var items: {
         const items = [
             { text: modes[mode].name, cycles: true, activate: () => root.play(root.modes[root.mode]) },
-            { text: qsTr("Join LAN game"), activate: () => phong.openJoin() },
+            { text: qsTr("Join game"), activate: () => phong.openJoin() },
             { text: qsTr("Settings"), activate: () => phong.nextScene(root.settingsScene) },
             { text: qsTr("Stats"), activate: () => phong.nextScene(root.statsScene) }
         ]

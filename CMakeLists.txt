@@ -72,6 +72,7 @@ qt_add_qml_module(phong
         qml/JoinScene.qml
         qml/LobbyScene.qml
         qml/ControlsScene.qml
+        qml/OnlineScene.qml
         qml/PartyScene.qml
         qml/PhongMaterial.qml
         qml/Starfield.qml
@@ -136,6 +137,13 @@ set_target_properties(phong PROPERTIES
 if(EMSCRIPTEN)
     # PhysX and the Qt Quick 3D renderer need more than the default heap
     set_target_properties(phong PROPERTIES QT_WASM_INITIAL_MEMORY "128MB")
+endif()
+
+# Where the game finds phong-server, e.g. wss://phong.example.com, the
+# players can set another one
+set(PHONG_SERVER_URL "" CACHE STRING "The default server for games over the internet")
+if(PHONG_SERVER_URL)
+    target_compile_definitions(phong PRIVATE PHONG_SERVER_URL="${PHONG_SERVER_URL}")
 endif()
 
 # The server for games over the internet, see server/

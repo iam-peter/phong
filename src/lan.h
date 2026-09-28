@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QTimer>
+#include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -18,6 +19,10 @@ class QWebSocketServer;
 // in over WebSockets, they send their input and get the state back. Hosts
 // announce themselves by UDP broadcast, browsers can't receive those or
 // host, but they can join a host by its address.
+//
+// Over the internet the same game goes through phong-server: the host
+// opens a room there and gets a code, the others join with the code, and
+// the server passes the messages. Browsers can host those too.
 class Lan : public QObject
 {
     Q_OBJECT
@@ -39,6 +44,17 @@ class Lan : public QObject
     Q_PROPERTY(QString machineName READ machineName CONSTANT)
     // Random and kept, it tells a host that a player is back
     Q_PROPERTY(QString token READ token CONSTANT)
+    // The name the player chose, empty for none
+    Q_PROPERTY(QString playerName READ playerName WRITE setPlayerName NOTIFY nameChanged)
+    // The name the others see: the chosen one, or the machine's on the
+    // LAN, never the machine's over the internet
+    Q_PROPERTY(QString localName READ localName NOTIFY nameChanged)
+    // Hosting or joined through the server
+    Q_PROPERTY(bool online READ isOnline NOTIFY roleChanged)
+    // The code of the room while hosting online
+    Q_PROPERTY(QString roomCode READ roomCode NOTIFY roleChanged)
+    // Milliseconds to the host and back, -1 before the first answer
+    Q_PROPERTY(int latency READ latency NOTIFY latencyChanged)
 
 public:
     enum Role {
@@ -53,6 +69,8 @@ public:
     static constexpr quint16 discoveryPort = 45454;
     // Bumped when the messages change, older clients are turned away
     static constexpr int protocolVersion = 2;
+    // Seconds between two latency checks
+    static constexpr int pingInterval = 1000;
 
     explicit Lan(QObject* parent = nullptr);
     ~Lan() override;
@@ -66,8 +84,13 @@ public:
     Q_INVOKABLE void sendAll(const QVariantMap& message);
     Q_INVOKABLE void kick(int peer);
 
+    // Opens a room on the server at serverUrl, like ws://example.com:45460
+    Q_INVOKABLE void hostOnline(const QString& serverUrl, const QString& name, const QVariantMap& info);
+
     // url like ws://192.168.1.5:45455
     Q_INVOKABLE void join(const QString& url, const QString& name);
+    // The room with code on the server
+    Q_INVOKABLE void joinOnline(const QString& serverUrl, const QString& code, const QString& name);
     // Client to host
     Q_INVOKABLE void sendToHost(const QVariantMap& message);
 
@@ -87,12 +110,23 @@ public:
     QString error() const;
     QString machineName() const;
     QString token() const;
+    void setPlayerName(const QString& playerName);
+    QString playerName() const;
+    QString localName() const;
+    bool isOnline() const;
+    QString roomCode() const;
+    int latency() const;
+
+    // ws:// if the url has no scheme, the port if it has none
+    static QUrl serverUrl(const QString& url, quint16 port);
 
 signals:
     void roleChanged();
     void peersChanged();
     void gamesChanged();
     void errorChanged();
+    void nameChanged();
+    void latencyChanged(int);
 
     // Host side
     void peerJoined(int peer, const QString& name, const QString& token);
@@ -110,7 +144,10 @@ private:
         int id;
         QString name;
         QString token;
+        // A connection of its own on the LAN, or a peer of the room on
+        // the server
         QPointer<QWebSocket> socket;
+        int relayPeer;
     };
 
     void setRole(Role role);
@@ -120,7 +157,14 @@ private:
     void expireGames();
     void acceptConnection();
     void hostReceived(QWebSocket* socket, const QString& text);
+    // A message from a peer, on the LAN or through the server
+    void peerMessage(QWebSocket* socket, int relayPeer, const QVariantMap& message);
+    void deliver(QWebSocket* socket, int relayPeer, const QVariantMap& message);
     void dropSocket(QWebSocket* socket);
+    void dropPeer(qsizetype index);
+    void relayReceived(const QString& text);
+    void openClient(const QUrl& url, const QString& name, const QString& code);
+    void ping();
     void clientReceived(const QString& text);
     static QString encode(const QVariantMap& message);
     static QVariantMap decode(const QString& text);
@@ -128,6 +172,7 @@ private:
     Role m_role;
     QString m_error;
     QString m_token;
+    QString m_playerName;
 
     // Host
     QWebSocketServer* m_server;
@@ -138,10 +183,18 @@ private:
     QList<Peer> m_peers;
     QList<QWebSocket*> m_pending;
     int m_nextId;
+    // Online: the connection to the server, the code of the room and the
+    // peers of the room that haven't said hello yet
+    QWebSocket* m_relay;
+    QString m_roomCode;
+    QList<int> m_pendingRelay;
 
     // Client
     QWebSocket* m_socket;
     int m_clientId;
+    bool m_joinedOnline;
+    QTimer m_pingTimer;
+    int m_latency;
 
     // Browsing
     QUdpSocket* m_listener;

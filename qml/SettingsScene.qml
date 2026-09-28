@@ -9,6 +9,7 @@ OptionsScene {
 
     property Scene graphicsScene
     property Scene controlsScene
+    property Scene onlineScene
 
     title: qsTr("Settings")
 
@@ -117,6 +118,13 @@ OptionsScene {
             names: [],
             hint: ">",
             set: () => phong.nextScene(root.controlsScene)
+        },
+        {
+            label: qsTr("Online"),
+            values: [],
+            names: [],
+            hint: ">",
+            set: () => phong.nextScene(root.onlineScene)
         },
         {
             label: qsTr("Restore defaults"),

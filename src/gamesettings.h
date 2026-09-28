@@ -37,6 +37,12 @@ class GameSettings : public QObject
     Q_PROPERTY(int partyPlayers READ partyPlayers WRITE setPartyPlayers NOTIFY partyPlayersChanged)
     // The host last joined by address
     Q_PROPERTY(QString lanAddress READ lanAddress WRITE setLanAddress NOTIFY lanAddressChanged)
+    // The name the others see online and on the high scores, empty for none
+    Q_PROPERTY(QString playerName READ playerName WRITE setPlayerName NOTIFY playerNameChanged)
+    // phong-server for games over the internet and the shared high scores,
+    // the build's default until one is set, empty for none
+    Q_PROPERTY(QString serverUrl READ serverUrl WRITE setServerUrl NOTIFY serverUrlChanged)
+    Q_PROPERTY(QString defaultServer READ defaultServerUrl CONSTANT)
 
     Q_PROPERTY(qreal serveSpeed READ serveSpeed NOTIFY ballSpeedChanged)
     Q_PROPERTY(qreal maxSpeed READ maxSpeed NOTIFY ballSpeedChanged)
@@ -115,6 +121,13 @@ public:
     void setLanAddress(const QString& lanAddress);
     QString lanAddress() const;
 
+    void setPlayerName(const QString& playerName);
+    QString playerName() const;
+
+    void setServerUrl(const QString& serverUrl);
+    QString serverUrl() const;
+    static QString defaultServerUrl();
+
     qreal serveSpeed() const;
     qreal maxSpeed() const;
     qreal paddleLength() const;
@@ -136,6 +149,8 @@ signals:
     void modeChanged(int);
     void partyPlayersChanged(int);
     void lanAddressChanged(const QString&);
+    void playerNameChanged(const QString&);
+    void serverUrlChanged(const QString&);
 
 private:
     QSettings m_settings;
@@ -156,6 +171,8 @@ private:
     int m_mode;
     int m_partyPlayers;
     QString m_lanAddress;
+    QString m_playerName;
+    QString m_serverUrl;
 };
 
 #endif // GAMESETTINGS_H

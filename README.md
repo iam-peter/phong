@@ -257,7 +257,7 @@ players, the second one takes the next side.
 In the lobby of 2 Players and of the polygon mode `LAN open` lets players on
 the local network join. The host runs the game, the others send their
 paddle, smashes, specials and dashes and get the picture back, on the
-polygon each with their own side at the bottom. `Join LAN game` in
+polygon each with their own side at the bottom. `Join game` in
 the menu lists the games open on the network. The browser build can't look
 for games or open one, but it joins a desktop host by the address the host
 shows in its lobby, e.g. `192.168.1.5:45455`. The game uses TCP port 45455
@@ -270,6 +270,15 @@ the game recognises the machine. Everybody else who joins a game that is
 already running, or a lobby without a free side, watches: the game shows
 up without a side to play, `Esc` leaves. The list of games says which ones
 are playing or full.
+
+### Over the internet
+
+`Online open` in the lobby opens a room on a [server](#server) and shows
+its four letter code. The others join with `Join game`, `Room code` and the
+code, from anywhere, the browser version too, which can also host this way.
+The server is set under Settings, Online, next to the name the others see.
+Without a name they see "Player", the machine's name only goes out on the
+LAN.
 
 On Normal and Hard the computer aims its returns through modifiers it wants,
 Hard also plays the ball away from your paddle.

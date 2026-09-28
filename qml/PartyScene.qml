@@ -86,8 +86,8 @@ Scene {
         const names = []
         for (let side = 0; side < players; ++side)
             names.push(controller(side).kind !== "keyboard" ? playerName(side)
-                       : keyboards > 1 ? qsTr("%1 %2").arg(Lan.machineName).arg((controller(side).keys ?? 0) + 1)
-                       : Lan.machineName)
+                       : keyboards > 1 ? qsTr("%1 %2").arg(Lan.localName).arg((controller(side).keys ?? 0) + 1)
+                       : Lan.localName)
         return names
     }
 

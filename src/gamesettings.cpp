@@ -63,6 +63,8 @@ GameSettings::GameSettings(QObject* parent):
     m_mode = std::max(m_settings.value("mode", 0).toInt(), 0);
     m_partyPlayers = std::clamp(m_settings.value("partyPlayers", 4).toInt(), 3, 6);
     m_lanAddress = m_settings.value("lanAddress").toString();
+    m_playerName = m_settings.value("playerName").toString().left(12);
+    m_serverUrl = m_settings.value("serverUrl", defaultServerUrl()).toString();
 }
 
 void GameSettings::restoreDefaults()
@@ -325,6 +327,47 @@ void GameSettings::setLanAddress(const QString& lanAddress)
 QString GameSettings::lanAddress() const
 {
     return m_lanAddress;
+}
+
+void GameSettings::setPlayerName(const QString& playerName)
+{
+    const QString name = playerName.trimmed().left(12);
+    if (m_playerName == name)
+        return;
+
+    m_playerName = name;
+    m_settings.setValue("playerName", name);
+    emit playerNameChanged(name);
+}
+
+QString GameSettings::playerName() const
+{
+    return m_playerName;
+}
+
+void GameSettings::setServerUrl(const QString& serverUrl)
+{
+    const QString url = serverUrl.trimmed();
+    if (m_serverUrl == url)
+        return;
+
+    m_serverUrl = url;
+    m_settings.setValue("serverUrl", url);
+    emit serverUrlChanged(url);
+}
+
+QString GameSettings::serverUrl() const
+{
+    return m_serverUrl;
+}
+
+QString GameSettings::defaultServerUrl()
+{
+#if defined(PHONG_SERVER_URL)
+    return QStringLiteral(PHONG_SERVER_URL);
+#else
+    return QString();
+#endif
 }
 
 qreal GameSettings::serveSpeed() const

@@ -355,6 +355,13 @@ Window {
             position: Qt.vector3d(-phong.sceneSpacingX, phong.sceneSpacingY, 0)
             graphicsScene: graphicsScene
             controlsScene: controlsScene
+            onlineScene: onlineScene
+        }
+
+        OnlineScene {
+            id: onlineScene
+            phong: phong
+            position: Qt.vector3d(-phong.sceneSpacingX, 2 * phong.sceneSpacingY, 0)
         }
 
         ControlsScene {
@@ -500,6 +507,12 @@ Window {
         target: Gamepads
         property: "rumbleEnabled"
         value: GameSettings.rumble
+    }
+
+    Binding {
+        target: Lan
+        property: "playerName"
+        value: GameSettings.playerName
     }
 
     Component.onCompleted: {

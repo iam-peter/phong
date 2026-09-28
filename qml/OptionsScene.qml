@@ -12,12 +12,17 @@ Scene {
     property string title
     // { label, values, names, get, set } or { label, values: [], set, hint },
     // or { label, values: [], capture: true, get, set } for a key: set gets
-    // the next key pressed, with padCapture: true the next gamepad button
+    // the next key pressed, with padCapture: true the next gamepad button,
+    // or { label, values: [], text: true, maxLength, get, set } for a text
+    // typed and confirmed with Enter
     property var rows: []
     property int currentItem: 0
     // The row waiting for its key, -1 for none
     property int capturing: -1
     readonly property bool padCapturing: capturing >= 0 && (rows[capturing]?.padCapture ?? false)
+    readonly property bool textCapturing: capturing >= 0 && (rows[capturing]?.text ?? false)
+    // The text typed so far
+    property string typed: ""
     // The button that was just taken doesn't navigate the menu as well
     property bool swallowNavigation: false
     menuNavigation: !padCapturing && !swallowNavigation
@@ -44,6 +49,12 @@ Scene {
 
     function change(row, step) {
         const values = row.values
+        if (row.text) {
+            SoundEffects.play(SoundEffects.MenuSelect)
+            typed = row.get() ?? ""
+            capturing = rows.indexOf(row)
+            return
+        }
         if (row.capture) {
             SoundEffects.play(SoundEffects.MenuSelect)
             capturing = rows.indexOf(row)
@@ -66,6 +77,26 @@ Scene {
 
     onKeyPressed: (event) => {
         event.accepted = true
+        if (textCapturing) {
+            if (event.gamepad && event.key !== Qt.Key_Escape && event.key !== Qt.Key_Return)
+                return
+            const row = rows[capturing]
+            if (event.key === Qt.Key_Escape) {
+                capturing = -1
+            }
+            else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                row.set(typed)
+                SoundEffects.play(SoundEffects.MenuSelect)
+                capturing = -1
+            }
+            else if (event.key === Qt.Key_Backspace) {
+                typed = typed.slice(0, -1)
+            }
+            else if (event.text.length === 1 && event.text >= " " && typed.length < (row.maxLength ?? 40)) {
+                typed += event.text
+            }
+            return
+        }
         if (capturing >= 0) {
             // A key has to come from the keyboard, a button from a pad,
             // Escape cancels either
@@ -206,6 +237,21 @@ Scene {
                 color: root.capturing === row.index ? Theme.title : row.selected ? Theme.text : Theme.dimmed
                 text: root.capturing === row.index ? (row.modelData.padCapture ? qsTr("Press a button") : qsTr("Press a key"))
                                                    : row.modelData.get?.() ?? ""
+                clickable: visible
+                onClicked: {
+                    root.currentItem = row.index
+                    root.change(row.modelData, 1)
+                }
+            }
+
+            // A text, or the one being typed
+            Text3D {
+                x: 10.0
+                visible: row.modelData.text ?? false
+                horizontalAlignment: Text.AlignRight
+                color: root.capturing === row.index ? Theme.title : row.selected ? Theme.text : Theme.dimmed
+                text: root.capturing === row.index ? root.typed + "_"
+                      : (row.modelData.get?.() ?? "") || (row.modelData.placeholder ?? "")
                 clickable: visible
                 onClicked: {
                     root.currentItem = row.index

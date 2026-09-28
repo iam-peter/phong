@@ -27,6 +27,7 @@ Lan::Lan(QObject* parent):
     m_role(Role::NoRole),
     m_error(),
     m_token(),
+    m_playerName(),
     m_server(nullptr),
     m_announcer(nullptr),
     m_announceTimer(),
@@ -35,8 +36,14 @@ Lan::Lan(QObject* parent):
     m_peers(),
     m_pending(),
     m_nextId(1),
+    m_relay(nullptr),
+    m_roomCode(),
+    m_pendingRelay(),
     m_socket(nullptr),
     m_clientId(-1),
+    m_joinedOnline(false),
+    m_pingTimer(),
+    m_latency(-1),
     m_listener(nullptr),
     m_expireTimer(),
     m_games()
@@ -51,6 +58,8 @@ Lan::Lan(QObject* parent):
     m_announceTimer.setInterval(1000);
     connect(&m_announceTimer, &QTimer::timeout, this, &Lan::announce);
     m_expireTimer.setInterval(1000);
+    m_pingTimer.setInterval(pingInterval);
+    connect(&m_pingTimer, &QTimer::timeout, this, &Lan::ping);
     connect(&m_expireTimer, &QTimer::timeout, this, &Lan::expireGames);
 }
 
@@ -102,10 +111,9 @@ void Lan::setInfo(const QVariantMap& info)
 
 void Lan::send(int peer, const QVariantMap& message)
 {
-    const QString text = encode(message);
     for (const Peer& p : std::as_const(m_peers)) {
-        if (p.id == peer && p.socket)
-            p.socket->sendTextMessage(text);
+        if (p.id == peer)
+            deliver(p.socket, p.relayPeer, message);
     }
 }
 
@@ -113,6 +121,13 @@ void Lan::sendAll(const QVariantMap& message)
 {
     if (m_peers.isEmpty())
         return;
+
+    // The server passes one message on to the whole room
+    if (m_relay) {
+        m_relay->sendTextMessage(encode({ { QStringLiteral("t"), QStringLiteral("all") },
+                                          { QStringLiteral("m"), message } }));
+        return;
+    }
 
     const QString text = encode(message);
     for (const Peer& peer : std::as_const(m_peers)) {
@@ -124,36 +139,106 @@ void Lan::sendAll(const QVariantMap& message)
 void Lan::kick(int peer)
 {
     for (const Peer& p : std::as_const(m_peers)) {
-        if (p.id == peer && p.socket)
+        if (p.id != peer)
+            continue;
+        if (p.socket)
             p.socket->close();
+        else if (m_relay)
+            m_relay->sendTextMessage(encode({ { QStringLiteral("t"), QStringLiteral("close") },
+                                              { QStringLiteral("peer"), p.relayPeer } }));
     }
+}
+
+void Lan::hostOnline(const QString& serverUrl, const QString& name, const QVariantMap& info)
+{
+    leave();
+
+    const QUrl url = Lan::serverUrl(serverUrl, 45460);
+    if (!url.isValid() || url.host().isEmpty()) {
+        setError(tr("No server for games over the internet, see the settings"));
+        return;
+    }
+
+    m_name = name;
+    m_info = info;
+    m_relay = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
+    connect(m_relay, &QWebSocket::connected, this, [this] {
+        m_relay->sendTextMessage(encode({ { QStringLiteral("t"), QStringLiteral("create") },
+                                          { QStringLiteral("version"), protocolVersion } }));
+    });
+    connect(m_relay, &QWebSocket::textMessageReceived, this, &Lan::relayReceived);
+    connect(m_relay, &QWebSocket::disconnected, this, [this] {
+        QWebSocket* relay = m_relay;
+        if (!relay)
+            return;
+        if (m_error.isEmpty())
+            setError(relay->error() != QAbstractSocket::UnknownSocketError ? relay->errorString()
+                                                                           : tr("The connection to the server is gone"));
+        // Everybody in the room is gone with it
+        m_relay = nullptr;
+        relay->deleteLater();
+        leave();
+    });
+    setError(QString());
+    setRole(Role::Joining);
+    qCDebug(lcLan) << "Opening a room on" << url;
+    m_relay->open(url);
 }
 
 void Lan::join(const QString& url, const QString& name)
 {
+    openClient(serverUrl(url, defaultPort), name, QString());
+}
+
+void Lan::joinOnline(const QString& serverUrl, const QString& code, const QString& name)
+{
+    const QUrl url = Lan::serverUrl(serverUrl, 45460);
+    if (!url.isValid() || url.host().isEmpty()) {
+        leave();
+        setError(tr("No server for games over the internet, see the settings"));
+        emit left(m_error);
+        return;
+    }
+    openClient(url, name, code.trimmed().toUpper());
+}
+
+void Lan::openClient(const QUrl& target, const QString& name, const QString& code)
+{
     leave();
 
-    QUrl target = QUrl::fromUserInput(url.contains(QLatin1String("://")) ? url : QStringLiteral("ws://") + url);
-    target.setScheme(QStringLiteral("ws"));
-    if (target.port() < 0)
-        target.setPort(defaultPort);
-
+    // Online the server first needs the room, the host then the hello
+    m_joinedOnline = !code.isEmpty();
     m_socket = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
-    connect(m_socket, &QWebSocket::connected, this, [this, name] {
-        sendToHost({ { QStringLiteral("t"), QStringLiteral("hello") },
-                     { QStringLiteral("name"), name },
-                     { QStringLiteral("token"), m_token },
-                     { QStringLiteral("version"), protocolVersion } });
+    const QVariantMap hello{ { QStringLiteral("t"), QStringLiteral("hello") },
+                             { QStringLiteral("name"), name },
+                             { QStringLiteral("token"), m_token },
+                             { QStringLiteral("version"), protocolVersion } };
+    connect(m_socket, &QWebSocket::connected, this, [this, hello, code] {
+        if (code.isEmpty())
+            sendToHost(hello);
+        else
+            sendToHost({ { QStringLiteral("t"), QStringLiteral("join") }, { QStringLiteral("code"), code } });
     });
-    connect(m_socket, &QWebSocket::textMessageReceived, this, &Lan::clientReceived);
+    connect(m_socket, &QWebSocket::textMessageReceived, this, [this, hello](const QString& text) {
+        // The server found the room
+        if (m_role == Role::Joining && m_joinedOnline
+            && decode(text).value(QStringLiteral("t")).toString() == QLatin1String("joined")) {
+            sendToHost(hello);
+            return;
+        }
+        clientReceived(text);
+    });
     connect(m_socket, &QWebSocket::disconnected, this, [this] {
         const bool wasJoined = m_role == Role::Client || m_role == Role::Joining;
         QWebSocket* socket = m_socket;
         m_socket = nullptr;
+        m_pingTimer.stop();
         if (socket) {
             // The error may come after the disconnect
             if (m_error.isEmpty() && socket->error() != QAbstractSocket::UnknownSocketError)
                 setError(socket->errorString());
+            if (m_error.isEmpty() && !socket->closeReason().isEmpty())
+                setError(socket->closeReason());
             socket->deleteLater();
         }
         m_clientId = -1;
@@ -168,8 +253,24 @@ void Lan::join(const QString& url, const QString& name)
 
     setError(QString());
     setRole(Role::Joining);
-    qCDebug(lcLan) << "Joining" << target;
+    qCDebug(lcLan) << "Joining" << target << code;
     m_socket->open(target);
+}
+
+QUrl Lan::serverUrl(const QString& url, quint16 port)
+{
+    const QString trimmed = url.trimmed();
+    if (trimmed.isEmpty())
+        return QUrl();
+    QUrl target(trimmed.contains(QLatin1String("://")) ? trimmed : QStringLiteral("ws://") + trimmed);
+    if (target.scheme() == QLatin1String("http"))
+        target.setScheme(QStringLiteral("ws"));
+    else if (target.scheme() == QLatin1String("https"))
+        target.setScheme(QStringLiteral("wss"));
+    // wss usually goes through a proxy on the default port
+    if (target.port() < 0 && target.scheme() == QLatin1String("ws"))
+        target.setPort(port);
+    return target;
 }
 
 void Lan::sendToHost(const QVariantMap& message)
@@ -207,6 +308,15 @@ void Lan::leave()
         socket->deleteLater();
     }
     m_pending.clear();
+    m_pendingRelay.clear();
+    if (m_relay) {
+        QWebSocket* relay = m_relay;
+        m_relay = nullptr;
+        relay->disconnect(this);
+        relay->close();
+        relay->deleteLater();
+    }
+    m_roomCode.clear();
     if (!peers.isEmpty())
         emit peersChanged();
 
@@ -218,6 +328,12 @@ void Lan::leave()
         socket->deleteLater();
     }
     m_clientId = -1;
+    m_joinedOnline = false;
+    m_pingTimer.stop();
+    if (m_latency != -1) {
+        m_latency = -1;
+        emit latencyChanged(m_latency);
+    }
     setRole(Role::NoRole);
 }
 
@@ -343,6 +459,43 @@ QString Lan::token() const
     return m_token;
 }
 
+void Lan::setPlayerName(const QString& playerName)
+{
+    const QString name = playerName.trimmed().left(12);
+    if (m_playerName == name)
+        return;
+
+    m_playerName = name;
+    emit nameChanged();
+}
+
+QString Lan::playerName() const
+{
+    return m_playerName;
+}
+
+QString Lan::localName() const
+{
+    if (!m_playerName.isEmpty())
+        return m_playerName;
+    return isOnline() ? tr("Player") : machineName();
+}
+
+bool Lan::isOnline() const
+{
+    return m_relay || m_joinedOnline;
+}
+
+QString Lan::roomCode() const
+{
+    return m_roomCode;
+}
+
+int Lan::latency() const
+{
+    return m_latency;
+}
+
 QString Lan::machineName() const
 {
 #if defined(Q_OS_WASM)
@@ -458,36 +611,66 @@ void Lan::acceptConnection()
 
 void Lan::hostReceived(QWebSocket* socket, const QString& text)
 {
-    const QVariantMap message = decode(text);
+    peerMessage(socket, 0, decode(text));
+}
+
+void Lan::peerMessage(QWebSocket* socket, int relayPeer, const QVariantMap& message)
+{
+    const QString type = message.value(QStringLiteral("t")).toString();
 
     // The first message says who it is
-    if (m_pending.contains(socket)) {
-        if (message.value(QStringLiteral("t")).toString() != QLatin1String("hello"))
+    const bool pending = socket ? m_pending.contains(socket) : m_pendingRelay.contains(relayPeer);
+    if (pending) {
+        if (type != QLatin1String("hello"))
             return;
         m_pending.removeAll(socket);
+        m_pendingRelay.removeAll(relayPeer);
 
         if (message.value(QStringLiteral("version")).toInt() != protocolVersion) {
-            socket->sendTextMessage(encode({ { QStringLiteral("t"), QStringLiteral("refused") },
-                                             { QStringLiteral("reason"), tr("The game versions differ") } }));
-            socket->close();
+            deliver(socket, relayPeer, { { QStringLiteral("t"), QStringLiteral("refused") },
+                                         { QStringLiteral("reason"), tr("The game versions differ") } });
+            if (socket)
+                socket->close();
+            else if (m_relay)
+                m_relay->sendTextMessage(encode({ { QStringLiteral("t"), QStringLiteral("close") },
+                                                  { QStringLiteral("peer"), relayPeer } }));
             return;
         }
 
         const Peer peer{ m_nextId++, message.value(QStringLiteral("name")).toString().left(16),
-                         message.value(QStringLiteral("token")).toString().left(64), socket };
+                         message.value(QStringLiteral("token")).toString().left(64), socket, relayPeer };
         m_peers.append(peer);
-        socket->sendTextMessage(encode({ { QStringLiteral("t"), QStringLiteral("welcome") },
-                                         { QStringLiteral("id"), peer.id } }));
+        deliver(socket, relayPeer, { { QStringLiteral("t"), QStringLiteral("welcome") },
+                                     { QStringLiteral("id"), peer.id } });
         emit peersChanged();
         emit peerJoined(peer.id, peer.name, peer.token);
         return;
     }
 
+    // The latency is measured here, the game needn't know
+    if (type == QLatin1String("ping")) {
+        deliver(socket, relayPeer, { { QStringLiteral("t"), QStringLiteral("pong") },
+                                     { QStringLiteral("c"), message.value(QStringLiteral("c")) } });
+        return;
+    }
+
     for (const Peer& peer : std::as_const(m_peers)) {
-        if (peer.socket == socket) {
+        if (socket ? peer.socket == socket : (!peer.socket && peer.relayPeer == relayPeer)) {
             emit received(peer.id, message);
             return;
         }
+    }
+}
+
+void Lan::deliver(QWebSocket* socket, int relayPeer, const QVariantMap& message)
+{
+    if (socket) {
+        socket->sendTextMessage(encode(message));
+    }
+    else if (m_relay) {
+        m_relay->sendTextMessage(encode({ { QStringLiteral("t"), QStringLiteral("to") },
+                                          { QStringLiteral("peer"), relayPeer },
+                                          { QStringLiteral("m"), message } }));
     }
 }
 
@@ -496,14 +679,56 @@ void Lan::dropSocket(QWebSocket* socket)
     m_pending.removeAll(socket);
     for (qsizetype i = 0; i < m_peers.size(); ++i) {
         if (m_peers.at(i).socket == socket) {
-            const int id = m_peers.at(i).id;
-            m_peers.removeAt(i);
-            emit peersChanged();
-            emit peerLeft(id);
+            dropPeer(i);
             break;
         }
     }
     socket->deleteLater();
+}
+
+void Lan::dropPeer(qsizetype index)
+{
+    const int id = m_peers.at(index).id;
+    m_peers.removeAt(index);
+    emit peersChanged();
+    emit peerLeft(id);
+}
+
+void Lan::relayReceived(const QString& text)
+{
+    const QVariantMap message = decode(text);
+    const QString type = message.value(QStringLiteral("t")).toString();
+    const int relayPeer = message.value(QStringLiteral("peer")).toInt();
+
+    if (type == QLatin1String("room")) {
+        m_roomCode = message.value(QStringLiteral("code")).toString();
+        setRole(Role::Host);
+        qCDebug(lcLan) << "Hosting room" << m_roomCode;
+    }
+    else if (type == QLatin1String("error")) {
+        setError(message.value(QStringLiteral("reason")).toString());
+    }
+    else if (type == QLatin1String("open")) {
+        m_pendingRelay.append(relayPeer);
+    }
+    else if (type == QLatin1String("from")) {
+        peerMessage(nullptr, relayPeer, message.value(QStringLiteral("m")).toMap());
+    }
+    else if (type == QLatin1String("gone")) {
+        m_pendingRelay.removeAll(relayPeer);
+        for (qsizetype i = 0; i < m_peers.size(); ++i) {
+            if (!m_peers.at(i).socket && m_peers.at(i).relayPeer == relayPeer) {
+                dropPeer(i);
+                break;
+            }
+        }
+    }
+}
+
+void Lan::ping()
+{
+    sendToHost({ { QStringLiteral("t"), QStringLiteral("ping") },
+                 { QStringLiteral("c"), QDateTime::currentMSecsSinceEpoch() } });
 }
 
 void Lan::clientReceived(const QString& text)
@@ -514,13 +739,26 @@ void Lan::clientReceived(const QString& text)
     if (type == QLatin1String("welcome")) {
         m_clientId = message.value(QStringLiteral("id")).toInt();
         setRole(Role::Client);
+        m_pingTimer.start();
+        ping();
         emit joined();
         return;
     }
-    if (type == QLatin1String("refused")) {
+    if (type == QLatin1String("refused") || type == QLatin1String("error")) {
         setError(message.value(QStringLiteral("reason")).toString());
         if (m_socket)
             m_socket->close();
+        return;
+    }
+    if (type == QLatin1String("pong")) {
+        const qint64 sent = message.value(QStringLiteral("c")).toLongLong();
+        const int measured = int(std::clamp<qint64>(QDateTime::currentMSecsSinceEpoch() - sent, 0, 10000));
+        // Smoothed, a single slow answer doesn't count much
+        const int latency = m_latency < 0 ? measured : (3 * m_latency + measured) / 4;
+        if (latency != m_latency) {
+            m_latency = latency;
+            emit latencyChanged(latency);
+        }
         return;
     }
 

@@ -4,14 +4,16 @@ import QtQuick
 import QtQuick3D
 import Phong
 
-// Joining a game on the LAN: the hosts found on the network, or one by its
-// address. Browsers can't look for hosts, they take the address.
+// Joining a game: the hosts found on the LAN, one by its address, or a
+// room on the server by its code. Browsers can't look for hosts, they take
+// the address or the code.
 Scene {
     id: root
 
     property Scene menuScene
     property int currentItem: 0
     property string address: GameSettings.lanAddress
+    property string code: ""
     // Why the last try didn't work
     property string error: ""
 
@@ -25,6 +27,7 @@ Scene {
                          : game.info.open > 0 ? qsTr("%1 free").arg(game.info.open) : qsTr("full, to watch")),
             activate: () => root.join(game.url)
         }))
+        items.push({ text: qsTr("Room code"), code: true, activate: () => root.joinRoom() })
         items.push({ text: qsTr("Address"), address: true, activate: () => root.join(root.address) })
         items.push({ text: qsTr("Back"), activate: () => root.back() })
         return items
@@ -37,7 +40,17 @@ Scene {
         error = ""
         if (url === address)
             GameSettings.lanAddress = address
-        Lan.join(url, Lan.machineName)
+        Lan.join(url, Lan.localName)
+    }
+
+    // A room on the server
+    function joinRoom() {
+        if (code.length < 4 || joining)
+            return
+        SoundEffects.play(SoundEffects.MenuSelect)
+        error = GameSettings.serverUrl === "" ? qsTr("No server for games over the internet, see the settings") : ""
+        if (error === "")
+            Lan.joinOnline(GameSettings.serverUrl, code, Lan.localName)
     }
 
     function back() {
@@ -80,12 +93,16 @@ Scene {
             case Qt.Key_Backspace:
                 if (item.address)
                     address = address.slice(0, -1)
+                else if (item.code)
+                    code = code.slice(0, -1)
                 return
         }
 
-        // The address is typed in its row
+        // The address and the code are typed in their rows
         if (item.address && !event.gamepad && /^[0-9A-Za-z.:\-]$/.test(event.text ?? ""))
             address += event.text
+        else if (item.code && !event.gamepad && code.length < 4 && /^[A-Za-z]$/.test(event.text ?? ""))
+            code += event.text.toUpperCase()
     }
     onPointerPressed: (id, x, y) => phong.clickableAt(x, y)?.clicked()
 
@@ -150,6 +167,14 @@ Scene {
             }
 
             Text3D {
+                visible: row.modelData.code ?? false
+                x: 11.0
+                horizontalAlignment: Text.AlignRight
+                color: row.selected ? Theme.title : Theme.text
+                text: (root.code !== "" ? root.code : qsTr("ABCD")) + (row.selected ? "_" : "")
+            }
+
+            Text3D {
                 visible: row.modelData.detail !== undefined
                 x: 11.0
                 scale: Qt.vector3d(0.6, 0.6, 0.6)
@@ -165,6 +190,6 @@ Scene {
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.dimmed
-        text: qsTr("[Up/Down] select   type the address   [Enter] join   [Esc] back")
+        text: qsTr("[Up/Down] select   type the code or the address   [Enter] join   [Esc] back")
     }
 }
