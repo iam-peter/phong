@@ -20,8 +20,24 @@ PartyMatch::PartyMatch(QObject* parent):
     m_serveCountdown(0.0),
     m_serveDirection(),
     m_rally(0),
+    m_longestRally(0),
+    m_paddleSpeed(22.0),
+    m_lastTouch(-1),
+    m_heldBy(-1),
+    m_holdOffset(0.0),
+    m_holdTime(0.0),
+    m_heldSpeed(0.0),
+    m_playerObjects(),
     m_random(QRandomGenerator::global()->generate())
-{}
+{
+    for (int player = 0; player < maxPlayers; ++player)
+        m_playerObjects.append(new Player(this));
+}
+
+Player* PartyMatch::player(int player) const
+{
+    return player >= 0 && player < maxPlayers ? m_playerObjects.at(player) : nullptr;
+}
 
 QVector2D PartyMatch::normal(int player) const
 {
@@ -44,9 +60,21 @@ void PartyMatch::start()
         emit winnerChanged(m_winner);
     }
 
+    for (Player* player : std::as_const(m_playerObjects)) {
+        player->setHits(0);
+        player->setPower(0.0);
+        player->setCatches(0);
+    }
     m_ball->setVelocity(QVector2D());
-    m_ball->setLastTouch(Match::Side::NoSide);
+    m_ball->setSpin(0.0);
+    m_ball->setSmashed(false);
+    setHold(-1, 0.0, 0.0);
+    setLastTouch(-1);
     setRally(0);
+    if (m_longestRally != 0) {
+        m_longestRally = 0;
+        emit longestRallyChanged(0);
+    }
     prepareServe(-1);
     setState(State::Serving);
 }
@@ -74,6 +102,16 @@ void PartyMatch::resume()
 
 void PartyMatch::advance(qreal dt)
 {
+    if (m_state == State::Playing) {
+        curve(dt);
+        // A held ball goes when the time is up
+        if (m_heldBy >= 0) {
+            setHold(m_heldBy, m_holdOffset, std::max(m_holdTime - dt, 0.0));
+            if (m_holdTime <= 0.0)
+                releaseBall();
+        }
+        return;
+    }
     if (m_state != State::Serving)
         return;
 
@@ -83,29 +121,37 @@ void PartyMatch::advance(qreal dt)
         return;
 
     m_ball->setVelocity(m_serveDirection * float(m_serveSpeed));
+    m_ball->setSpin(0.0);
+    m_ball->setSmashed(false);
+    setLastTouch(-1);
     setState(State::Playing);
     emit served();
 }
 
-void PartyMatch::paddleHit(int player, qreal offset)
+void PartyMatch::paddleHit(int player, qreal offset, qreal paddleVelocity, qreal smash)
 {
-    if (m_state != State::Playing || !isAlive(player))
+    if (m_state != State::Playing || !isAlive(player) || m_heldBy >= 0)
         return;
 
     // Only balls running into the side, this also swallows repeated
     // contact reports
-    const QVector2D n = normal(player);
     const QVector2D velocity = m_ball->velocity();
-    if (QVector2D::dotProduct(velocity, n) <= 0.0f)
+    if (QVector2D::dotProduct(velocity, normal(player)) <= 0.0f)
         return;
 
-    // Back into the field, turned by where the ball met the paddle
-    const qreal angle = qDegreesToRadians(std::clamp(offset, -1.0, 1.0) * maxBounceAngle);
-    const QVector2D direction = -n * float(qCos(angle)) + tangent(player) * float(qSin(angle));
-    const qreal speed = std::min(qreal(velocity.length()) * m_speedUp, m_maxSpeed);
-    m_ball->setVelocity(direction * float(speed));
-    setRally(m_rally + 1);
-    emit paddleHitBall(player);
+    // A smash or a perfect hit is faster and may go beyond the max speed
+    smash = std::clamp(smash, 0.0, 1.0);
+    const bool perfect = std::abs(offset) <= Match::perfectZone
+                         && std::abs(paddleVelocity) <= Match::perfectStillness * m_paddleSpeed;
+    const qreal boost = (1.0 + Match::smashBoost * smash) * (perfect ? 1.0 + Match::perfectBoost : 1.0);
+    const qreal limit = m_maxSpeed * (1.0 + Match::smashOverspeed * smash
+                                      + (perfect ? Match::perfectOverspeed : 0.0));
+    const qreal speed = std::min(qreal(velocity.length()) * m_speedUp * boost, limit);
+
+    // Brushed along the tangent the ball curves back the other way
+    const qreal brush = m_paddleSpeed > 0.0 ? std::clamp(paddleVelocity / m_paddleSpeed, -1.0, 1.0) : 0.0;
+    hit(player, qDegreesToRadians(std::clamp(offset, -1.0, 1.0) * maxBounceAngle), speed,
+        brush * Match::maxSpin, smash, perfect);
 }
 
 bool PartyMatch::bounce(const QVector2D& normal)
@@ -120,6 +166,112 @@ bool PartyMatch::bounce(const QVector2D& normal)
         return false;
 
     m_ball->setVelocity(velocity - 2.0f * into * n);
+    m_ball->setSpin(0.5 * m_ball->spin());
+    return true;
+}
+
+bool PartyMatch::shieldHit(int player)
+{
+    Player* shielded = this->player(player);
+    if (m_state != State::Playing || !isAlive(player) || !shielded->isShielded())
+        return false;
+
+    const QVector2D n = normal(player);
+    const QVector2D velocity = m_ball->velocity();
+    const float into = QVector2D::dotProduct(velocity, n);
+    if (into <= 0.0f)
+        return false;
+
+    m_ball->setVelocity(velocity - 2.0f * into * n);
+    m_ball->setSpin(0.0);
+    m_ball->setSmashed(false);
+    shielded->setShielded(false);
+    emit shieldUsed(player);
+    return true;
+}
+
+void PartyMatch::scaleBallSpeed(qreal factor)
+{
+    if (m_state != State::Playing || factor <= 0.0)
+        return;
+
+    m_ball->setVelocity(m_ball->velocity() * float(factor));
+    m_heldSpeed *= factor;
+}
+
+void PartyMatch::attract(const QVector2D& position, const QVector2D& well, qreal strength, qreal dt)
+{
+    if (m_state != State::Playing || m_heldBy >= 0 || strength <= 0.0)
+        return;
+
+    const QVector2D velocity = m_ball->velocity();
+    const QVector2D towards = well - position;
+    const float distance = towards.length();
+    if (distance < 0.01f || velocity.isNull())
+        return;
+
+    // Like Match::attract(), the speed stays
+    constexpr float core = 2.0f;
+    const float pull = float(strength) / std::max(distance * distance, core * core);
+    const QVector2D bent = (velocity + towards / distance * pull * float(dt)).normalized();
+    m_ball->setVelocity(bent * velocity.length());
+}
+
+bool PartyMatch::useSpecial(int player)
+{
+    Player* user = this->player(player);
+    if ((m_state != State::Playing && m_state != State::Serving) || !isAlive(player) || user->power() < 1.0)
+        return false;
+
+    user->setPower(0.0);
+    user->setCatches(user->catches() + 1);
+    emit specialUsed(player);
+    return true;
+}
+
+bool PartyMatch::catchBall(int player, qreal offset)
+{
+    Player* catcher = this->player(player);
+    if (m_state != State::Playing || !isAlive(player) || catcher->catches() <= 0 || m_heldBy >= 0)
+        return false;
+
+    // Like a hit, only balls running into the side
+    if (QVector2D::dotProduct(m_ball->velocity(), normal(player)) <= 0.0f)
+        return false;
+
+    catcher->setCatches(catcher->catches() - 1);
+    m_heldSpeed = m_ball->velocity().length();
+    m_ball->setVelocity(QVector2D());
+    m_ball->setSpin(0.0);
+    m_ball->setSmashed(false);
+    setLastTouch(player);
+    setHold(player, std::clamp(offset, -1.0, 1.0), Match::maxHoldTime);
+    emit ballCaught(player);
+    return true;
+}
+
+void PartyMatch::aimHeldBall(qreal offset)
+{
+    if (m_heldBy < 0)
+        return;
+
+    setHold(m_heldBy, std::clamp(offset, -1.0, 1.0), m_holdTime);
+}
+
+bool PartyMatch::releaseBall(qreal smash)
+{
+    if (m_state != State::Playing || m_heldBy < 0)
+        return false;
+
+    const int player = m_heldBy;
+    const qreal offset = m_holdOffset;
+    setHold(-1, 0.0, 0.0);
+
+    // Like a hit at the offset, but without spin
+    smash = std::clamp(smash, 0.0, 1.0);
+    const qreal speed = std::min(m_heldSpeed * m_speedUp * (1.0 + Match::smashBoost * smash),
+                                 m_maxSpeed * (1.0 + Match::smashOverspeed * smash));
+    hit(player, qDegreesToRadians(offset * maxBounceAngle), speed, 0.0, smash, false);
     return true;
 }
 
@@ -133,9 +285,16 @@ void PartyMatch::goal(int player)
     emit goalScored(player);
 
     m_ball->setVelocity(QVector2D());
+    m_ball->setSpin(0.0);
+    m_ball->setSmashed(false);
+    setHold(-1, 0.0, 0.0);
     setRally(0);
 
     if (m_livesLeft.at(player) == 0) {
+        Player* out = this->player(player);
+        out->setPower(0.0);
+        out->setCatches(0);
+        out->setShielded(false);
         emit playerOut(player);
 
         if (alive() == 1) {
@@ -155,6 +314,14 @@ void PartyMatch::goal(int player)
 QVariantMap PartyMatch::snapshot() const
 {
     const QVector2D velocity = m_ball->velocity();
+    QVariantList power;
+    QVariantList catches;
+    QVariantList hits;
+    for (int player = 0; player < m_players; ++player) {
+        power.append(m_playerObjects.at(player)->power());
+        catches.append(m_playerObjects.at(player)->catches());
+        hits.append(m_playerObjects.at(player)->hits());
+    }
     return {
         { QStringLiteral("players"), m_players },
         { QStringLiteral("state"), int(m_state) },
@@ -163,7 +330,15 @@ QVariantMap PartyMatch::snapshot() const
         { QStringLiteral("countdown"), m_serveCountdown },
         { QStringLiteral("serve"), QVariantList{ m_serveDirection.x(), m_serveDirection.y() } },
         { QStringLiteral("rally"), m_rally },
-        { QStringLiteral("velocity"), QVariantList{ velocity.x(), velocity.y() } }
+        { QStringLiteral("longest"), m_longestRally },
+        { QStringLiteral("velocity"), QVariantList{ velocity.x(), velocity.y() } },
+        { QStringLiteral("spin"), m_ball->spin() },
+        { QStringLiteral("smashed"), m_ball->isSmashed() },
+        { QStringLiteral("touch"), m_lastTouch },
+        { QStringLiteral("hold"), QVariantList{ m_heldBy, m_holdOffset, m_holdTime } },
+        { QStringLiteral("power"), power },
+        { QStringLiteral("catches"), catches },
+        { QStringLiteral("hits"), hits }
     };
 }
 
@@ -203,7 +378,28 @@ void PartyMatch::applySnapshot(const QVariantMap& snapshot)
     if (velocity.size() == 2)
         m_ball->setVelocity(QVector2D(velocity.at(0).toFloat(), velocity.at(1).toFloat()));
 
+    m_ball->setSpin(snapshot.value(QStringLiteral("spin")).toDouble());
+    m_ball->setSmashed(snapshot.value(QStringLiteral("smashed")).toBool());
+    setLastTouch(snapshot.value(QStringLiteral("touch"), -1).toInt());
+    const QVariantList hold = snapshot.value(QStringLiteral("hold")).toList();
+    if (hold.size() == 3)
+        setHold(hold.at(0).toInt(), hold.at(1).toDouble(), hold.at(2).toDouble());
+
+    const QVariantList power = snapshot.value(QStringLiteral("power")).toList();
+    const QVariantList catches = snapshot.value(QStringLiteral("catches")).toList();
+    const QVariantList hits = snapshot.value(QStringLiteral("hits")).toList();
+    for (int player = 0; player < m_players; ++player) {
+        m_playerObjects.at(player)->setPower(power.value(player).toDouble());
+        m_playerObjects.at(player)->setCatches(catches.value(player).toInt());
+        m_playerObjects.at(player)->setHits(hits.value(player).toInt());
+    }
+
     setRally(snapshot.value(QStringLiteral("rally")).toInt());
+    const int longest = snapshot.value(QStringLiteral("longest")).toInt();
+    if (longest != m_longestRally) {
+        m_longestRally = longest;
+        emit longestRallyChanged(longest);
+    }
     setState(State(std::clamp(snapshot.value(QStringLiteral("state")).toInt(), 0, int(State::Finished))));
 }
 
@@ -341,6 +537,50 @@ int PartyMatch::rally() const
     return m_rally;
 }
 
+int PartyMatch::longestRally() const
+{
+    return m_longestRally;
+}
+
+void PartyMatch::setPaddleSpeed(qreal paddleSpeed)
+{
+    if (m_paddleSpeed == paddleSpeed)
+        return;
+
+    m_paddleSpeed = paddleSpeed;
+    emit paddleSpeedChanged(paddleSpeed);
+}
+
+qreal PartyMatch::paddleSpeed() const
+{
+    return m_paddleSpeed;
+}
+
+int PartyMatch::lastTouch() const
+{
+    return m_lastTouch;
+}
+
+int PartyMatch::heldBy() const
+{
+    return m_heldBy;
+}
+
+qreal PartyMatch::holdOffset() const
+{
+    return m_holdOffset;
+}
+
+qreal PartyMatch::holdTime() const
+{
+    return m_holdTime;
+}
+
+qreal PartyMatch::holdLimit() const
+{
+    return Match::maxHoldTime;
+}
+
 void PartyMatch::setSeed(quint32 seed)
 {
     m_random.seed(seed);
@@ -362,6 +602,62 @@ void PartyMatch::setRally(int rally)
 
     m_rally = rally;
     emit rallyChanged(rally);
+
+    if (rally > m_longestRally) {
+        m_longestRally = rally;
+        emit longestRallyChanged(rally);
+    }
+}
+
+void PartyMatch::setLastTouch(int player)
+{
+    if (m_lastTouch == player)
+        return;
+
+    m_lastTouch = player;
+    emit lastTouchChanged(player);
+}
+
+void PartyMatch::setHold(int player, qreal offset, qreal time)
+{
+    if (m_heldBy == player && m_holdOffset == offset && m_holdTime == time)
+        return;
+
+    m_heldBy = player;
+    m_holdOffset = offset;
+    m_holdTime = time;
+    emit holdChanged();
+}
+
+void PartyMatch::hit(int player, qreal angle, qreal speed, qreal spin, qreal smash, bool perfect)
+{
+    const QVector2D direction = -normal(player) * float(qCos(angle)) + tangent(player) * float(qSin(angle));
+    m_ball->setVelocity(direction * float(speed));
+    m_ball->setSpin(spin);
+    m_ball->setSmashed(smash >= Match::smashThreshold);
+    setLastTouch(player);
+
+    Player* hitter = this->player(player);
+    hitter->setHits(hitter->hits() + 1);
+    hitter->setPower(hitter->power() + (perfect ? 2.0 : 1.0) * Match::powerPerHit);
+
+    setRally(m_rally + 1);
+    emit paddleHitBall(player, smash, perfect);
+}
+
+void PartyMatch::curve(qreal dt)
+{
+    const qreal spin = m_ball->spin();
+    if (spin == 0.0)
+        return;
+
+    const QVector2D velocity = m_ball->velocity();
+    const float angle = float(spin * dt);
+    m_ball->setVelocity(QVector2D(velocity.x() * std::cos(angle) - velocity.y() * std::sin(angle),
+                                  velocity.x() * std::sin(angle) + velocity.y() * std::cos(angle)));
+
+    const qreal decayed = spin * std::exp(-Match::spinDecay * dt);
+    m_ball->setSpin(std::abs(decayed) < 0.02 ? 0.0 : decayed);
 }
 
 void PartyMatch::prepareServe(int conceder)

@@ -80,6 +80,18 @@ private slots:
         QCOMPARE(Stats().squashBest(), 20);
     }
 
+    void partyGames()
+    {
+        Stats stats;
+        stats.recordParty(false, 4);
+        stats.recordParty(true, 30);
+        QCOMPARE(Stats().partyGames(), 2);
+        QCOMPARE(Stats().partyWins(), 1);
+        QCOMPARE(stats.longestRally(), 30);
+        stats.reset();
+        QCOMPARE(stats.partyGames(), 0);
+    }
+
     void achievements()
     {
         Stats stats;

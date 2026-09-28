@@ -125,6 +125,22 @@ The keys of both players and the pause key can be changed on the controls
 screen in the settings: pick an action and press the new key. A key that
 another action has swaps with it, `Esc` and `Enter` stay with the menus.
 
+### On the polygon
+
+The 3-6 Players mode has two key sets of its own, the controls screen shows
+them on a page of their own. The directions push the paddle along its side
+the way it runs on the screen, like a stick, so the sides at the left and
+the right move with up and down.
+
+| | Keys 1 | Keys 2 |
+|---|---|---|
+| Move | `W` `A` `S` `D` | arrow keys |
+| Smash | hold `Space` | hold `.` |
+| Special | `E` | `,` |
+| Dash | tap a direction twice | tap a direction twice |
+
+A single keyboard player has both sets, the mouse steers the bottom side too.
+
 ### Gamepads
 
 The first gamepad plays the left paddle, with two players the second one
@@ -184,31 +200,14 @@ it.
 - **1 Player** against the computer, the level is set in the settings.
 - **2 Players** on one keyboard, with gamepads, or with two fingers on a
   touch screen.
-- **3-6 Players**, a test: on a regular polygon with a side for everybody,
-  a triangle for three up to a hexagon for six. The middle of each side is
-  its player's goal, posts at the ends keep the goals apart. Everybody has
-  three balls to lose, a player who is out gets a wall instead of the goal,
-  and the last one left wins. The keyboard player has the bottom side,
-  `Left`/`Right` or `A`/`D` move, gamepads push their paddle along their
-  side, the computer plays the others.
-
-Both start in a lobby that shows who plays which side. A gamepad joins with
-`A`, leaves with `B` and starts with `Start`. With two players the first
-pad takes the right side, the second one the left, the keyboard plays the
-rest.
-
-### On the LAN
-
-In the lobby of 2 Players and of the polygon mode `LAN open` lets players on
-the local network join. The host runs the game, the others send their
-paddle, smashes, specials and dashes and get the picture back, on the
-polygon each with their own side at the bottom. `Join LAN game` in
-the menu lists the games open on the network. The browser build can't look
-for games or open one, but it joins a desktop host by the address the host
-shows in its lobby, e.g. `192.168.1.5:45455`. The game uses TCP port 45455
-for the players and UDP port 45454 to find games, a firewall has to let
-them through. A player who leaves is replaced by the computer, only the host
-pauses, the others can leave with `Esc`.
+- **3-6 Players** on a regular polygon with a side for everybody, a
+  triangle for three up to a hexagon for six. The middle of each side is its
+  player's goal, posts at the ends keep the goals apart. Everybody has three
+  balls to lose, a player who is out gets a wall instead of the goal, and
+  the last one left wins. The paddles hit like on the classic field:
+  smashes, perfect hits, spin, dashes and the power bar with its special.
+  Two players can share the keyboard, see below, gamepads push their paddle
+  along their side and the computer plays the others.
 - **Ladder** against Easy, Normal and Hard in a row, a loss can be retried.
 - **Endless** against a computer getting harder and faster the longer you
   last, with three balls to lose. Every return scores a point, every ball the
@@ -228,6 +227,25 @@ pauses, the others can leave with `Esc`.
 
 The menu cycles through the modes with `Left`/`Right`, `Enter` plays.
 
+Both start in a lobby that shows who plays which side. A gamepad joins with
+`A`, leaves with `B` and starts with `Start`. With two players the first
+pad takes the right side, the second one the left, the keyboard plays the
+rest. In the polygon mode `Keyboards` gives the keyboard to one or two
+players, the second one takes the next side.
+
+### On the LAN
+
+In the lobby of 2 Players and of the polygon mode `LAN open` lets players on
+the local network join. The host runs the game, the others send their
+paddle, smashes, specials and dashes and get the picture back, on the
+polygon each with their own side at the bottom. `Join LAN game` in
+the menu lists the games open on the network. The browser build can't look
+for games or open one, but it joins a desktop host by the address the host
+shows in its lobby, e.g. `192.168.1.5:45455`. The game uses TCP port 45455
+for the players and UDP port 45454 to find games, a firewall has to let
+them through. A player who leaves is replaced by the computer, only the host
+pauses, the others can leave with `Esc`.
+
 On Normal and Hard the computer aims its returns through modifiers it wants,
 Hard also plays the ball away from your paddle.
 
@@ -237,17 +255,18 @@ scored against kicks off, the ball flies towards the scorer.
 
 A match is a single set or best of three or five, optionally won by two
 points. The stats screen keeps the record against every computer level, the
-best ladder run, the endless and squash high scores, the tournaments won and
-the longest rally.
+best ladder run, the endless and squash high scores, the tournaments won,
+the games of three to six players and the longest rally.
 
 ### Achievements
 
-Twelve challenges wait on the achievements screen, next to the stats, from
+Fourteen challenges wait on the achievements screen, next to the stats, from
 the first win against the computer to a rally of 20 on Elevators, a goal
 with a smash, five perfect hits in a match, a win after trailing by three
-or 100 points in endless play. They count for the player against the
-computer or the wall, the results show the ones a match brought. Resetting
-the stats resets them too.
+or 100 points in endless play, and winning on the polygon, once against
+five others. They count for the player against the computer or the wall
+and for the winner of a polygon game on its machine, the results show the
+ones a match brought. Resetting the stats resets them too.
 
 ## Modifiers
 

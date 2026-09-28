@@ -21,6 +21,9 @@ class Stats : public QObject
     Q_PROPERTY(int endlessBest READ endlessBest NOTIFY changed)
     Q_PROPERTY(int tournamentsWon READ tournamentsWon NOTIFY changed)
     Q_PROPERTY(int squashBest READ squashBest NOTIFY changed)
+    // Games of three to six players, and the ones won here
+    Q_PROPERTY(int partyGames READ partyGames NOTIFY changed)
+    Q_PROPERTY(int partyWins READ partyWins NOTIFY changed)
     // Challenges: id, name, description and whether it was done
     Q_PROPERTY(QVariantList achievements READ achievements NOTIFY changed)
     Q_PROPERTY(int unlockedCount READ unlockedCount NOTIFY changed)
@@ -44,6 +47,7 @@ public:
     Q_INVOKABLE void recordTournamentWin();
     // Returns whether rally is a new best
     Q_INVOKABLE bool recordSquash(int rally);
+    Q_INVOKABLE void recordParty(bool won, int longestRally);
     // Returns whether the achievement is new, unknown ids are ignored
     Q_INVOKABLE bool unlock(const QString& id);
     Q_INVOKABLE bool isUnlocked(const QString& id) const;
@@ -58,6 +62,8 @@ public:
     int endlessBest() const;
     int tournamentsWon() const;
     int squashBest() const;
+    int partyGames() const;
+    int partyWins() const;
     QVariantList achievements() const;
     int unlockedCount() const;
 

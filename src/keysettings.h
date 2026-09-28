@@ -10,7 +10,8 @@
 // The keys of the players and the buttons of the gamepads, persisted with
 // QSettings. Every action has a key and every key at most one action.
 // Escape and Enter belong to the menus, so do the d-pad and Back of a pad.
-// Buttons are Gamepad::Button values.
+// Buttons are Gamepad::Button values. The games of three to six players
+// have key sets of their own, they may share keys with the others.
 class KeySettings : public QObject
 {
     Q_OBJECT
@@ -20,6 +21,8 @@ class KeySettings : public QObject
     Q_PROPERTY(QStringList keyNames READ keyNames NOTIFY changed)
     // Names of the buttons of all pad actions, in the order of PadAction
     Q_PROPERTY(QStringList padButtonNames READ padButtonNames NOTIFY changed)
+    // Names of the keys of all party actions, in the order of PartyAction
+    Q_PROPERTY(QStringList partyKeyNames READ partyKeyNames NOTIFY changed)
 
 public:
     enum Action {
@@ -44,6 +47,25 @@ public:
         PadActionCount
     };
     Q_ENUM(PadAction)
+
+    // Two sets for a polygon: four directions push the paddle along its
+    // side, like a stick
+    enum PartyAction {
+        PartyOneLeft = 0,
+        PartyOneRight,
+        PartyOneUp,
+        PartyOneDown,
+        PartyOneSmash,
+        PartyOneSpecial,
+        PartyTwoLeft,
+        PartyTwoRight,
+        PartyTwoUp,
+        PartyTwoDown,
+        PartyTwoSmash,
+        PartyTwoSpecial,
+        PartyActionCount
+    };
+    Q_ENUM(PartyAction)
 
     explicit KeySettings(QObject* parent = nullptr);
 
@@ -70,8 +92,18 @@ public:
     Q_INVOKABLE int padAction(int button) const;
     Q_INVOKABLE QString buttonName(int button) const;
 
+    static int defaultPartyKey(PartyAction action);
+    Q_INVOKABLE int partyKey(KeySettings::PartyAction action) const;
+    // Swaps like setKey(), within the party actions
+    Q_INVOKABLE bool setPartyKey(KeySettings::PartyAction action, int key);
+    // The party action of a key, -1 for none
+    Q_INVOKABLE int partyAction(int key) const;
+    // The four directions of a party set in short, e.g. WASD or Arrows
+    Q_INVOKABLE QString partySetName(int set) const;
+
     QStringList keyNames() const;
     QStringList padButtonNames() const;
+    QStringList partyKeyNames() const;
 
 signals:
     void changed();
@@ -82,6 +114,7 @@ private:
     QSettings m_settings;
     QList<int> m_keys;
     QList<int> m_padButtons;
+    QList<int> m_partyKeys;
 };
 
 #endif // KEYSETTINGS_H

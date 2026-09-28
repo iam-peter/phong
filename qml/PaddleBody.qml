@@ -26,6 +26,8 @@ DynamicRigidBody {
     // Curses: frozen in ice, or swapped controls
     property bool frozen: false
     property bool reversed: false
+    // Which way along its local x the goal is, the back of the paddle
+    property int back: paddleX < 0 ? -1 : 1
 
     function flash() {
         flashAnimation.restart()
@@ -64,7 +66,7 @@ DynamicRigidBody {
     // The dash is ready when the bar on the back is full
     Model {
         readonly property real fill: 1.0 - root.dashCooldown
-        x: (root.paddleX < 0 ? -1 : 1) * (0.5 * root.width + 0.2)
+        x: root.back * (0.5 * root.width + 0.2)
         y: -0.5 * root.length * (1.0 - fill)
         source: "#Cube"
         scale: Qt.vector3d(0.14 / 100, Math.max(0.01, root.length * fill) / 100, 0.008)
@@ -100,7 +102,7 @@ DynamicRigidBody {
         id: magnetFace
         visible: root.magnet
         property real pulse: 0.0
-        x: (root.paddleX < 0 ? 1 : -1) * (0.5 * root.width + 0.15)
+        x: -root.back * (0.5 * root.width + 0.15)
         source: "#Cube"
         scale: Qt.vector3d(0.3 / 100, (root.length + 0.3) / 100, 0.014)
         materials: PhongMaterial {

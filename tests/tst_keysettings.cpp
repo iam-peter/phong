@@ -83,6 +83,26 @@ private slots:
         keys.restoreDefaults();
         QCOMPARE(keys.padButton(KeySettings::PadSmash), 0);
     }
+
+    void partyKeys()
+    {
+        KeySettings keys;
+        QCOMPARE(keys.partyKey(KeySettings::PartyOneLeft), int(Qt::Key_A));
+        QCOMPARE(keys.partyAction(Qt::Key_Up), int(KeySettings::PartyTwoUp));
+        QCOMPARE(keys.partyKeyNames().at(KeySettings::PartyOneSmash), QStringLiteral("Space"));
+        QCOMPARE(keys.partySetName(0), QStringLiteral("WASD"));
+        QCOMPARE(keys.partySetName(1), QStringLiteral("Arrows"));
+
+        // The party keys swap among themselves, the others stay
+        QVERIFY(keys.setPartyKey(KeySettings::PartyOneSpecial, Qt::Key_Left));
+        QCOMPARE(keys.partyKey(KeySettings::PartyTwoLeft), int(Qt::Key_E));
+        QCOMPARE(keys.key(KeySettings::RightSmash), int(Qt::Key_Left));
+        QVERIFY(!keys.setPartyKey(KeySettings::PartyTwoSmash, Qt::Key_Escape));
+        QCOMPARE(KeySettings().partyKey(KeySettings::PartyOneSpecial), int(Qt::Key_Left));
+
+        keys.restoreDefaults();
+        QCOMPARE(keys.partyKey(KeySettings::PartyOneSpecial), int(Qt::Key_E));
+    }
 };
 
 QTEST_GUILESS_MAIN(tst_KeySettings)

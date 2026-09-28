@@ -17,6 +17,8 @@ Scene {
     property bool party: false
     property int players: party ? GameSettings.partyPlayers : 2
     property int currentItem: 0
+    // Players sharing the keyboard in a party, each with a key set
+    property int keyboards: 1
     // Gamepads { kind: "pad", pad } and network players { kind: "remote",
     // id, name } in the order they joined
     property var joiners: []
@@ -41,12 +43,13 @@ Scene {
             slots.push(joiners.length > 0 ? joiners[0] : { kind: "keyboard", keys: "right" })
             return slots
         }
-        slots.push({ kind: "keyboard" })
-        for (let i = 1; i < players; ++i)
-            slots.push(i - 1 < joiners.length ? joiners[i - 1] : { kind: "cpu" })
+        for (let set = 0; set < keyboards; ++set)
+            slots.push({ kind: "keyboard", keys: set, party: keyboards > 1 })
+        for (let i = keyboards; i < players; ++i)
+            slots.push(i - keyboards < joiners.length ? joiners[i - keyboards] : { kind: "cpu" })
         return slots
     }
-    readonly property int capacity: party ? players - 1 : 2
+    readonly property int capacity: party ? players - keyboards : 2
 
     readonly property var items: {
         const items = []
@@ -54,8 +57,10 @@ Scene {
             items.push({ text: qsTr("Leave"), activate: () => root.back() })
             return items
         }
-        if (party)
-            items.push({ text: qsTr("Players"), cycles: true, change: (step) => root.cyclePlayers(step) })
+        if (party) {
+            items.push({ text: qsTr("Players"), value: players, cycles: true, change: (step) => root.cyclePlayers(step) })
+            items.push({ text: qsTr("Keyboards"), value: keyboards, cycles: true, change: () => root.cycleKeyboards() })
+        }
         if (Lan.canHost)
             items.push({ text: hostingLan ? qsTr("LAN open") : qsTr("LAN closed"), cycles: true,
                          change: () => root.toggleLan() })
@@ -73,6 +78,9 @@ Scene {
                 if (slot.keys === "right")
                     return qsTr("Keyboard %1").arg(KeySettings.keyNames[KeySettings.RightUp] + "/"
                                                    + KeySettings.keyNames[KeySettings.RightDown])
+                // Reading the names follows a change of the keys
+                if (slot.party)
+                    return KeySettings.partyKeyNames.length ? qsTr("Keyboard %1").arg(KeySettings.partySetName(slot.keys)) : ""
                 return qsTr("Keyboard")
             case "pad":
                 return slot.pad?.name ?? qsTr("Gamepad")
@@ -115,6 +123,14 @@ Scene {
         const count = players - 3 + step
         GameSettings.partyPlayers = 3 + ((count % 4) + 4) % 4
         // Players who no longer fit leave
+        while (joiners.length > capacity)
+            dropJoiner(joiners[joiners.length - 1])
+        SoundEffects.play(SoundEffects.MenuMove)
+    }
+
+    // A second player on the keyboard takes a side from the joiners
+    function cycleKeyboards() {
+        keyboards = keyboards === 1 ? 2 : 1
         while (joiners.length > capacity)
             dropJoiner(joiners[joiners.length - 1])
         SoundEffects.play(SoundEffects.MenuMove)
@@ -178,6 +194,7 @@ Scene {
         remote = false
         remoteSlots = []
         joiners = []
+        keyboards = 1
         party = asParty
         players = Qt.binding(() => root.party ? GameSettings.partyPlayers : 2)
     }
@@ -358,9 +375,9 @@ Scene {
 
             readonly property bool selected: index === root.currentItem
 
-            y: -5.4 - index * 1.6
+            y: -5.4 - index * 1.3
             horizontalAlignment: Text.AlignHCenter
-            text: modelData.text + (modelData.text === qsTr("Players") ? "  " + root.players : "")
+            text: modelData.text + (modelData.value !== undefined ? "  " + modelData.value : "")
             clickable: true
             onClicked: {
                 root.currentItem = item.index

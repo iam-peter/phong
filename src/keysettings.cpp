@@ -26,7 +26,8 @@ KeySettings::KeySettings(QObject* parent):
     QObject(parent),
     m_settings(),
     m_keys(),
-    m_padButtons()
+    m_padButtons(),
+    m_partyKeys()
 {
     m_settings.beginGroup(QStringLiteral("keys"));
     const QMetaEnum actions = QMetaEnum::fromType<Action>();
@@ -45,6 +46,19 @@ KeySettings::KeySettings(QObject* parent):
         if (isReservedButton(m_padButtons.at(action)) || m_padButtons.count(m_padButtons.at(action)) > 1) {
             for (int other = 0; other < PadActionCount; ++other)
                 m_padButtons[other] = defaultPadButton(PadAction(other));
+            break;
+        }
+    }
+
+    const QMetaEnum partyActions = QMetaEnum::fromType<PartyAction>();
+    for (int action = 0; action < PartyActionCount; ++action) {
+        m_partyKeys.append(m_settings.value(QString::fromLatin1(partyActions.valueToKey(action)),
+                                            defaultPartyKey(PartyAction(action))).toInt());
+    }
+    for (int action = 0; action < PartyActionCount; ++action) {
+        if (isReserved(m_partyKeys.at(action)) || m_partyKeys.count(m_partyKeys.at(action)) > 1) {
+            for (int other = 0; other < PartyActionCount; ++other)
+                m_partyKeys[other] = defaultPartyKey(PartyAction(other));
             break;
         }
     }
@@ -222,6 +236,82 @@ QStringList KeySettings::padButtonNames() const
     return names;
 }
 
+int KeySettings::defaultPartyKey(PartyAction action)
+{
+    switch (action) {
+        case PartyAction::PartyOneLeft: return Qt::Key_A;
+        case PartyAction::PartyOneRight: return Qt::Key_D;
+        case PartyAction::PartyOneUp: return Qt::Key_W;
+        case PartyAction::PartyOneDown: return Qt::Key_S;
+        case PartyAction::PartyOneSmash: return Qt::Key_Space;
+        case PartyAction::PartyOneSpecial: return Qt::Key_E;
+        case PartyAction::PartyTwoLeft: return Qt::Key_Left;
+        case PartyAction::PartyTwoRight: return Qt::Key_Right;
+        case PartyAction::PartyTwoUp: return Qt::Key_Up;
+        case PartyAction::PartyTwoDown: return Qt::Key_Down;
+        case PartyAction::PartyTwoSmash: return Qt::Key_Period;
+        case PartyAction::PartyTwoSpecial: return Qt::Key_Comma;
+        default: return 0;
+    }
+}
+
+int KeySettings::partyKey(PartyAction action) const
+{
+    return action >= 0 && action < PartyActionCount ? m_partyKeys.at(action) : 0;
+}
+
+bool KeySettings::setPartyKey(PartyAction action, int key)
+{
+    if (action < 0 || action >= PartyActionCount || isReserved(key))
+        return false;
+
+    const int previous = m_partyKeys.at(action);
+    if (previous == key)
+        return true;
+
+    const int other = partyAction(key);
+    if (other >= 0)
+        m_partyKeys[other] = previous;
+    m_partyKeys[action] = key;
+    store();
+    emit changed();
+    return true;
+}
+
+int KeySettings::partyAction(int key) const
+{
+    return int(m_partyKeys.indexOf(key));
+}
+
+QString KeySettings::partySetName(int set) const
+{
+    if (set < 0 || set > 1)
+        return QString();
+
+    // Up, left, down, right, the way WASD reads
+    const int base = set * PartyTwoLeft;
+    const QList<int> keys = { m_partyKeys.at(base + 2), m_partyKeys.at(base), m_partyKeys.at(base + 3),
+                              m_partyKeys.at(base + 1) };
+    if (keys == QList<int>{ Qt::Key_Up, Qt::Key_Left, Qt::Key_Down, Qt::Key_Right })
+        return tr("Arrows");
+
+    QStringList names;
+    bool short_ = true;
+    for (int key : keys) {
+        names.append(keyName(key));
+        short_ = short_ && names.last().size() == 1;
+    }
+    return names.join(short_ ? QString() : QStringLiteral("/"));
+}
+
+QStringList KeySettings::partyKeyNames() const
+{
+    QStringList names;
+    for (int action = 0; action < PartyActionCount; ++action)
+        names.append(keyName(m_partyKeys.at(action)));
+    return names;
+}
+
 void KeySettings::restoreDefaults()
 {
     bool changed = false;
@@ -232,6 +322,10 @@ void KeySettings::restoreDefaults()
     for (int action = 0; action < PadActionCount; ++action) {
         changed = changed || m_padButtons.at(action) != defaultPadButton(PadAction(action));
         m_padButtons[action] = defaultPadButton(PadAction(action));
+    }
+    for (int action = 0; action < PartyActionCount; ++action) {
+        changed = changed || m_partyKeys.at(action) != defaultPartyKey(PartyAction(action));
+        m_partyKeys[action] = defaultPartyKey(PartyAction(action));
     }
     if (!changed)
         return;
@@ -248,4 +342,7 @@ void KeySettings::store()
     const QMetaEnum padActions = QMetaEnum::fromType<PadAction>();
     for (int action = 0; action < PadActionCount; ++action)
         m_settings.setValue(QString::fromLatin1(padActions.valueToKey(action)), m_padButtons.at(action));
+    const QMetaEnum partyActions = QMetaEnum::fromType<PartyAction>();
+    for (int action = 0; action < PartyActionCount; ++action)
+        m_settings.setValue(QString::fromLatin1(partyActions.valueToKey(action)), m_partyKeys.at(action));
 }

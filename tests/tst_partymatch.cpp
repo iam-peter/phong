@@ -81,7 +81,8 @@ private slots:
         }
         QCOMPARE(match.rally(), 0);
 
-        match.paddleHit(player, 0.0);
+        // A moving paddle, a still one in the middle would hit a perfect one
+        match.paddleHit(player, 0.0, match.paddleSpeed());
         const QVector2D v = match.ball()->velocity();
         QVERIFY((v.normalized() + match.normal(player)).length() < 1e-4f);
         QVERIFY(qAbs(v.length() - speed * 1.1f) < 1e-3f);
@@ -90,6 +91,118 @@ private slots:
         // Moving away now, a second report changes nothing
         match.paddleHit(player, 1.0);
         QCOMPARE(match.ball()->velocity(), v);
+    }
+
+    void smashesAndPerfectHits()
+    {
+        PartyMatch match;
+        match.setPlayers(4);
+        match.setSpeedUp(1.0);
+        match.setMaxSpeed(100.0);
+        QSignalSpy hits(&match, &PartyMatch::paddleHitBall);
+        match.start();
+        serve(match);
+
+        int player = target(match);
+        float speed = match.ball()->velocity().length();
+        match.paddleHit(player, 0.5, match.paddleSpeed(), 1.0);
+        QVERIFY(qAbs(match.ball()->velocity().length() - speed * float(1.0 + Match::smashBoost)) < 1e-3f);
+        QVERIFY(match.ball()->isSmashed());
+        QCOMPARE(hits.last().at(1).toReal(), 1.0);
+        QCOMPARE(hits.last().at(2).toBool(), false);
+        QCOMPARE(match.lastTouch(), player);
+        QCOMPARE(match.player(player)->hits(), 1);
+        QCOMPARE(match.player(player)->power(), Match::powerPerHit);
+
+        // Turn it around at somebody else: still in the middle is perfect
+        const int next = (player + 2) % 4;
+        speed = match.ball()->velocity().length();
+        match.paddleHit(next, 0.0, 0.0);
+        QVERIFY(qAbs(match.ball()->velocity().length() - speed * float(1.0 + Match::perfectBoost)) < 1e-3f);
+        QCOMPARE(hits.last().at(2).toBool(), true);
+        QCOMPARE(match.player(next)->power(), 2.0 * Match::powerPerHit);
+        QCOMPARE(match.longestRally(), 2);
+    }
+
+    void brushingCurves()
+    {
+        PartyMatch match;
+        match.setPlayers(3);
+        match.start();
+        serve(match);
+
+        const int player = target(match);
+        match.paddleHit(player, 0.0, match.paddleSpeed());
+        QVERIFY(match.ball()->spin() > 0.0);
+        const QVector2D before = match.ball()->velocity();
+        match.advance(0.1);
+        const QVector2D after = match.ball()->velocity();
+
+        // Counterclockwise, the speed stays and the spin wears off
+        QVERIFY(before.x() * after.y() - before.y() * after.x() > 0.0f);
+        QVERIFY(qAbs(after.length() - before.length()) < 1e-3f);
+        QVERIFY(match.ball()->spin() < Match::maxSpin);
+    }
+
+    void specialCatchesAndThrows()
+    {
+        PartyMatch match;
+        match.setPlayers(3);
+        match.setSpeedUp(1.0);
+        QSignalSpy specials(&match, &PartyMatch::specialUsed);
+        QSignalSpy caught(&match, &PartyMatch::ballCaught);
+        match.start();
+        serve(match);
+
+        const int player = target(match);
+        QVERIFY(!match.useSpecial(player));
+        match.player(player)->setPower(1.0);
+        QVERIFY(match.useSpecial(player));
+        QCOMPARE(specials.count(), 1);
+        QCOMPARE(match.player(player)->power(), 0.0);
+        QCOMPARE(match.player(player)->catches(), 1);
+
+        // Held on the paddle, hits don't go through
+        const float speed = match.ball()->velocity().length();
+        QVERIFY(match.catchBall(player, 0.2));
+        QCOMPARE(caught.count(), 1);
+        QCOMPARE(match.heldBy(), player);
+        QCOMPARE(match.ball()->velocity(), QVector2D());
+        match.paddleHit(player, 0.0);
+        QCOMPARE(match.rally(), 0);
+
+        // Aimed and thrown with the smash so far
+        match.aimHeldBall(-1.0);
+        QVERIFY(match.releaseBall(1.0));
+        QCOMPARE(match.heldBy(), -1);
+        const QVector2D v = match.ball()->velocity();
+        QVERIFY(qAbs(v.length() - speed * float(1.0 + Match::smashBoost)) < 1e-3f);
+        QVERIFY(QVector2D::dotProduct(v, match.tangent(player)) < 0.0f);
+        QCOMPARE(match.rally(), 1);
+
+        // A second catch needs another special, a hold runs out
+        QVERIFY(!match.catchBall(player, 0.0));
+        match.player(player)->setCatches(1);
+        match.bounce(match.normal(player));
+        QVERIFY(match.catchBall(player, 0.0));
+        match.advance(Match::maxHoldTime + 0.01);
+        QCOMPARE(match.heldBy(), -1);
+        QVERIFY(QVector2D::dotProduct(match.ball()->velocity(), match.normal(player)) < 0.0f);
+    }
+
+    void shieldSavesOnce()
+    {
+        PartyMatch match;
+        match.setPlayers(3);
+        match.start();
+        serve(match);
+
+        const int player = target(match);
+        QVERIFY(!match.shieldHit(player));
+        match.player(player)->setShielded(true);
+        QVERIFY(match.shieldHit(player));
+        QVERIFY(!match.player(player)->isShielded());
+        QVERIFY(QVector2D::dotProduct(match.ball()->velocity(), match.normal(player)) < 0.0f);
     }
 
     void bounceOffPosts()
@@ -130,6 +243,21 @@ private slots:
         client.applySnapshot(host.snapshot());
         QCOMPARE(client.state(), PartyMatch::State::Playing);
         QCOMPARE(client.ball()->velocity(), host.ball()->velocity());
+
+        // Power, catches and a held ball
+        const int catcher = target(host);
+        const int other = (catcher + 1) % 5;
+        host.player(other)->setPower(0.5);
+        host.player(catcher)->setPower(1.0);
+        QVERIFY(host.useSpecial(catcher));
+        host.player(catcher)->setCatches(2);
+        QVERIFY(host.catchBall(catcher, 0.3));
+        client.applySnapshot(host.snapshot());
+        QCOMPARE(client.player(catcher)->catches(), 1);
+        QCOMPARE(client.player(other)->power(), 0.5);
+        QCOMPARE(client.heldBy(), catcher);
+        QCOMPARE(client.holdOffset(), 0.3);
+        QCOMPARE(client.lastTouch(), catcher);
 
         // The same snapshot again changes nothing
         client.applySnapshot(host.snapshot());

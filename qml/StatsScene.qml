@@ -22,6 +22,7 @@ Scene {
         [qsTr("Squash best"), Stats.squashBest],
         [qsTr("Achievements"), qsTr("%1 of %2").arg(Stats.unlockedCount).arg(Stats.achievements.length)],
         [qsTr("2 player matches"), Stats.twoPlayerMatches],
+        [qsTr("3-6 player games"), qsTr("%1 played  %2 won").arg(Stats.partyGames).arg(Stats.partyWins)],
         [qsTr("Longest rally"), Stats.longestRally]
     ]
 
@@ -97,7 +98,7 @@ Scene {
             required property var modelData
             required property int index
 
-            y: 5.2 - index * 1.35
+            y: 5.2 - index * 1.25
             scale: Qt.vector3d(0.85, 0.85, 0.85)
 
             Text3D {

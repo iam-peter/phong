@@ -53,7 +53,7 @@ Scene {
             readonly property bool done: modelData.unlocked
 
             x: index < root.rowsPerColumn ? -16.0 : 2.0
-            y: 4.0 - (index % root.rowsPerColumn) * 2.35
+            y: 4.0 - (index % root.rowsPerColumn) * Math.min(2.35, 12.6 / Math.max(root.rowsPerColumn - 1, 1))
 
             Disc {
                 position: Qt.vector3d(-0.9, 0.25, 0)

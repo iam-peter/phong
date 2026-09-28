@@ -30,7 +30,9 @@ QList<Stats::Achievement> Stats::achievementList()
         { QStringLiteral("champion"), tr("Champion"), tr("Win the tournament") },
         { QStringLiteral("demolition"), tr("Demolition"), tr("Break the last brick of a wall") },
         { QStringLiteral("squashPro"), tr("Squash pro"), tr("A rally of 25 in squash") },
-        { QStringLiteral("endurance"), tr("Endurance"), tr("Score 100 in endless") }
+        { QStringLiteral("endurance"), tr("Endurance"), tr("Score 100 in endless") },
+        { QStringLiteral("lastStanding"), tr("Last one standing"), tr("Win a game of three to six players") },
+        { QStringLiteral("fullHouse"), tr("Full house"), tr("Win against five others") }
     };
 }
 
@@ -86,6 +88,15 @@ bool Stats::recordSquash(int rally)
     setValue(QStringLiteral("stats/squashBest"), rally);
     emit changed();
     return true;
+}
+
+void Stats::recordParty(bool won, int longestRally)
+{
+    setValue(QStringLiteral("stats/partyGames"), partyGames() + 1);
+    if (won)
+        setValue(QStringLiteral("stats/partyWins"), partyWins() + 1);
+    setValue(QStringLiteral("stats/longestRally"), std::max(this->longestRally(), longestRally));
+    emit changed();
 }
 
 bool Stats::unlock(const QString& id)
@@ -159,6 +170,16 @@ int Stats::tournamentsWon() const
 int Stats::squashBest() const
 {
     return value(QStringLiteral("stats/squashBest"));
+}
+
+int Stats::partyGames() const
+{
+    return value(QStringLiteral("stats/partyGames"));
+}
+
+int Stats::partyWins() const
+{
+    return value(QStringLiteral("stats/partyWins"));
 }
 
 QVariantList Stats::achievements() const
