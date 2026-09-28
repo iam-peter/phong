@@ -61,6 +61,7 @@ void Match::start()
         player->setScore(0);
         player->setSets(0);
         player->setHits(0);
+        player->setPower(0.0);
     }
     setWinner(nullptr);
 
@@ -267,6 +268,18 @@ void Match::goal(Ball* ball, Side scorer)
     }
 
     endRally(scorer, setWon);
+}
+
+bool Match::useSpecial(Side side)
+{
+    Player* player = this->player(side);
+    if ((m_state != State::Playing && m_state != State::Serving) || !player || player->power() < 1.0)
+        return false;
+
+    player->setPower(0.0);
+    player->setCatches(player->catches() + 1);
+    emit specialUsed(side);
+    return true;
 }
 
 void Match::awardPoint(Side scorer)
@@ -709,6 +722,7 @@ void Match::hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin, qr
 
     Player* player = this->player(side);
     player->setHits(player->hits() + 1);
+    player->setPower(player->power() + (perfect ? 2.0 : 1.0) * powerPerHit);
 
     setRally(m_rally + 1);
     ++m_totalHits;

@@ -18,6 +18,8 @@ DynamicRigidBody {
     property real squash: 1.0
     // Direction of a dash, 0 while not dashing, leaves afterimages
     property int dash: 0
+    // Share of the dash cooldown left, a bar on the back fills as it runs out
+    property real dashCooldown: 0.0
     // Catches balls, glows at the face in the magnet color
     property bool magnet: false
     property color magnetColor: "#ff3333"
@@ -54,6 +56,20 @@ DynamicRigidBody {
             color: root.color
             glow: 0.6 + 1.4 * root.charge
             shininess: 0.7
+        }
+    }
+
+    // The dash is ready when the bar on the back is full
+    Model {
+        readonly property real fill: 1.0 - root.dashCooldown
+        x: (root.paddleX < 0 ? -1 : 1) * (0.5 * root.width + 0.2)
+        y: -0.5 * root.length * (1.0 - fill)
+        source: "#Cube"
+        scale: Qt.vector3d(0.14 / 100, Math.max(0.01, root.length * fill) / 100, 0.008)
+        materials: PhongMaterial {
+            color: root.color
+            glow: root.dashCooldown > 0.0 ? 0.15 : 0.7
+            lighting: DefaultMaterial.NoLighting
         }
     }
 

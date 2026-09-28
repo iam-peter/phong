@@ -59,6 +59,7 @@ browser's local storage.
 | Right paddle | computer | `Up`/`Down` |
 | Right smash | computer | hold `Left` |
 | Dash | tap a direction twice | tap a direction twice |
+| Special | `A` or `Right` | `A`, `Right` |
 | Mouse / touch | drag anywhere | drag on your half |
 
 `Esc` or `P` pauses and resumes, the pause menu also leads back to the main
@@ -72,8 +73,14 @@ return is faster, a full wind up takes 0.6 seconds and even goes beyond the
 top speed. The computer smashes too, on Normal now and then, on Hard often.
 
 Tapping a direction twice dashes, the paddle shoots a few units that way.
-After a dash it takes a second before the next one. On Normal and Hard the
-computer dashes for balls it wouldn't reach otherwise.
+After a dash it takes a second before the next one, a bar on the back of the
+paddle fills up again meanwhile. On Normal and Hard the computer dashes for
+balls it wouldn't reach otherwise.
+
+Every hit fills the power bar under the field by a segment, a perfect hit by
+two. A full bar pulses and allows the special, like a super move in a
+fighting game: the paddle catches the next ball and holds it to aim, see the
+Magnet below. The computer uses its special as soon as it can.
 
 A ball met with the middle of a paddle that stands still is a perfect hit,
 it rings higher and flies faster, also beyond the top speed.

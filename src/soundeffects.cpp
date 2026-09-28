@@ -583,6 +583,10 @@ QList<SoundEffects::Tone> SoundEffects::tones(Sound sound)
                      { Square, 0.16, 0.08, 1109, 1109, 0.14 },
                      { Triangle, 0.24, 0.40, 1319, 1319, 0.22 },
                      { Triangle, 0.24, 0.40, 1760, 1760, 0.12 } };
+        case Sound::Special:
+            return { { Sawtooth, 0.00, 0.30, 220, 1760, 0.20 },
+                     { Square, 0.10, 0.25, 880, 1320, 0.12 },
+                     { Triangle, 0.25, 0.30, 1760, 1760, 0.18 } };
         case Sound::BrickBreak:
             return { { Square, 0.00, 0.06, 900, 500, 0.22 },
                      { Sawtooth, 0.03, 0.14, 300, 120, 0.20 } };

@@ -683,6 +683,42 @@ private slots:
         QCOMPARE(match.ballVelocity(), QVector2D());
     }
 
+    void powerBar()
+    {
+        Match match;
+        QSignalSpy used(&match, &Match::specialUsed);
+        serve(match);
+
+        // Not before it's full
+        const Match::Side side = match.ballVelocity().x() < 0.0f ? Match::Side::LeftSide
+                                                                 : Match::Side::RightSide;
+        QVERIFY(!match.useSpecial(side));
+
+        // A normal hit fills an eighth, a perfect one a quarter
+        match.paddleHit(side, 0.5, 5.0);
+        QCOMPARE(match.player(side)->power(), Match::powerPerHit);
+        match.paddleHit(Match::opponent(side), 0.5, 5.0);
+        match.paddleHit(side, 0.0, 0.0);
+        QCOMPARE(match.player(side)->power(), 3.0 * Match::powerPerHit);
+
+        for (int i = 0; i < 10; ++i) {
+            match.paddleHit(Match::opponent(side), 0.5, 5.0);
+            match.paddleHit(side, 0.5, 5.0);
+        }
+        QCOMPARE(match.player(side)->power(), 1.0);
+
+        // The special is a catch
+        QVERIFY(match.useSpecial(side));
+        QCOMPARE(used.count(), 1);
+        QCOMPARE(match.player(side)->power(), 0.0);
+        QCOMPARE(match.player(side)->catches(), 1);
+        QVERIFY(!match.useSpecial(side));
+
+        // A new match starts empty
+        match.start();
+        QCOMPARE(match.player(Match::opponent(side))->power(), 0.0);
+    }
+
     void matchPoint()
     {
         Match match;

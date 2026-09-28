@@ -13,6 +13,7 @@ Player::Player(QObject* parent):
     m_spinSpeed(0.0),
     m_shielded(false),
     m_catches(0),
+    m_power(0.0),
     m_frozen(false),
     m_reversed(false)
 {}
@@ -170,4 +171,19 @@ void Player::setReversed(bool reversed)
 bool Player::isReversed() const
 {
     return m_reversed;
+}
+
+void Player::setPower(qreal power)
+{
+    power = std::clamp(power, 0.0, 1.0);
+    if (m_power == power)
+        return;
+
+    m_power = power;
+    emit powerChanged(power);
+}
+
+qreal Player::power() const
+{
+    return m_power;
 }

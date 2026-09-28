@@ -48,7 +48,8 @@ public:
         Portal,
         Freeze,
         BrickBreak,
-        Achievement
+        Achievement,
+        Special
     };
     Q_ENUM(Sound)
 

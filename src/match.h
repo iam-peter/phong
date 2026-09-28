@@ -88,6 +88,8 @@ public:
     static constexpr qreal perfectOverspeed = 0.1;
     // Seconds a magnetic paddle holds a caught ball at most
     static constexpr qreal maxHoldTime = 1.2;
+    // The power bar fills with every hit, twice as fast with perfect ones
+    static constexpr qreal powerPerHit = 1.0 / 8.0;
 
     explicit Match(QObject* parent = nullptr);
 
@@ -130,6 +132,10 @@ public:
     Q_INVOKABLE void aimHeldBall(Ball* ball, qreal offset);
     // Sends a held ball off like a paddle hit at its offset
     Q_INVOKABLE bool releaseBall(Ball* ball, qreal smash = 0.0);
+
+    // Spends a full power bar on the special: the paddle catches the next
+    // ball, see catchBall(). Returns whether it did.
+    Q_INVOKABLE bool useSpecial(Match::Side side);
 
     // A gravity well at well bends the flight of the ball at position,
     // more the closer it is. The speed stays and the ball keeps crossing.
@@ -232,6 +238,7 @@ signals:
     void served();
     void paddleHitBall(Ball* ball, Match::Side side, qreal smash, bool perfect);
     void ballCaught(Ball* ball, Match::Side side);
+    void specialUsed(Match::Side side);
     void pointScored(Match::Side scorer, Ball* ball);
     void pointAwarded(Match::Side scorer);
     void setFinished(Match::Side winner);

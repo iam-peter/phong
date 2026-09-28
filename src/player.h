@@ -24,6 +24,8 @@ class Player : public QObject
     Q_PROPERTY(bool shielded READ isShielded WRITE setShielded NOTIFY shieldedChanged)
     // Balls the magnetic paddle still catches
     Q_PROPERTY(int catches READ catches WRITE setCatches NOTIFY catchesChanged)
+    // The power bar, 0 to 1, full allows the special
+    Q_PROPERTY(qreal power READ power WRITE setPower NOTIFY powerChanged)
     // Curses: the paddle can't move, or its controls are swapped
     Q_PROPERTY(bool frozen READ isFrozen WRITE setFrozen NOTIFY frozenChanged)
     Q_PROPERTY(bool reversed READ isReversed WRITE setReversed NOTIFY reversedChanged)
@@ -58,6 +60,9 @@ public:
     void setCatches(int catches);
     int catches() const;
 
+    void setPower(qreal power);
+    qreal power() const;
+
     void setFrozen(bool frozen);
     bool isFrozen() const;
 
@@ -74,6 +79,7 @@ signals:
     void spinSpeedChanged(qreal);
     void shieldedChanged(bool);
     void catchesChanged(int);
+    void powerChanged(qreal);
     void frozenChanged(bool);
     void reversedChanged(bool);
 
@@ -87,6 +93,7 @@ private:
     qreal m_spinSpeed;
     bool m_shielded;
     int m_catches;
+    qreal m_power;
     bool m_frozen;
     bool m_reversed;
 };

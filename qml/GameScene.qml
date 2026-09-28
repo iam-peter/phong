@@ -739,6 +739,9 @@ Scene {
             rightInput = computer.direction
             if (computer.wantsDash && !rightHeld && !match.right.frozen)
                 rightDash.trigger(computer.direction >= 0 ? 1 : -1)
+            // The computer spends a full power bar right away
+            if (match.right.power >= 1.0 && match.right.catches === 0)
+                match.useSpecial(Match.RightSide)
         }
         else if (squash) {
             rightInput = 0
@@ -840,6 +843,15 @@ Scene {
                 return true
             case Qt.Key_Left:
                 setCharging(mode === GameScene.TwoPlayers ? Match.RightSide : Match.LeftSide, pressed)
+                return true
+            // The special, when the power bar is full
+            case Qt.Key_A:
+                if (pressed)
+                    match.useSpecial(Match.LeftSide)
+                return true
+            case Qt.Key_Right:
+                if (pressed)
+                    match.useSpecial(mode === GameScene.TwoPlayers ? Match.RightSide : Match.LeftSide)
                 return true
         }
         return false
@@ -1051,6 +1063,13 @@ Scene {
                 root.leftCharge = 0.0
             else
                 root.rightCharge = 0.0
+        }
+
+        onSpecialUsed: (side) => {
+            const paddle = side === Match.LeftSide ? leftPaddle : rightPaddle
+            SoundEffects.play(SoundEffects.Special)
+            sparks.burst(Qt.vector3d(paddle.x, paddle.y, 0.5), paddle.color, 40)
+            root.shake(0.2)
         }
 
         onBallCaught: (ball, side) => {
@@ -1571,6 +1590,7 @@ Scene {
         color: Theme.leftPlayer
         charge: root.leftCharge
         dash: leftDash.direction
+        dashCooldown: leftDash.cooldown
         magnet: match.left.catches > 0
         frozen: match.left.frozen
         reversed: match.left.reversed
@@ -1588,6 +1608,7 @@ Scene {
         color: Theme.rightPlayer
         charge: root.rightCharge
         dash: rightDash.direction
+        dashCooldown: rightDash.cooldown
         magnet: match.right.catches > 0
         frozen: match.right.frozen
         reversed: match.right.reversed
@@ -2311,6 +2332,61 @@ Scene {
         }
     }
 
+    // Power bars under the field, a segment for every hit
+    component PowerBar: Node {
+        id: bar
+
+        property real power: 0.0
+        property color color: Theme.text
+        // Grows away from the middle
+        property int direction: 1
+        readonly property bool full: power >= 1.0
+        property real pulse: 0.0
+
+        SequentialAnimation on pulse {
+            running: bar.full
+            loops: Animation.Infinite
+            NumberAnimation { from: 0.0; to: 1.0; duration: 300 }
+            NumberAnimation { from: 1.0; to: 0.0; duration: 300 }
+        }
+
+        Repeater3D {
+            model: 8
+
+            delegate: Model {
+                required property int index
+                readonly property bool filled: bar.power * 8 >= index + 1 - 1e-6
+
+                x: bar.direction * (0.35 + index * 0.78)
+                source: "#Cube"
+                scale: Qt.vector3d(0.7 / 100, 0.35 / 100, 0.004)
+                materials: PhongMaterial {
+                    color: parent.filled ? bar.color : Theme.goal
+                    glow: parent.filled ? (bar.full ? 0.8 + 1.2 * bar.pulse : 0.5) : 0.0
+                    lighting: DefaultMaterial.NoLighting
+                }
+            }
+        }
+    }
+
+    Node {
+        y: -0.5 * root.stageHeight - 1.15
+
+        PowerBar {
+            x: -0.5 * root.stageWidth
+            power: match.left.power
+            color: Theme.leftPlayer
+        }
+
+        PowerBar {
+            visible: !root.squash
+            x: 0.5 * root.stageWidth
+            direction: -1
+            power: match.right.power
+            color: Theme.rightPlayer
+        }
+    }
+
     // Controls
     Node {
         y: -0.5 * root.stageHeight - 2.2
@@ -2320,15 +2396,15 @@ Scene {
             x: -root.stageWidth
             color: Theme.dimmed
             text: root.mode === GameScene.TwoPlayers
-                  ? qsTr("[W/S] move [D] smash   [Up/Down] move [Left] smash   tap twice to dash")
+                  ? qsTr("[W/S] move [D] smash [A] special   [Up/Down] move [Left] smash [Right] special")
                   : root.mode === GameScene.Ladder
-                  ? qsTr("Ladder %1/3   [W/S] or [Up/Down] move, twice dashes   [Space] smash").arg(root.ladderStage + 1)
+                  ? qsTr("Ladder %1/3   [W/S] move, twice dashes   [Space] smash   [A] special").arg(root.ladderStage + 1)
                   : root.tournament
-                  ? qsTr("Tournament   [W/S] or [Up/Down] move, twice dashes   [Space] smash")
+                  ? qsTr("Tournament   [W/S] move, twice dashes   [Space] smash   [A] special")
                   : root.squash
-                  ? qsTr("Best %1   [W/S] or [Up/Down] move, twice dashes   [Space] smash")
+                  ? qsTr("Best %1   [W/S] move, twice dashes   [Space] smash   [A] special")
                     .arg(Math.max(match.longestRally, Stats.squashBest))
-                  : qsTr("[W/S] or [Up/Down] move, twice dashes   [Space] smash")
+                  : qsTr("[W/S] or [Up/Down] move, twice dashes   [Space] smash   [A] special")
         }
 
         Text3D {
