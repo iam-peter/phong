@@ -13,8 +13,8 @@ C++, the scenes are QML.
 
 ## Requirements
 
-- Qt 6.9 or newer (`ExtrudedTextGeometry`) with the Qt Quick 3D and
-  Qt Quick 3D Physics modules
+- Qt 6.9 or newer (`ExtrudedTextGeometry`) with the Qt Quick 3D,
+  Qt Quick 3D Physics and Qt WebSockets modules
 - Qt Multimedia for sound on the desktop, optional
 - SDL 3 for gamepads on the desktop, optional, the browser has them anyway
 - CMake 3.21 or newer
