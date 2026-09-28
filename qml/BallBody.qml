@@ -123,26 +123,25 @@ DynamicRigidBody {
     }
 
     // Afterimages, the trail points are in scene coordinates while the
-    // ghosts move with the body
-    Repeater3D {
-        model: 7
-
-        delegate: Node {
-            id: ghost
-
-            required property int index
-
-            readonly property var point: root.trail[index + 1]
-            visible: point !== undefined && root.trailStrength > 0.0
-            position: point !== undefined ? point.minus(Qt.vector3d(root.x, root.y, 0)).minus(Qt.vector3d(0, 0, 0.3))
-                                          : Qt.vector3d(0, 0, 0)
-            opacity: root.trailStrength * 0.5 * (1.0 - index / 7) * root.visibility
-
-            Disc {
-                radius: root.radius * (1.0 - 0.08 * ghost.index)
-                thickness: 0.1
-                color: root.ball.extra ? Theme.extraBall : Theme.ball
+    // ghosts move with the body, all of them in one draw call
+    Discs {
+        z: -0.3
+        radius: root.radius
+        thickness: 0.1
+        items: {
+            const items = []
+            if (root.trailStrength <= 0.0)
+                return items
+            const color = root.ball.extra ? Theme.extraBall : Theme.ball
+            for (let index = 0; index < 7; ++index) {
+                const point = root.trail[index + 1]
+                if (point === undefined)
+                    break
+                const alpha = root.trailStrength * 0.5 * (1.0 - index / 7) * root.visibility
+                items.push({ x: point.x - root.x, y: point.y - root.y, scale: 1.0 - 0.08 * index, glow: 0.25,
+                             color: Qt.rgba(color.r, color.g, color.b, alpha) })
             }
+            return items
         }
     }
 }

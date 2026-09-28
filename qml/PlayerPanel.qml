@@ -44,20 +44,20 @@ Node {
     }
 
     // Won sets, or the balls left
-    Repeater3D {
-        model: root.lives > 0 ? root.lives : root.setsToWin > 1 ? root.setsToWin : 0
-
-        delegate: Disc {
-            required property int index
-            readonly property int count: root.lives > 0 ? root.lives : root.setsToWin
-            x: (index - 0.5 * (count - 1)) * 0.8
-            y: 4.1
-            radius: root.lives > 0 ? 0.3 : 0.22
-            sphere: root.lives > 0
-            thickness: 0.2
-            color: root.lives > 0 ? (index < root.livesLeft ? root.color : Theme.goal)
-                                  : (index < root.sets ? Theme.title : Theme.goal)
-            glow: 0.4
+    Discs {
+        readonly property int count: root.lives > 0 ? root.lives : root.setsToWin > 1 ? root.setsToWin : 0
+        y: 4.1
+        radius: root.lives > 0 ? 0.3 : 0.22
+        sphere: root.lives > 0
+        thickness: 0.2
+        items: {
+            const items = []
+            for (let index = 0; index < count; ++index) {
+                items.push({ x: (index - 0.5 * (count - 1)) * 0.8, glow: 0.4,
+                             color: root.lives > 0 ? (index < root.livesLeft ? root.color : Theme.goal)
+                                                   : (index < root.sets ? Theme.title : Theme.goal) })
+            }
+            return items
         }
     }
 

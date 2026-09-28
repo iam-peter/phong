@@ -75,6 +75,8 @@ qt_add_qml_module(phong
         qml/OnlineScene.qml
         qml/PartyScene.qml
         qml/PhongMaterial.qml
+        qml/Instances.qml
+        qml/Discs.qml
         qml/Starfield.qml
         qml/MenuScene.qml
         qml/GameScene.qml
@@ -102,6 +104,9 @@ qt_add_qml_module(phong
     RESOURCES
         config/modifiers.json
         config/arenas.json
+        qml/phong.vert
+        qml/phong_instanced.vert
+        qml/phong.frag
 )
 
 # The generated QML type registration includes the headers by name

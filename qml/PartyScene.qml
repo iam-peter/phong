@@ -1185,22 +1185,58 @@ Scene {
             }
         }
 
-        Repeater3D {
-            model: GraphicsSettings.floor ? root.players : 0
-
-            delegate: Model {
-                required property int index
-                readonly property vector3d end: root.corner(index, root.apothem)
-
-                position: Qt.vector3d(0.5 * end.x, 0.5 * end.y, -0.65)
-                eulerRotation.z: Math.atan2(end.y, end.x) * 180 / Math.PI
-                scale: Qt.vector3d(end.length() / 100, 0.08 / 100, 0.001)
-                source: "#Cube"
-                materials: PhongMaterial {
-                    color: Theme.grid
-                    glow: 0.6
-                    lighting: DefaultMaterial.NoLighting
+        // Lines from the middle to the corners, in one draw call like
+        // the posts and the goal lines below
+        Instances {
+            visible: GraphicsSettings.floor
+            source: "#Cube"
+            meshScale: Qt.vector3d(0.01, 0.01, 0.01)
+            lighting: DefaultMaterial.NoLighting
+            items: {
+                const items = []
+                for (let index = 0; index < root.players; ++index) {
+                    const end = root.corner(index, root.apothem)
+                    items.push({ x: 0.5 * end.x, y: 0.5 * end.y, z: -0.65, angle: Math.atan2(end.y, end.x) * 180 / Math.PI,
+                                 sx: end.length(), sy: 0.08, sz: 0.1, color: Theme.grid, glow: 0.6 })
                 }
+                return items
+            }
+        }
+
+        // The posts of all sides
+        Instances {
+            source: "#Cube"
+            meshScale: Qt.vector3d(0.01, 0.01, 0.01)
+            shininess: 0.5
+            items: {
+                const items = []
+                const along = 0.5 * root.sideLength - 0.5 * root.postLength + 0.4
+                for (let index = 0; index < root.players; ++index) {
+                    for (const end of [-along, along]) {
+                        const at = root.sidePoint(index, root.apothem + 0.5 * root.wallThickness, end)
+                        items.push({ x: at.x, y: at.y, angle: root.sideAngle(index) * 180 / Math.PI + 90,
+                                     sx: root.postLength + 0.8, sy: root.wallThickness, sz: 1.0, color: Theme.wall, glow: 0.35 })
+                    }
+                }
+                return items
+            }
+        }
+
+        // The goal lines glow in the colors of the players still in
+        Instances {
+            source: "#Cube"
+            meshScale: Qt.vector3d(0.01, 0.01, 0.01)
+            lighting: DefaultMaterial.NoLighting
+            items: {
+                const items = []
+                for (let index = 0; index < root.players; ++index) {
+                    if ((match.livesLeft[index] ?? 1) <= 0)
+                        continue
+                    const at = root.sidePoint(index, root.apothem + 0.2, 0)
+                    items.push({ x: at.x, y: at.y, z: -0.45, angle: root.sideAngle(index) * 180 / Math.PI + 90,
+                                 sx: root.goalWidth, sy: 0.15, sz: 0.1, color: root.colors[index], glow: 0.8 })
+                }
+                return items
             }
         }
 
@@ -1279,6 +1315,8 @@ Scene {
                     property color color: Theme.wall
                     property real glow: 0.35
                     property real thickness: root.wallThickness
+                    // The posts are drawn all together, see above
+                    property bool drawn: true
                     // Of the middle from the middle of the polygon
                     property real distance: root.apothem + 0.5 * root.wallThickness
 
@@ -1296,7 +1334,7 @@ Scene {
                     }
 
                     Model {
-                        visible: !wall.parked
+                        visible: !wall.parked && wall.drawn
                         source: "#Cube"
                         scale: Qt.vector3d(wall.length / 100, wall.thickness / 100, 0.01)
                         materials: PhongMaterial {
@@ -1313,6 +1351,7 @@ Scene {
                     angle: side.angle
                     along: -(0.5 * root.sideLength - 0.5 * root.postLength) - 0.4
                     length: root.postLength + 0.8
+                    drawn: false
                 }
 
                 Wall {
@@ -1320,6 +1359,7 @@ Scene {
                     angle: side.angle
                     along: 0.5 * root.sideLength - 0.5 * root.postLength + 0.4
                     length: root.postLength + 0.8
+                    drawn: false
                 }
 
                 // A player out of balls gets a wall
@@ -1344,20 +1384,6 @@ Scene {
                     glow: 1.0
                     distance: root.apothem - 0.35
                     thickness: 0.3
-                }
-
-                // The goal line glows in the player's color
-                Model {
-                    visible: side.alive
-                    position: root.sidePoint(side.index, root.apothem + 0.2, 0).plus(Qt.vector3d(0, 0, -0.45))
-                    eulerRotation.z: side.angle + 90
-                    source: "#Cube"
-                    scale: Qt.vector3d(root.goalWidth / 100, 0.15 / 100, 0.001)
-                    materials: PhongMaterial {
-                        color: side.color
-                        glow: 0.8
-                        lighting: DefaultMaterial.NoLighting
-                    }
                 }
 
                 TriggerBody {
@@ -1410,16 +1436,15 @@ Scene {
                         text: side.name
                     }
 
-                    Repeater3D {
-                        model: match.lives
-
-                        delegate: Disc {
-                            required property int index
-                            x: 0.5 + index * 0.7
-                            radius: 0.24
-                            sphere: true
-                            color: index < (match.livesLeft[side.index] ?? 0) ? side.color : Theme.goal
-                            glow: 0.4
+                    Discs {
+                        radius: 0.24
+                        sphere: true
+                        items: {
+                            const items = []
+                            for (let index = 0; index < match.lives; ++index)
+                                items.push({ x: 0.5 + index * 0.7, y: 0, glow: 0.4,
+                                             color: index < (match.livesLeft[side.index] ?? 0) ? side.color : Theme.goal })
+                            return items
                         }
                     }
 
@@ -1499,20 +1524,20 @@ Scene {
                     loops: Animation.Infinite
                 }
 
-                Repeater3D {
-                    model: 18
-
-                    delegate: Disc {
-                        required property int index
-                        readonly property real arm: index % 3
-                        readonly property real step: Math.floor(index / 3)
-                        readonly property real angle: arm * 2.0 * Math.PI / 3 + step * 0.45
-                        readonly property real distance: 0.9 + step * 0.45
-                        position: Qt.vector3d(distance * Math.cos(angle), distance * Math.sin(angle), 0)
-                        radius: 0.16 - 0.015 * step
-                        thickness: 0.1
-                        color: gravityWell.color
-                        glow: 1.0 - 0.12 * step
+                Discs {
+                    radius: 0.16
+                    thickness: 0.1
+                    items: {
+                        const items = []
+                        for (let index = 0; index < 18; ++index) {
+                            const arm = index % 3
+                            const step = Math.floor(index / 3)
+                            const angle = arm * 2.0 * Math.PI / 3 + step * 0.45
+                            const distance = 0.9 + step * 0.45
+                            items.push({ x: distance * Math.cos(angle), y: distance * Math.sin(angle),
+                                         scale: 1.0 - 0.09375 * step, color: gravityWell.color, glow: 1.0 - 0.12 * step })
+                        }
+                        return items
                     }
                 }
             }
@@ -1530,17 +1555,18 @@ Scene {
                 glow: 0.0
             }
 
-            Repeater3D {
-                model: 40
-
-                delegate: Disc {
-                    required property int index
-                    readonly property real angle: index * 2.0 * Math.PI / 40
-                    position: Qt.vector3d(root.ghostRadius * Math.cos(angle), root.ghostRadius * Math.sin(angle), 0.05)
-                    radius: 0.08
-                    thickness: 0.02
-                    color: Theme.dimmed
-                    glow: 0.6
+            Discs {
+                z: 0.05
+                radius: 0.08
+                thickness: 0.02
+                items: {
+                    const items = []
+                    for (let index = 0; index < 40; ++index) {
+                        const angle = index * 2.0 * Math.PI / 40
+                        items.push({ x: root.ghostRadius * Math.cos(angle), y: root.ghostRadius * Math.sin(angle),
+                                     color: Theme.dimmed, glow: 0.6 })
+                    }
+                    return items
                 }
             }
         }
@@ -1617,6 +1643,21 @@ Scene {
         x: -root.extentX - 7.5
         y: root.middleY + root.extentY - 1.0
 
+        // The balls left of everybody in one draw call
+        Discs {
+            radius: 0.24
+            sphere: true
+            items: {
+                const items = []
+                for (let player = 0; player < root.players; ++player) {
+                    for (let index = 0; index < match.lives; ++index)
+                        items.push({ x: 4.0 + index * 0.7, y: -player * 2.0, glow: 0.4,
+                                     color: index < (match.livesLeft[player] ?? 0) ? root.colors[player] : Theme.goal })
+                }
+                return items
+            }
+        }
+
         Repeater3D {
             model: root.players
 
@@ -1638,18 +1679,6 @@ Scene {
                     text: root.playerName(entry.index)
                 }
 
-                Repeater3D {
-                    model: match.lives
-
-                    delegate: Disc {
-                        required property int index
-                        x: 4.0 + index * 0.7
-                        radius: 0.24
-                        sphere: true
-                        color: index < (match.livesLeft[entry.index] ?? 0) ? entry.color : Theme.goal
-                        glow: 0.4
-                    }
-                }
 
                 PowerBar {
                     visible: entry.alive

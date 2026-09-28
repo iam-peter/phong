@@ -2505,17 +2505,16 @@ Scene {
                     loops: Animation.Infinite
                 }
 
-                Repeater3D {
-                    model: 6
-
-                    delegate: Disc {
-                        required property int index
-                        readonly property real angle: index * Math.PI / 3
-                        position: Qt.vector3d(0.7 * Math.cos(angle), 0.7 * Math.sin(angle), 0)
-                        radius: 0.12
-                        thickness: 0.1
-                        color: portal.color
-                        glow: 1.0
+                Discs {
+                    radius: 0.12
+                    thickness: 0.1
+                    items: {
+                        const items = []
+                        for (let index = 0; index < 6; ++index) {
+                            const angle = index * Math.PI / 3
+                            items.push({ x: 0.7 * Math.cos(angle), y: 0.7 * Math.sin(angle), color: portal.color, glow: 1.0 })
+                        }
+                        return items
                     }
                 }
             }
@@ -2555,21 +2554,22 @@ Scene {
                 loops: Animation.Infinite
             }
 
-            Repeater3D {
-                model: 18
-
-                delegate: Disc {
-                    required property int index
-                    // Three arms, each dot a bit further out and further round
-                    readonly property real arm: index % 3
-                    readonly property real step: Math.floor(index / 3)
-                    readonly property real angle: arm * 2.0 * Math.PI / 3 + step * 0.45
-                    readonly property real distance: 0.9 + step * 0.45
-                    position: Qt.vector3d(distance * Math.cos(angle), distance * Math.sin(angle), 0)
-                    radius: 0.16 - 0.015 * step
-                    thickness: 0.1
-                    color: gravityWell.color
-                    glow: 1.0 - 0.12 * step
+            Discs {
+                radius: 0.16
+                thickness: 0.1
+                items: {
+                    // Three arms, each dot a bit further out, further round
+                    // and smaller
+                    const items = []
+                    for (let index = 0; index < 18; ++index) {
+                        const arm = index % 3
+                        const step = Math.floor(index / 3)
+                        const angle = arm * 2.0 * Math.PI / 3 + step * 0.45
+                        const distance = 0.9 + step * 0.45
+                        items.push({ x: distance * Math.cos(angle), y: distance * Math.sin(angle),
+                                     scale: 1.0 - 0.09375 * step, color: gravityWell.color, glow: 1.0 - 0.12 * step })
+                    }
+                    return items
                 }
             }
         }
@@ -2737,18 +2737,17 @@ Scene {
         z: 0.6
 
         // A clock of dots going out one after another
-        Repeater3D {
-            model: kickoff.dots
-
-            delegate: Disc {
-                required property int index
-                readonly property real angle: 0.5 * Math.PI - index * 2.0 * Math.PI / kickoff.dots
-
-                visible: index < Math.ceil(kickoff.fraction * kickoff.dots)
-                position: Qt.vector3d(1.7 * Math.cos(angle), 1.7 * Math.sin(angle), 0)
-                radius: 0.15
-                thickness: 0.2
-                color: Theme.text
+        Discs {
+            radius: 0.15
+            thickness: 0.2
+            items: {
+                const items = []
+                const shown = Math.ceil(kickoff.fraction * kickoff.dots)
+                for (let index = 0; index < shown; ++index) {
+                    const angle = 0.5 * Math.PI - index * 2.0 * Math.PI / kickoff.dots
+                    items.push({ x: 1.7 * Math.cos(angle), y: 1.7 * Math.sin(angle), color: Theme.text, glow: 0.25 })
+                }
+                return items
             }
         }
 
@@ -2948,17 +2947,15 @@ Scene {
             text: root.endless ? root.endlessScore : match.rally
         }
 
-        Repeater3D {
-            model: root.solo ? root.lives : 0
-
-            delegate: Disc {
-                required property int index
-                x: 3.0 + index * 1.0
-                y: 0.35
-                radius: 0.3
-                sphere: true
-                color: index < root.lives - match.right.score ? Theme.leftPlayer : Theme.goal
-                glow: 0.4
+        Discs {
+            sphere: true
+            radius: 0.3
+            items: {
+                const items = []
+                for (let index = 0; root.solo && index < root.lives; ++index)
+                    items.push({ x: 3.0 + index * 1.0, y: 0.35, glow: 0.4,
+                                 color: index < root.lives - match.right.score ? Theme.leftPlayer : Theme.goal })
+                return items
             }
         }
 
@@ -2971,30 +2968,19 @@ Scene {
             text: match.right.name
         }
 
-        // Won sets as dots above the scores
-        Repeater3D {
-            model: match.setsToWin > 1 ? match.setsToWin : 0
-
-            delegate: Disc {
-                required property int index
-                x: -2.4 - index * 0.7
-                y: 1.5
-                radius: 0.22
-                thickness: 0.2
-                color: index < match.left.sets ? Theme.title : Theme.goal
-            }
-        }
-
-        Repeater3D {
-            model: match.setsToWin > 1 ? match.setsToWin : 0
-
-            delegate: Disc {
-                required property int index
-                x: 2.4 + index * 0.7
-                y: 1.5
-                radius: 0.22
-                thickness: 0.2
-                color: index < match.right.sets ? Theme.title : Theme.goal
+        // Won sets as dots above the scores, both sides in one go
+        Discs {
+            radius: 0.22
+            thickness: 0.2
+            items: {
+                const items = []
+                for (let index = 0; match.setsToWin > 1 && index < match.setsToWin; ++index) {
+                    items.push({ x: -2.4 - index * 0.7, y: 1.5, glow: 0.25,
+                                 color: index < match.left.sets ? Theme.title : Theme.goal })
+                    items.push({ x: 2.4 + index * 0.7, y: 1.5, glow: 0.25,
+                                 color: index < match.right.sets ? Theme.title : Theme.goal })
+                }
+                return items
             }
         }
     }
