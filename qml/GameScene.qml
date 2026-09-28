@@ -170,9 +170,17 @@ Scene {
 
     // Two players on the LAN: the host runs the game and sends its state
     // after every step, the other machine shows it and sends its input.
-    // The players on the network, { id, name } by side, at the host.
+    // The players on the network, { id, name, token } by side, at the host.
     property var remotes: [null, null]
-    readonly property bool hostingLan: Lan.role === Lan.Host && remotes.some((remote) => remote !== null)
+    // Host: players on the network who watch, by id, and the sides of the
+    // players who left by their token, they get them back when they join
+    // again
+    property var spectators: []
+    property var departed: ({})
+    // Host: the match was started on the LAN, it takes the ones who join
+    property bool lanGame: false
+    readonly property bool hostingLan: Lan.role === Lan.Host
+                                       && (remotes.some((remote) => remote !== null) || spectators.length > 0)
     // Host: the input of the remote sides, and what happened since the
     // last state
     property var remoteMoves: [0, 0]
@@ -182,6 +190,8 @@ Scene {
     // On the joined machine: the side played there and the latest state
     property bool remote: false
     property int localSide: Match.RightSide
+    // A joined machine without a side watches
+    readonly property bool spectating: remote && localSide === Match.NoSide
     property var remoteBalls: []
     property var remotePaddles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     property real remoteAge: 0.0
@@ -323,9 +333,12 @@ Scene {
             case "left":
                 calloutBanner.show(qsTr("%1 left").arg(event.name), Theme.dimmed, 1.0)
                 break
+            case "back":
+                calloutBanner.show(qsTr("%1 is back").arg(event.name), Theme.accent, 1.0)
+                break
             case "finished":
                 // The joined machine replays its own recording
-                SoundEffects.play(match.winner === (localSide === Match.LeftSide ? match.left : match.right)
+                SoundEffects.play(spectating || match.winner === (localSide === Match.LeftSide ? match.left : match.right)
                                   ? SoundEffects.Win : SoundEffects.Lose)
                 startReplay()
                 break
@@ -378,18 +391,56 @@ Scene {
                                                                               * (player.reversed ? -1 : 1))
             }
         }
+    }
+
+    Connections {
+        target: Lan
+        enabled: root.lanGame && Lan.role === Lan.Host
         function onPeerLeft(peer) {
-            // The computer or the keyboard takes over
+            root.spectators = root.spectators.filter((id) => id !== peer)
+
+            // The computer or the keyboard takes over until they are back
             const side = root.remoteSide(peer)
             if (side < 0)
                 return
             root.effect({ e: "left", name: root.remotes[side].name })
+            if ((root.remotes[side].token ?? "") !== "") {
+                const departed = root.departed
+                departed[root.remotes[side].token] = { side: side, name: root.remotes[side].name }
+                root.departed = departed
+            }
             const remotes = root.remotes.slice()
             remotes[side] = null
             root.remotes = remotes
             if (side === Match.RightSide)
                 root.rightByComputer = true
         }
+
+        // A player who left gets the side back, everybody else watches
+        function onPeerJoined(peer, name, token) {
+            const back = root.departed[token]
+            if (back !== undefined && root.remotes[back.side] === null) {
+                const departed = root.departed
+                delete departed[token]
+                root.departed = departed
+                const remotes = root.remotes.slice()
+                remotes[back.side] = { id: peer, name: back.name, token: token }
+                root.remotes = remotes
+                if (back.side === Match.RightSide)
+                    root.rightByComputer = false
+                root.effect({ e: "back", name: back.name })
+                root.sendStart(peer, back.side)
+                return
+            }
+            root.spectators = root.spectators.concat([peer])
+            root.sendStart(peer, Match.NoSide)
+        }
+    }
+
+    // The match so far for a player on the network, NoSide watches
+    function sendStart(peer, side) {
+        Lan.send(peer, { t: "start", party: false, side: side, arena: arenaId,
+                         match: match.snapshot(), modifiers: modifiers.snapshot() })
     }
 
     // The game from the host, again after a rematch
@@ -410,7 +461,7 @@ Scene {
         resetBall()
         match.applySnapshot(message.match)
         modifiers.applySnapshot(message.modifiers)
-        banner.show(arena.name ?? "", Theme.title)
+        banner.show(spectating ? qsTr("Watching") : arena.name ?? "", Theme.title)
     }
 
     function applyRemote(message) {
@@ -428,6 +479,8 @@ Scene {
     // A key on the joined machine: both sets move, smash and special go to
     // the host
     function remoteKey(key, pressed) {
+        if (spectating)
+            return false
         if (key === Qt.Key_Space) {
             remoteCharging = pressed
             return true
@@ -507,6 +560,8 @@ Scene {
                 charging = charging || pad.isPressed(KeySettings.padButton(KeySettings.PadSmash))
             }
             root.sinceSent += dt
+            if (root.spectating)
+                return
             if (move !== root.sentMove || charging !== root.sentCharging || root.sinceSent > 0.2) {
                 Lan.sendToHost({ t: "input", move: move, charging: charging })
                 root.sentMove = move
@@ -627,6 +682,8 @@ Scene {
                 return
             if (action === KeySettings.PadPause)
                 askLeave = !askLeave
+            else if (spectating)
+                return
             else if (action === KeySettings.PadSpecial && running)
                 Lan.sendToHost({ t: "action", a: "special" })
             else if (action === KeySettings.PadDash && running && Math.abs(pad.direction.y) > 0.3)
@@ -789,12 +846,15 @@ Scene {
         banner.show(bricks ? qsTr("Bricks") : squash ? qsTr("Squash") : arena.name ?? "", Theme.title)
 
         // The players on the network start with it
-        if (hostingLan) {
+        lanGame = mode === GameScene.TwoPlayers && Lan.role === Lan.Host
+        if (lanGame) {
             remotes.forEach((remote, side) => {
                 if (remote)
-                    Lan.send(remote.id, { t: "start", party: false, side: side, arena: arenaId,
-                                          match: match.snapshot(), modifiers: modifiers.snapshot() })
+                    sendStart(remote.id, side)
             })
+            for (const peer of spectators)
+                sendStart(peer, Match.NoSide)
+            Lan.setInfo({ mode: "classic", players: 2, open: 0, playing: true })
         }
     }
 
@@ -880,6 +940,9 @@ Scene {
     function leave() {
         match.stop()
         releaseInput()
+        lanGame = false
+        spectators = []
+        departed = {}
         Lan.leave()
         remote = false
         // The tournament goes back to its bracket, the rest to the menu,
@@ -2923,7 +2986,8 @@ Scene {
             readonly property string solo: qsTr("%1 move, twice dashes   [Space] smash   %2 special")
                 .arg(keys(KeySettings.LeftUp, KeySettings.LeftDown)).arg(keys(KeySettings.LeftSpecial))
 
-            text: root.sharedKeyboard ? left
+            text: root.spectating ? qsTr("Watching")
+                  : root.sharedKeyboard ? left
                   : root.mode === GameScene.Ladder ? qsTr("Ladder %1/3").arg(root.ladderStage + 1) + "   " + solo
                   : root.tournament ? qsTr("Tournament") + "   " + solo
                   : root.squash ? qsTr("Best %1").arg(Math.max(match.longestRally, Stats.squashBest)) + "   " + solo

@@ -37,6 +37,8 @@ class Lan : public QObject
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
     // A name for this machine's games and players
     Q_PROPERTY(QString machineName READ machineName CONSTANT)
+    // Random and kept, it tells a host that a player is back
+    Q_PROPERTY(QString token READ token CONSTANT)
 
 public:
     enum Role {
@@ -50,7 +52,7 @@ public:
     static constexpr quint16 defaultPort = 45455;
     static constexpr quint16 discoveryPort = 45454;
     // Bumped when the messages change, older clients are turned away
-    static constexpr int protocolVersion = 1;
+    static constexpr int protocolVersion = 2;
 
     explicit Lan(QObject* parent = nullptr);
     ~Lan() override;
@@ -84,6 +86,7 @@ public:
     int clientId() const;
     QString error() const;
     QString machineName() const;
+    QString token() const;
 
 signals:
     void roleChanged();
@@ -92,7 +95,7 @@ signals:
     void errorChanged();
 
     // Host side
-    void peerJoined(int peer, const QString& name);
+    void peerJoined(int peer, const QString& name, const QString& token);
     void peerLeft(int peer);
     void received(int peer, const QVariantMap& message);
 
@@ -106,6 +109,7 @@ private:
     struct Peer {
         int id;
         QString name;
+        QString token;
         QPointer<QWebSocket> socket;
     };
 
@@ -123,6 +127,7 @@ private:
 
     Role m_role;
     QString m_error;
+    QString m_token;
 
     // Host
     QWebSocketServer* m_server;

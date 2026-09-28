@@ -246,6 +246,12 @@ for the players and UDP port 45454 to find games, a firewall has to let
 them through. A player who leaves is replaced by the computer, only the host
 pauses, the others can leave with `Esc`.
 
+A player who left and joins again gets their side back from the computer,
+the game recognises the machine. Everybody else who joins a game that is
+already running, or a lobby without a free side, watches: the game shows
+up without a side to play, `Esc` leaves. The list of games says which ones
+are playing or full.
+
 On Normal and Hard the computer aims its returns through modifiers it wants,
 Hard also plays the ball away from your paddle.
 

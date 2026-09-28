@@ -19,8 +19,10 @@ Scene {
     readonly property var items: {
         const items = Lan.games.map((game) => ({
             text: game.name,
-            detail: game.info.mode === "party" ? qsTr("%1 players, %2 free").arg(game.info.players).arg(game.info.open)
-                                               : qsTr("2 players, %1 free").arg(game.info.open),
+            // A game going on or without a free side can be watched
+            detail: qsTr("%1 players, %2").arg(game.info.mode === "party" ? game.info.players : 2)
+                    .arg(game.info.playing ? qsTr("playing, to watch")
+                         : game.info.open > 0 ? qsTr("%1 free").arg(game.info.open) : qsTr("full, to watch")),
             activate: () => root.join(game.url)
         }))
         items.push({ text: qsTr("Address"), address: true, activate: () => root.join(root.address) })

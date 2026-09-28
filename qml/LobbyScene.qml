@@ -22,6 +22,9 @@ Scene {
     // Gamepads { kind: "pad", pad } and network players { kind: "remote",
     // id, name } in the order they joined
     property var joiners: []
+    // Network players who came when every side was taken, { id, name },
+    // they watch
+    property var watchers: []
 
     // Joined to a host: its lobby as it sends it
     property bool remote: false
@@ -104,8 +107,9 @@ Scene {
         })
     }
 
+    // Only while it's shown, a running game has its own info
     function shareLobby() {
-        if (!hostingLan)
+        if (!hostingLan || !active)
             return
         const shared = sharedSlots()
         for (const joiner of joiners) {
@@ -113,11 +117,14 @@ Scene {
                 Lan.send(joiner.id, { t: "lobby", party: party, players: players, slots: shared,
                                       slot: slots.indexOf(joiner) })
         }
+        for (const watcher of watchers)
+            Lan.send(watcher.id, { t: "lobby", party: party, players: players, slots: shared, slot: -1 })
         Lan.setInfo({ mode: party ? "party" : "classic", players: players,
                       open: capacity - joiners.length })
     }
 
     onSlotsChanged: shareLobby()
+    onWatchersChanged: shareLobby()
 
     function cyclePlayers(step) {
         const count = players - 3 + step
@@ -141,6 +148,7 @@ Scene {
         if (hostingLan) {
             for (const joiner of joiners.filter((j) => j.kind === "remote"))
                 dropJoiner(joiner)
+            watchers = []
             Lan.leave()
         }
         else {
@@ -148,10 +156,11 @@ Scene {
         }
     }
 
+    // A player on the network who no longer fits watches instead
     function dropJoiner(joiner) {
         joiners = joiners.filter((j) => j !== joiner)
         if (joiner.kind === "remote")
-            Lan.kick(joiner.id)
+            watchers = watchers.concat([{ id: joiner.id, name: joiner.name }])
     }
 
     function join(pad) {
@@ -174,6 +183,7 @@ Scene {
         SoundEffects.play(SoundEffects.MenuSelect)
         Lan.leave()
         joiners = []
+        watchers = []
         remote = false
         phong.returnTo(root.menuScene)
     }
@@ -182,11 +192,12 @@ Scene {
         if (remote)
             return
         SoundEffects.play(SoundEffects.MenuSelect)
+        const watching = watchers.map((w) => w.id)
         if (party) {
-            phong.startParty(players, slots)
+            phong.startParty(players, slots, watching)
             return
         }
-        phong.startTwoPlayers(slots[0], slots[1])
+        phong.startTwoPlayers(slots[0], slots[1], watching)
     }
 
     // A lobby on this machine, after one of a host maybe
@@ -194,6 +205,7 @@ Scene {
         remote = false
         remoteSlots = []
         joiners = []
+        watchers = []
         keyboards = 1
         party = asParty
         players = Qt.binding(() => root.party ? GameSettings.partyPlayers : 2)
@@ -244,20 +256,26 @@ Scene {
         }
     }
 
+    // While a game runs its scene takes the players who join
+    Connections {
+        target: Lan
+        enabled: root.hostingLan && !root.remote && root.active
+        function onPeerJoined(peer, name, token) {
+            if (root.joiners.length >= root.capacity) {
+                root.watchers = root.watchers.concat([{ id: peer, name: name }])
+                return
+            }
+            root.joiners = root.joiners.concat([{ kind: "remote", id: peer, name: name, token: token }])
+            SoundEffects.play(SoundEffects.Pickup)
+        }
+    }
+
     Connections {
         target: Lan
         enabled: root.hostingLan && !root.remote
-        function onPeerJoined(peer, name) {
-            if (root.joiners.length >= root.capacity) {
-                Lan.send(peer, { t: "full" })
-                Lan.kick(peer)
-                return
-            }
-            root.joiners = root.joiners.concat([{ kind: "remote", id: peer, name: name }])
-            SoundEffects.play(SoundEffects.Pickup)
-        }
         function onPeerLeft(peer) {
             root.joiners = root.joiners.filter((j) => j.kind !== "remote" || j.id !== peer)
+            root.watchers = root.watchers.filter((w) => w.id !== peer)
         }
     }
 
@@ -348,8 +366,10 @@ Scene {
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
         color: root.hostingLan ? Theme.title : Theme.dimmed
-        text: root.remote ? qsTr("Waiting for the host to start")
+        text: root.remote ? (root.remoteSlot < 0 ? qsTr("Every side is taken, you watch once the host starts")
+                                                 : qsTr("Waiting for the host to start"))
               : root.hostingLan ? qsTr("Open on the LAN, from a browser join %1").arg(Lan.addresses.slice(0, 2).join(qsTr(" or ")))
+                                  + (root.watchers.length > 0 ? qsTr(", %n watching", "", root.watchers.length) : "")
               : Lan.error !== "" ? Lan.error
               : ""
     }

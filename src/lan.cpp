@@ -1,6 +1,8 @@
 #include "lan.h"
 
 #include <QDateTime>
+#include <QSettings>
+#include <QUuid>
 #include <QJsonDocument>
 #include <QLoggingCategory>
 #include <QSysInfo>
@@ -24,6 +26,7 @@ Lan::Lan(QObject* parent):
     QObject(parent),
     m_role(Role::NoRole),
     m_error(),
+    m_token(),
     m_server(nullptr),
     m_announcer(nullptr),
     m_announceTimer(),
@@ -38,6 +41,13 @@ Lan::Lan(QObject* parent):
     m_expireTimer(),
     m_games()
 {
+    QSettings settings;
+    m_token = settings.value(QStringLiteral("lan/token")).toString();
+    if (m_token.isEmpty()) {
+        m_token = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        settings.setValue(QStringLiteral("lan/token"), m_token);
+    }
+
     m_announceTimer.setInterval(1000);
     connect(&m_announceTimer, &QTimer::timeout, this, &Lan::announce);
     m_expireTimer.setInterval(1000);
@@ -132,6 +142,7 @@ void Lan::join(const QString& url, const QString& name)
     connect(m_socket, &QWebSocket::connected, this, [this, name] {
         sendToHost({ { QStringLiteral("t"), QStringLiteral("hello") },
                      { QStringLiteral("name"), name },
+                     { QStringLiteral("token"), m_token },
                      { QStringLiteral("version"), protocolVersion } });
     });
     connect(m_socket, &QWebSocket::textMessageReceived, this, &Lan::clientReceived);
@@ -327,6 +338,11 @@ QString Lan::error() const
     return m_error;
 }
 
+QString Lan::token() const
+{
+    return m_token;
+}
+
 QString Lan::machineName() const
 {
 #if defined(Q_OS_WASM)
@@ -457,12 +473,13 @@ void Lan::hostReceived(QWebSocket* socket, const QString& text)
             return;
         }
 
-        const Peer peer{ m_nextId++, message.value(QStringLiteral("name")).toString().left(16), socket };
+        const Peer peer{ m_nextId++, message.value(QStringLiteral("name")).toString().left(16),
+                         message.value(QStringLiteral("token")).toString().left(64), socket };
         m_peers.append(peer);
         socket->sendTextMessage(encode({ { QStringLiteral("t"), QStringLiteral("welcome") },
                                          { QStringLiteral("id"), peer.id } }));
         emit peersChanged();
-        emit peerJoined(peer.id, peer.name);
+        emit peerJoined(peer.id, peer.name, peer.token);
         return;
     }
 

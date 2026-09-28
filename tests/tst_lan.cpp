@@ -1,6 +1,7 @@
 #include "lan.h"
 
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTest>
 
 class tst_Lan : public QObject
@@ -8,6 +9,14 @@ class tst_Lan : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase()
+    {
+        // The token is kept in the settings
+        QStandardPaths::setTestModeEnabled(true);
+        QCoreApplication::setOrganizationName(QStringLiteral("phong-tests"));
+        QCoreApplication::setApplicationName(QStringLiteral("tst_lan"));
+    }
+
     void hostAndJoin()
     {
         Lan host;
@@ -31,6 +40,9 @@ private slots:
         QTRY_COMPARE(joined.count(), 1);
         const int id = joined.last().at(0).toInt();
         QCOMPARE(joined.last().at(1).toString(), QStringLiteral("Guest"));
+        QVERIFY(!client.token().isEmpty());
+        QCOMPARE(joined.last().at(2).toString(), client.token());
+        QCOMPARE(Lan().token(), client.token());
         QCOMPARE(client.clientId(), id);
         QCOMPARE(host.peers().size(), 1);
 

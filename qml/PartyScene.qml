@@ -41,8 +41,18 @@ Scene {
     property int localSlot: 0
     // Names from the host, the same for everybody
     property var names: []
-    readonly property real fieldRotation: remote ? -localSlot * 360 / players : 0
-    readonly property bool hosting: Lan.role === Lan.Host && controllers.some((c) => c.kind === "remote")
+    // A joined machine without a side watches
+    readonly property bool spectating: remote && localSlot < 0
+    readonly property real fieldRotation: remote && localSlot >= 0 ? -localSlot * 360 / players : 0
+    // Host: players on the network who watch, by id, and the sides of the
+    // players who left by their token, they get them back when they join
+    // again
+    property var spectators: []
+    property var departed: ({})
+    // Host: the game was started on the LAN, it takes the ones who join
+    property bool lanGame: false
+    readonly property bool hosting: Lan.role === Lan.Host
+                                    && (controllers.some((c) => c.kind === "remote") || spectators.length > 0)
     // Host: the latest input of every remote player by id
     property var remoteInputs: ({})
     // Host: what happened since the last state sent
@@ -217,6 +227,9 @@ Scene {
             case "left":
                 banner.show(qsTr("%1 left").arg(event.name), Theme.dimmed)
                 break
+            case "back":
+                banner.show(qsTr("%1 is back").arg(event.name), Theme.title)
+                break
         }
     }
 
@@ -234,7 +247,7 @@ Scene {
             sides.objectAt(i)?.reset()
         ball.clearTrail()
         match.applySnapshot(message.match ?? {})
-        modifiers.applySnapshot({})
+        modifiers.applySnapshot(message.modifiers ?? {})
     }
 
     function applyRemote(message) {
@@ -247,6 +260,8 @@ Scene {
             playEvent(event)
 
         // Out, or the winner
+        if (spectating)
+            return
         if (place === 0 && match.livesLeft.length > localSlot && !match.isAlive(localSlot)) {
             place = match.alive + 1
             SoundEffects.play(SoundEffects.Lose)
@@ -286,6 +301,8 @@ Scene {
             else if (input === 0 && !isNaN(root.pointerX))
                 input = Math.max(-1, Math.min(1, (root.pointerX - (sides.objectAt(root.localSlot)?.offset ?? 0)) / 0.5))
             const charging = root.keysCharging(0) || (pad?.isPressed(KeySettings.padButton(KeySettings.PadSmash)) ?? false)
+            if (root.spectating)
+                return
             root.sinceSent += dt
             if (input !== root.sentInput || charging !== root.sentCharging || root.sinceSent > 0.2) {
                 Lan.sendToHost({ t: "input", move: input, charging: charging })
@@ -321,17 +338,55 @@ Scene {
                     root.dash(side, direction, true)
             }
         }
+    }
+
+    Connections {
+        target: Lan
+        enabled: root.lanGame && Lan.role === Lan.Host
         function onPeerLeft(peer) {
-            // The computer takes over
+            root.spectators = root.spectators.filter((id) => id !== peer)
+
+            // The computer takes over until they are back
             const side = root.controllers.findIndex((c) => c.kind === "remote" && c.id === peer)
             if (side < 0)
                 return
             root.netEvent({ e: "left", name: root.playerName(side) })
             root.playEvent({ e: "left", name: root.playerName(side) })
+            const token = root.controllers[side].token ?? ""
+            if (token !== "") {
+                const departed = root.departed
+                departed[token] = { side: side, name: root.controllers[side].name }
+                root.departed = departed
+            }
             const controllers = root.controllers.slice()
             controllers[side] = { kind: "cpu" }
             root.controllers = controllers
         }
+
+        // A player who left gets the side back, everybody else watches
+        function onPeerJoined(peer, name, token) {
+            const back = root.departed[token]
+            if (back !== undefined && root.controller(back.side).kind === "cpu") {
+                const departed = root.departed
+                delete departed[token]
+                root.departed = departed
+                const controllers = root.controllers.slice()
+                controllers[back.side] = { kind: "remote", id: peer, name: back.name, token: token }
+                root.controllers = controllers
+                root.netEvent({ e: "back", name: back.name })
+                root.playEvent({ e: "back", name: back.name })
+                root.sendStart(peer, back.side)
+                return
+            }
+            root.spectators = root.spectators.concat([peer])
+            root.sendStart(peer, -1)
+        }
+    }
+
+    // The game so far for a player on the network, slot -1 watches
+    function sendStart(peer, slot) {
+        Lan.send(peer, { t: "start", party: true, players: players, slot: slot, names: sharedNames(),
+                         match: match.snapshot(), modifiers: modifiers.snapshot() })
     }
 
     // Gamepads work the pause menu and the end, not the game
@@ -353,6 +408,8 @@ Scene {
                 return
             if (action === KeySettings.PadPause)
                 askLeave = !askLeave
+            else if (spectating)
+                return
             else if (action === KeySettings.PadSpecial && running)
                 Lan.sendToHost({ t: "action", a: "special" })
             else if (action === KeySettings.PadDash && running && Math.abs(pad.direction.x) > 0.3)
@@ -574,13 +631,15 @@ Scene {
         modifiers.reset()
 
         // Everybody on the network starts with it
-        if (hosting) {
-            const names = sharedNames()
+        lanGame = Lan.role === Lan.Host
+        if (lanGame) {
             controllers.forEach((controller, side) => {
                 if (controller.kind === "remote")
-                    Lan.send(controller.id, { t: "start", party: true, players: players, slot: side, names: names,
-                                              match: match.snapshot() })
+                    sendStart(controller.id, side)
             })
+            for (const peer of spectators)
+                sendStart(peer, -1)
+            Lan.setInfo({ mode: "party", players: players, open: 0, playing: true })
         }
     }
 
@@ -599,6 +658,9 @@ Scene {
     }
 
     function leave() {
+        lanGame = false
+        spectators = []
+        departed = {}
         match.stop()
         releaseInput()
         Lan.leave()
@@ -898,7 +960,7 @@ Scene {
         const set = Math.floor(action / 6)
         const key = action % 6
         if (remote) {
-            if (!down || !running)
+            if (!down || !running || spectating)
                 return
             // The own side is at the bottom, right along it
             if (key < 4 && keyDirections[key].x !== 0)
@@ -1577,7 +1639,10 @@ Scene {
             id: hints
             model: {
                 let lines = [qsTr("%1 players").arg(root.players)]
-                if (root.keyboards > 1 && !root.remote) {
+                if (root.spectating) {
+                    lines.push(qsTr("Watching"))
+                }
+                else if (root.keyboards > 1 && !root.remote) {
                     const one = root.keysHint(0)
                     const two = root.keysHint(1)
                     lines = lines.concat([qsTr("Keys 1: %1").arg(one[0]), one[1], qsTr("Keys 2: %1").arg(two[0]), two[1]])
@@ -1585,7 +1650,8 @@ Scene {
                 else {
                     lines = lines.concat(root.keysHint(0))
                 }
-                lines.push(qsTr("Tap twice to dash"))
+                if (!root.spectating)
+                    lines.push(qsTr("Tap twice to dash"))
                 lines.push(root.remote ? qsTr("[Esc] leave") : qsTr("[Esc] pause"))
                 return lines
             }
@@ -1603,7 +1669,9 @@ Scene {
     // Pause and the end, over the field
     Node {
         id: overlay
-        visible: match.state === PartyMatch.Paused || root.place > 0 || root.askLeave
+        // Watchers see the end too
+        readonly property bool watchedEnd: root.spectating && match.state === PartyMatch.Finished
+        visible: match.state === PartyMatch.Paused || root.place > 0 || root.askLeave || watchedEnd
         y: root.middleY
         z: 1.5
 
@@ -1625,7 +1693,8 @@ Scene {
             glow: 0.8
             readonly property bool youWon: root.remote ? match.winner === root.localSlot
                                                        : root.controller(match.winner).kind === "keyboard"
-            text: root.place === 1 ? (youWon ? qsTr("You win") : qsTr("%1 wins").arg(root.playerName(match.winner)))
+            text: root.place === 1 || (overlay.watchedEnd && !root.askLeave)
+                  ? (youWon ? qsTr("You win") : qsTr("%1 wins").arg(root.playerName(match.winner)))
                   : root.place > 1 ? qsTr("Place %1 of %2").arg(root.place).arg(root.players)
                   : root.askLeave ? qsTr("Leave?")
                   : qsTr("Paused")
@@ -1667,7 +1736,7 @@ Scene {
         }
 
         Text3D {
-            visible: root.place > 0
+            visible: root.place > 0 || overlay.watchedEnd
             y: -6.0
             scale: Qt.vector3d(0.5, 0.5, 0.5)
             horizontalAlignment: Text.AlignHCenter

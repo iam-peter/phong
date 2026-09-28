@@ -124,20 +124,23 @@ Window {
     }
 
     // Three to six players on a polygon, controllers for every side
-    function startParty(players, controllers) {
+    // watching: ids of players on the network who watch
+    function startParty(players, controllers, watching) {
         partyScene.players = players
         partyScene.controllers = controllers ?? [{ kind: "keyboard" }]
+        partyScene.spectators = watching ?? []
         nextScene(partyScene)
         partyScene.start()
     }
 
     // The classic field, slots from the lobby: keyboard, gamepads, or a
     // player on the network
-    function startTwoPlayers(left, right) {
+    function startTwoPlayers(left, right, watching) {
+        gameScene.spectators = watching ?? []
         gameScene.leftPadAssigned = left?.kind === "pad" ? left.pad : null
         gameScene.rightPadAssigned = right?.kind === "pad" ? right.pad : null
-        gameScene.remotes = [left, right].map((slot) => slot?.kind === "remote" ? { id: slot.id, name: slot.name }
-                                                                               : null)
+        gameScene.remotes = [left, right].map((slot) => slot?.kind === "remote"
+                                              ? { id: slot.id, name: slot.name, token: slot.token ?? "" } : null)
         startGame(GameScene.TwoPlayers)
     }
 
