@@ -92,6 +92,12 @@ it.
 
 - **1 Player** against the computer, the level is set in the settings.
 - **2 Players** on one keyboard, or with two fingers on a touch screen.
+- **3 to 6 Players**, a test: you against the computer on a regular polygon
+  with a side for everybody, a triangle for three up to a hexagon for six.
+  The middle of each side is its player's goal, posts at the ends keep the
+  goals apart. Everybody has three balls to lose, a player who is out gets a
+  wall instead of the goal, and the last one left wins. `Left`/`Right` or
+  `A`/`D` move your paddle at the bottom.
 - **Ladder** against Easy, Normal and Hard in a row, a loss can be retried.
 - **Endless** against a computer getting harder and faster the longer you
   last, with three balls to lose. Every return scores a point, every ball the

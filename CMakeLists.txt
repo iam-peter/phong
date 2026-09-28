@@ -39,6 +39,7 @@ qt_add_qml_module(phong
         qml/StatsScene.qml
         qml/GraphicsScene.qml
         qml/OptionsScene.qml
+        qml/PartyScene.qml
         qml/PhongMaterial.qml
         qml/Starfield.qml
         qml/MenuScene.qml
@@ -48,6 +49,7 @@ qt_add_qml_module(phong
     SOURCES
         src/player.h src/player.cpp
         src/match.h src/match.cpp
+        src/partymatch.h src/partymatch.cpp
         src/dash.h src/dash.cpp
         src/computerplayer.h src/computerplayer.cpp
         src/tournament.h src/tournament.cpp

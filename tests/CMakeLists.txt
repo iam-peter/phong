@@ -13,6 +13,12 @@ phong_add_test(tst_match
     ${PROJECT_SOURCE_DIR}/src/player.cpp
 )
 
+phong_add_test(tst_partymatch
+    ${PROJECT_SOURCE_DIR}/src/partymatch.cpp
+    ${PROJECT_SOURCE_DIR}/src/match.cpp
+    ${PROJECT_SOURCE_DIR}/src/player.cpp
+)
+
 phong_add_test(tst_modifiers
     ${PROJECT_SOURCE_DIR}/src/modifiers.cpp
     ${PROJECT_SOURCE_DIR}/src/match.cpp

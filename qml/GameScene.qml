@@ -1188,7 +1188,8 @@ Scene {
     Binding {
         target: SoundEffects
         property: "musicPlaying"
-        value: root.active && root.running
+        when: root.active
+        value: root.running
     }
 
     Binding {

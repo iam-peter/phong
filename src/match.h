@@ -332,6 +332,7 @@ signals:
 
 private:
     friend class Match;
+    friend class PartyMatch;
 
     void setVelocity(const QVector2D& velocity);
     void setSpin(qreal spin);

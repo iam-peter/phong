@@ -97,6 +97,13 @@ Window {
         gameScene.startMatch()
     }
 
+    // Three to six players on a polygon
+    function startParty(players) {
+        partyScene.players = players
+        nextScene(partyScene)
+        partyScene.start()
+    }
+
     // The player's next match of the tournament, from the bracket
     function playTournamentMatch() {
         nextScene(gameScene)
@@ -272,6 +279,13 @@ Window {
             id: achievementsScene
             phong: phong
             position: Qt.vector3d(-2 * phong.sceneSpacingX, -phong.sceneSpacingY, 0)
+        }
+
+        PartyScene {
+            id: partyScene
+            phong: phong
+            position: Qt.vector3d(phong.sceneSpacingX, -phong.sceneSpacingY, 0)
+            menuScene: menuScene
         }
 
         BracketScene {

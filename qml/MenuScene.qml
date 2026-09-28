@@ -11,11 +11,29 @@ Scene {
     property Scene statsScene
     property int currentItem: 0
 
-    // The game modes are cycled through like a setting, in the order of
-    // GameScene.Mode
-    readonly property var modes: [qsTr("1 Player"), qsTr("2 Players"), qsTr("Ladder"), qsTr("Endless"),
-                                  qsTr("Tournament"), qsTr("Bricks"), qsTr("Squash")]
+    // The game modes are cycled through like a setting. Three players and
+    // more play on a polygon of their own.
+    readonly property var modes: [
+        { name: qsTr("1 Player"), mode: GameScene.OnePlayer },
+        { name: qsTr("2 Players"), mode: GameScene.TwoPlayers },
+        { name: qsTr("3 Players"), players: 3 },
+        { name: qsTr("4 Players"), players: 4 },
+        { name: qsTr("5 Players"), players: 5 },
+        { name: qsTr("6 Players"), players: 6 },
+        { name: qsTr("Ladder"), mode: GameScene.Ladder },
+        { name: qsTr("Endless"), mode: GameScene.Endless },
+        { name: qsTr("Tournament"), mode: GameScene.Tournament },
+        { name: qsTr("Bricks"), mode: GameScene.Bricks },
+        { name: qsTr("Squash"), mode: GameScene.Squash }
+    ]
     readonly property int mode: Math.min(Math.max(GameSettings.mode, 0), modes.length - 1)
+
+    function play(entry) {
+        if (entry.players)
+            phong.startParty(entry.players)
+        else
+            phong.startGame(entry.mode)
+    }
 
     function cycleMode(step) {
         GameSettings.mode = (mode + step + modes.length) % modes.length
@@ -24,7 +42,7 @@ Scene {
 
     readonly property var items: {
         const items = [
-            { text: modes[mode], cycles: true, activate: () => phong.startGame(root.mode) },
+            { text: modes[mode].name, cycles: true, activate: () => root.play(root.modes[root.mode]) },
             { text: qsTr("Settings"), activate: () => phong.nextScene(root.settingsScene) },
             { text: qsTr("Stats"), activate: () => phong.nextScene(root.statsScene) }
         ]
