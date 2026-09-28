@@ -642,21 +642,40 @@ Scene {
     function keyHint(...actions) {
         return "[" + actions.map((action) => keyNames[action]).join("/") + "]"
     }
-    readonly property var leftHints: {
-        const twoPlayers = mode === GameScene.TwoPlayers
-        const lines = [qsTr("%1 move").arg(keyHint(KeySettings.LeftUp, KeySettings.LeftDown))]
-        if (!twoPlayers)
-            lines.push(qsTr("%1 move").arg(keyHint(KeySettings.RightUp, KeySettings.RightDown)))
-        lines.push(qsTr("twice to dash"),
-                   qsTr("%1 smash").arg(twoPlayers ? keyHint(KeySettings.LeftSmash) : "[" + qsTr("Space") + "]"),
-                   qsTr("%1 special").arg(keyHint(KeySettings.LeftSpecial)))
-        return lines
+    // Two players share this keyboard, each with a set of keys. Otherwise
+    // both sets play the one paddle, also for a host against a player on
+    // the network, and on the joined machine.
+    readonly property bool sharedKeyboard: mode === GameScene.TwoPlayers && !remote
+                                           && !remotes.some((remote) => remote !== null)
+    // The keys of a player who has the keyboard alone
+    readonly property var soloHints: [
+        qsTr("%1 move").arg(keyHint(KeySettings.LeftUp, KeySettings.LeftDown)),
+        qsTr("%1 move").arg(keyHint(KeySettings.RightUp, KeySettings.RightDown)),
+        qsTr("twice to dash"),
+        qsTr("%1 smash").arg("[" + qsTr("Space") + "]"),
+        qsTr("%1 special").arg(keyHint(KeySettings.LeftSpecial))
+    ]
+    // With two players a side shows its own set of keys, or none for a
+    // player on the network, the one playing here gets both sets
+    function sideHints(side, shared) {
+        if (remote)
+            return side === localSide ? soloHints : []
+        if (remotes[side])
+            return []
+        return sharedKeyboard ? shared : soloHints
     }
+    readonly property var leftHints: mode !== GameScene.TwoPlayers ? soloHints
+        : sideHints(Match.LeftSide, [qsTr("%1 move").arg(keyHint(KeySettings.LeftUp, KeySettings.LeftDown)),
+                                     qsTr("twice to dash"),
+                                     qsTr("%1 smash").arg(keyHint(KeySettings.LeftSmash)),
+                                     qsTr("%1 special").arg(keyHint(KeySettings.LeftSpecial))])
     readonly property var rightHints: {
         if (mode === GameScene.TwoPlayers)
-            return [qsTr("%1 move").arg(keyHint(KeySettings.RightUp, KeySettings.RightDown)), qsTr("twice to dash"),
-                    qsTr("%1 smash").arg(keyHint(KeySettings.RightSmash)),
-                    qsTr("%1 special").arg(keyHint(KeySettings.RightSpecial))]
+            return sideHints(Match.RightSide,
+                             [qsTr("%1 move").arg(keyHint(KeySettings.RightUp, KeySettings.RightDown)),
+                              qsTr("twice to dash"),
+                              qsTr("%1 smash").arg(keyHint(KeySettings.RightSmash)),
+                              qsTr("%1 special").arg(keyHint(KeySettings.RightSpecial))])
         if (mode === GameScene.Ladder)
             return [qsTr("Ladder %1/3").arg(ladderStage + 1)]
         if (squash)
@@ -1164,7 +1183,7 @@ Scene {
         leftDash.advance(dt)
         rightDash.advance(dt)
 
-        const onePlayer = mode !== GameScene.TwoPlayers
+        const onePlayer = !sharedKeyboard
         // Reversed controls swap the keys and mirror the pointer
         const leftSign = match.left.reversed ? -1 : 1
         const rightSign = match.right.reversed ? -1 : 1
@@ -1294,7 +1313,7 @@ Scene {
     // The keys come from the controls settings. Against the computer both
     // sets move your paddle, and space smashes too.
     function setKey(key, pressed) {
-        const twoPlayers = mode === GameScene.TwoPlayers
+        const twoPlayers = sharedKeyboard
         if (key === Qt.Key_Space && !twoPlayers) {
             setCharging(Match.LeftSide, pressed)
             return true
@@ -1323,7 +1342,7 @@ Scene {
 
     // Tapping a direction twice dashes, not when frozen
     function tapDash(key) {
-        const twoPlayers = mode === GameScene.TwoPlayers
+        const twoPlayers = sharedKeyboard
         const upDown = twoPlayers ? rightDash : leftDash
         const left = match.left.frozen ? 0 : match.left.reversed ? -1 : 1
         const right = twoPlayers ? (match.right.frozen ? 0 : match.right.reversed ? -1 : 1) : left
@@ -1337,7 +1356,7 @@ Scene {
     }
 
     function pointerSide(x) {
-        return mode !== GameScene.TwoPlayers || x < 0 ? Match.LeftSide : Match.RightSide
+        return !sharedKeyboard || x < 0 ? Match.LeftSide : Match.RightSide
     }
 
     function setPointer(id, x, y) {
@@ -2698,9 +2717,9 @@ Scene {
             scale: Qt.vector3d(0.42, 0.42, 0.42)
             horizontalAlignment: Text.AlignHCenter
             color: Theme.dimmed
-            text: qsTr("[Esc] pause")
+            text: root.remote ? qsTr("[Esc] leave") : qsTr("[Esc] pause")
             clickable: root.running && root.sideLayout
-            onClicked: match.pause()
+            onClicked: root.remote ? root.askLeave = true : match.pause()
         }
     }
 
@@ -2850,7 +2869,7 @@ Scene {
 
     // Controls, smaller with the keys of two players
     Node {
-        readonly property real textScale: root.mode === GameScene.TwoPlayers ? 0.4 : 0.5
+        readonly property real textScale: root.sharedKeyboard ? 0.4 : 0.5
         visible: !root.sideLayout
         y: -0.5 * root.stageHeight - 2.2
         scale: Qt.vector3d(textScale, textScale, textScale)
@@ -2869,7 +2888,7 @@ Scene {
             readonly property string solo: qsTr("%1 move, twice dashes   [Space] smash   %2 special")
                 .arg(keys(KeySettings.LeftUp, KeySettings.LeftDown)).arg(keys(KeySettings.LeftSpecial))
 
-            text: root.mode === GameScene.TwoPlayers ? left
+            text: root.sharedKeyboard ? left
                   : root.mode === GameScene.Ladder ? qsTr("Ladder %1/3").arg(root.ladderStage + 1) + "   " + solo
                   : root.tournament ? qsTr("Tournament") + "   " + solo
                   : root.squash ? qsTr("Best %1").arg(Math.max(match.longestRally, Stats.squashBest)) + "   " + solo
@@ -2879,7 +2898,7 @@ Scene {
         // With two players the right one's keys go right, the pause to
         // the middle
         Text3D {
-            visible: root.mode === GameScene.TwoPlayers
+            visible: root.sharedKeyboard
             x: 0.5 * root.stageWidth / parent.textScale
             horizontalAlignment: Text.AlignRight
             color: Theme.dimmed
@@ -2888,12 +2907,12 @@ Scene {
         }
 
         Text3D {
-            x: root.mode === GameScene.TwoPlayers ? 0.0 : 0.5 * root.stageWidth / parent.textScale
-            horizontalAlignment: root.mode === GameScene.TwoPlayers ? Text.AlignHCenter : Text.AlignRight
+            x: root.sharedKeyboard ? 0.0 : 0.5 * root.stageWidth / parent.textScale
+            horizontalAlignment: root.sharedKeyboard ? Text.AlignHCenter : Text.AlignRight
             color: Theme.dimmed
-            text: qsTr("[Esc] pause")
+            text: root.remote ? qsTr("[Esc] leave") : qsTr("[Esc] pause")
             clickable: root.running && !root.sideLayout
-            onClicked: match.pause()
+            onClicked: root.remote ? root.askLeave = true : match.pause()
         }
     }
 

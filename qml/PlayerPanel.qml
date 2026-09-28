@@ -22,9 +22,12 @@ Node {
     property int livesLeft: 0
     property var hints: []
 
+    // Long names, e.g. of machines on the network, shrink to the panel
     Text3D {
+        id: nameText
+        readonly property real fit: Math.min(0.8, 4.6 / Math.max(textWidth, 0.1))
         y: 8.4
-        scale: Qt.vector3d(0.8, 0.8, 0.8)
+        scale: Qt.vector3d(fit, fit, fit)
         horizontalAlignment: Text.AlignHCenter
         color: root.color
         glow: 0.5
