@@ -138,6 +138,12 @@ if(EMSCRIPTEN)
     set_target_properties(phong PROPERTIES QT_WASM_INITIAL_MEMORY "128MB")
 endif()
 
+# The server for games over the internet, see server/
+option(PHONG_BUILD_SERVER "Build the server for games over the internet" ON)
+if(PHONG_BUILD_SERVER AND NOT EMSCRIPTEN AND NOT ANDROID AND NOT IOS)
+    add_subdirectory(server)
+endif()
+
 if(NOT EMSCRIPTEN AND NOT ANDROID AND NOT IOS)
     include(CTest)
     if(BUILD_TESTING)

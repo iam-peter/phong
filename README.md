@@ -106,6 +106,25 @@ python3 -m http.server -d build/wasm
 Then open <http://localhost:8000/phong.html>. Settings are kept in the
 browser's local storage.
 
+### Server
+
+`phong-server` opens rooms for games over the internet and keeps the shared
+high scores of endless and squash. The desktop build builds it along,
+`-DPHONG_BUILD_SERVER=OFF` leaves it out. It only needs Qt Core and Qt
+WebSockets 6.2 or newer, so it also builds on its own with the Qt of a
+distribution, e.g. on a server running Ubuntu 24.04:
+
+```
+sudo apt install cmake g++ qt6-base-dev qt6-websockets-dev
+cmake -S server -B build/server -DCMAKE_BUILD_TYPE=Release
+cmake --build build/server
+./build/server/phong-server --port 45460 --scores scores.json
+```
+
+The server speaks plain WebSockets. The browser version on an HTTPS page can
+only reach it over TLS, `wss://`, so a public server goes behind a proxy
+that adds TLS, e.g. Caddy with `reverse_proxy localhost:45460`.
+
 ## Controls
 
 | | Against the computer | 2 Players |

@@ -71,6 +71,11 @@ phong_add_test(tst_lan
 )
 target_link_libraries(tst_lan PRIVATE Qt6::Network Qt6::WebSockets)
 
+if(TARGET phongrelay)
+    phong_add_test(tst_server)
+    target_link_libraries(tst_server PRIVATE phongrelay Qt6::WebSockets)
+endif()
+
 phong_add_test(tst_graphicssettings
     ${PROJECT_SOURCE_DIR}/src/graphicssettings.cpp
 )
