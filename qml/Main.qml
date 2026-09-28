@@ -104,6 +104,8 @@ Window {
     onHeightChanged: Qt.callLater(snapCamera)
 
     function startGame(mode) {
+        if (mode !== GameScene.TwoPlayers)
+            gameScene.remotes = [null, null]
         gameScene.mode = mode
         gameScene.ladderStage = 0
         if (mode === GameScene.Tournament) {
@@ -134,6 +136,8 @@ Window {
     function startTwoPlayers(left, right) {
         gameScene.leftPadAssigned = left?.kind === "pad" ? left.pad : null
         gameScene.rightPadAssigned = right?.kind === "pad" ? right.pad : null
+        gameScene.remotes = [left, right].map((slot) => slot?.kind === "remote" ? { id: slot.id, name: slot.name }
+                                                                               : null)
         startGame(GameScene.TwoPlayers)
     }
 
@@ -164,10 +168,20 @@ Window {
                         if (phong.currentScene !== partyScene)
                             phong.nextScene(partyScene)
                     }
+                    else {
+                        // A rematch comes from the results
+                        if (phong.sceneStack.includes(gameScene))
+                            phong.returnTo(gameScene)
+                        else
+                            phong.nextScene(gameScene)
+                        gameScene.startRemote(message)
+                    }
                     break
                 case "state":
                     if (partyScene.remote)
                         partyScene.applyRemote(message)
+                    else if (gameScene.remote)
+                        gameScene.applyRemote(message)
                     break
             }
         }
@@ -175,6 +189,7 @@ Window {
             joinScene.error = reason
             lobbyScene.remote = false
             partyScene.remote = false
+            gameScene.remote = false
             phong.returnTo(phong.sceneStack.includes(joinScene) ? joinScene : menuScene)
         }
     }
@@ -327,6 +342,7 @@ Window {
         GameScene {
             id: gameScene
             phong: phong
+            menuScene: menuScene
             position: Qt.vector3d(0, 0, 0)
         }
 
@@ -402,6 +418,7 @@ Window {
             endlessScore: gameScene.endlessScore
             newHighScore: gameScene.newHighScore
             achievements: gameScene.newAchievements
+            remote: gameScene.remote
         }
 
         Keys.onPressed: (event) => {

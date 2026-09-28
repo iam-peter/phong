@@ -20,6 +20,7 @@ Scene {
     }
 
     property int mode: GameScene.OnePlayer
+    property Scene menuScene
     // Ladder level, the computer's difficulty
     property int ladderStage: 0
     property alias match: match
@@ -164,8 +165,327 @@ Scene {
     property bool doubleSmashCalled: false
 
     function callout(text) {
-        SoundEffects.play(SoundEffects.RallyMilestone, 1.3)
-        calloutBanner.show(text, Theme.accent, 1.2)
+        effect({ e: "callout", text: text })
+    }
+
+    // Two players on the LAN: the host runs the game and sends its state
+    // after every step, the other machine shows it and sends its input.
+    // The players on the network, { id, name } by side, at the host.
+    property var remotes: [null, null]
+    readonly property bool hostingLan: Lan.role === Lan.Host && remotes.some((remote) => remote !== null)
+    // Host: the input of the remote sides, and what happened since the
+    // last state
+    property var remoteMoves: [0, 0]
+    property var netEvents: []
+    // The computer took over a side whose player left
+    property bool rightByComputer: false
+    // On the joined machine: the side played there and the latest state
+    property bool remote: false
+    property int localSide: Match.RightSide
+    property var remoteBalls: []
+    property var remotePaddles: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    property real remoteAge: 0.0
+    property bool remoteUp: false
+    property bool remoteDown: false
+    property bool remoteCharging: false
+    property real sentMove: 0.0
+    property bool sentCharging: false
+    property real sinceSent: 0.0
+    property bool askLeave: false
+
+    // Sounds, sparks and banners of what happened, at the host they also
+    // go to the players on the network
+    function effect(event) {
+        showEffect(event)
+        if (hostingLan)
+            netEvents.push(event)
+    }
+
+    function showEffect(event) {
+        const paddle = event.side === Match.LeftSide ? leftPaddle : rightPaddle
+        const sparkX = paddle.x + (event.side === Match.LeftSide ? 0.6 : -0.6)
+        switch (event.e) {
+            case "serve":
+                SoundEffects.play(SoundEffects.Serve)
+                clearRecording()
+                break
+            case "wall":
+                SoundEffects.play(SoundEffects.WallHit)
+                break
+            case "shield":
+                SoundEffects.play(SoundEffects.ShieldHit)
+                sparks.burst(Qt.vector3d(event.x, event.y, 0.5), Theme.shield, 30)
+                shake(0.35)
+                break
+            case "bounce":
+                SoundEffects.play(SoundEffects.Bounce)
+                sparks.burst(Qt.vector3d(event.x, event.y, 0.5), Theme.bumper, 14)
+                shake(0.12)
+                break
+            case "portal":
+                SoundEffects.play(SoundEffects.Portal)
+                sparks.burst(Qt.vector3d(event.from[0], event.from[1], 0.5), Theme.tint(portalColors[event.index]), 16)
+                sparks.burst(Qt.vector3d(event.to[0], event.to[1], 0.5), Theme.tint(portalColors[1 - event.index]), 16)
+                break
+            case "hit": {
+                paddle.flash()
+                // Perfect hits ring an octave higher
+                if (event.perfect) {
+                    SoundEffects.play(SoundEffects.Perfect, rallyPitch(match.rally))
+                    sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.text, 30)
+                    perfectPopup.show(qsTr("Perfect!"), Theme.text,
+                                      Qt.vector3d(event.side === Match.LeftSide ? sparkX + 3.5 : sparkX - 3.5, paddle.y, 0))
+                }
+                if (event.smash >= 0.25) {
+                    SoundEffects.play(SoundEffects.Smash, 0.8 + 0.4 * event.smash)
+                    sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.text, Math.round(20 + 40 * event.smash))
+                    shake(0.3 + 0.5 * event.smash)
+                }
+                else {
+                    SoundEffects.play(SoundEffects.PaddleHit, rallyPitch(match.rally))
+                    sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.ball, Math.round(6 + 6 * event.speed))
+                    if (event.speed > 1.5)
+                        shake(0.08 * event.speed)
+                }
+                break
+            }
+            case "special":
+                SoundEffects.play(SoundEffects.Special)
+                sparks.burst(Qt.vector3d(paddle.x, paddle.y, 0.5), paddle.color, 40)
+                shake(0.2)
+                break
+            case "catch":
+                paddle.flash()
+                SoundEffects.play(SoundEffects.Catch)
+                sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.tint(paddle.magnetColor), 16)
+                break
+            case "dash":
+                SoundEffects.play(SoundEffects.Dash)
+                sparks.burst(Qt.vector3d(paddle.x, paddle.y, 0.5), paddle.color, 10)
+                break
+            case "goal":
+                SoundEffects.play(SoundEffects.Goal)
+                sparks.burst(Qt.vector3d(event.scorer === Match.LeftSide ? goalLine : -goalLine, 0, 0.5), Theme.text, 60)
+                shake(0.7)
+                if (event.scorer === Match.LeftSide)
+                    rightGoalFlash.restart()
+                else
+                    leftGoalFlash.restart()
+                break
+            case "set":
+                banner.show(qsTr("Set %1").arg(event.name), Theme.title)
+                break
+            case "pickup": {
+                const definition = modifiers.definition(modifiers.findDefinition(event.def))
+                const position = Qt.vector3d(event.x, event.y, 0)
+                pickupPopup.show(definition.name, Theme.tint(definition.color), position)
+                sparks.burst(Qt.vector3d(event.x, event.y, 0.5), Theme.tint(definition.color), 24)
+                if (definition.effect === Modifiers.MultiBall)
+                    SoundEffects.play(SoundEffects.MultiBall)
+                else if (definition.effect === Modifiers.Portals)
+                    SoundEffects.play(SoundEffects.Portal)
+                else if (definition.effect === Modifiers.Freeze)
+                    SoundEffects.play(SoundEffects.Freeze)
+                else if (definition.target === Modifiers.Opponent || definition.effect === Modifiers.GhostBall)
+                    SoundEffects.play(SoundEffects.Curse)
+                else
+                    SoundEffects.play(SoundEffects.Pickup)
+                break
+            }
+            case "callout":
+                SoundEffects.play(SoundEffects.RallyMilestone, 1.3)
+                calloutBanner.show(event.text, Theme.accent, 1.2)
+                break
+            case "left":
+                calloutBanner.show(qsTr("%1 left").arg(event.name), Theme.dimmed, 1.0)
+                break
+            case "finished":
+                // The joined machine replays its own recording
+                SoundEffects.play(match.winner === (localSide === Match.LeftSide ? match.left : match.right)
+                                  ? SoundEffects.Win : SoundEffects.Lose)
+                startReplay()
+                break
+        }
+    }
+
+    function sendState() {
+        if (!hostingLan)
+            return
+        const balls = ballBodies().map((body) => [body.x, body.y])
+        Lan.sendAll({
+            t: "state", match: match.snapshot(), modifiers: modifiers.snapshot(), balls: balls,
+            paddles: [leftPaddleY, rightPaddleY, leftPaddleAngle, rightPaddleAngle, leftCharge, rightCharge,
+                      leftDash.direction, rightDash.direction, leftDash.cooldown, rightDash.cooldown],
+            arenaTime: arenaTime, timeScale: timeScale, events: netEvents
+        })
+        netEvents = []
+    }
+
+    // The side a player on the network plays at the host
+    function remoteSide(peer) {
+        return remotes.findIndex((remote) => remote?.id === peer)
+    }
+
+    Connections {
+        target: Lan
+        enabled: root.active && root.hostingLan
+        function onReceived(peer, message) {
+            const side = root.remoteSide(peer)
+            if (side < 0)
+                return
+            if (message.t === "input") {
+                const moves = root.remoteMoves
+                moves[side] = Math.max(-1, Math.min(1, Number(message.move) || 0))
+                root.remoteMoves = moves
+                const charging = message.charging === true
+                if (charging !== (side === Match.LeftSide ? root.leftCharging : root.rightCharging))
+                    root.setCharging(side, charging)
+            }
+            else if (message.t === "action" && root.running) {
+                const player = side === Match.LeftSide ? match.left : match.right
+                if (message.a === "special")
+                    match.useSpecial(side)
+                else if (message.a === "tap" && !player.frozen)
+                    (side === Match.LeftSide ? leftDash : rightDash).tap((message.d > 0 ? 1 : -1)
+                                                                          * (player.reversed ? -1 : 1))
+            }
+        }
+        function onPeerLeft(peer) {
+            // The computer or the keyboard takes over
+            const side = root.remoteSide(peer)
+            if (side < 0)
+                return
+            root.effect({ e: "left", name: root.remotes[side].name })
+            const remotes = root.remotes.slice()
+            remotes[side] = null
+            root.remotes = remotes
+            if (side === Match.RightSide)
+                root.rightByComputer = true
+        }
+    }
+
+    // The game from the host, again after a rematch
+    function startRemote(message) {
+        mode = GameScene.TwoPlayers
+        remote = true
+        localSide = message.side
+        askLeave = false
+        replaying = false
+        newAchievements = []
+        clearRecording()
+        releaseInput()
+        arenaId = message.arena
+        arena = Arenas.arena(message.arena)
+        brickModel.clear()
+        timeScale = 1.0
+        remoteBalls = []
+        resetBall()
+        match.applySnapshot(message.match)
+        modifiers.applySnapshot(message.modifiers)
+        banner.show(arena.name ?? "", Theme.title)
+    }
+
+    function applyRemote(message) {
+        match.applySnapshot(message.match)
+        modifiers.applySnapshot(message.modifiers)
+        remoteBalls = message.balls
+        remotePaddles = message.paddles
+        arenaTime = message.arenaTime
+        timeScale = message.timeScale
+        remoteAge = 0.0
+        for (const event of message.events ?? [])
+            showEffect(event)
+    }
+
+    // A key on the joined machine: both sets move, smash and special go to
+    // the host
+    function remoteKey(key, pressed) {
+        if (key === Qt.Key_Space) {
+            remoteCharging = pressed
+            return true
+        }
+        switch (KeySettings.action(key)) {
+            case KeySettings.LeftUp:
+            case KeySettings.RightUp:
+                if (pressed && running)
+                    Lan.sendToHost({ t: "action", a: "tap", d: 1 })
+                remoteUp = pressed
+                return true
+            case KeySettings.LeftDown:
+            case KeySettings.RightDown:
+                if (pressed && running)
+                    Lan.sendToHost({ t: "action", a: "tap", d: -1 })
+                remoteDown = pressed
+                return true
+            case KeySettings.LeftSmash:
+            case KeySettings.RightSmash:
+                remoteCharging = pressed
+                return true
+            case KeySettings.LeftSpecial:
+            case KeySettings.RightSpecial:
+                if (pressed)
+                    Lan.sendToHost({ t: "action", a: "special" })
+                return true
+        }
+        return false
+    }
+
+    // The joined machine: the picture follows the host, the input goes there
+    FrameAnimation {
+        running: root.active && root.remote
+        onTriggered: {
+            const dt = Math.min(frameTime, 0.05)
+            root.remoteAge += dt
+
+            // The balls fly on from the last state, a moment at most
+            const age = match.state === Match.Playing ? Math.min(root.remoteAge, 0.1) * root.timeScale : 0.0
+            const bodies = root.ballBodies()
+            for (let i = 0; i < bodies.length; ++i) {
+                const at = root.remoteBalls[i]
+                if (!at)
+                    continue
+                const v = bodies[i].ball.velocity
+                bodies[i].position = Qt.vector3d(at[0] + v.x * age, at[1] + v.y * age, 0)
+                bodies[i].hidden = modifiers.ghostBall && match.state === Match.Playing
+                                   && Math.abs(bodies[i].x) < root.ghostHalfWidth
+                bodies[i].advance(dt)
+            }
+
+            const paddles = root.remotePaddles
+            const follow = Math.min(1.0, 25.0 * dt)
+            root.leftPaddleY += (paddles[0] - root.leftPaddleY) * follow
+            root.rightPaddleY += (paddles[1] - root.rightPaddleY) * follow
+            root.leftPaddleAngle = paddles[2]
+            root.rightPaddleAngle = paddles[3]
+            root.leftCharge = paddles[4]
+            root.rightCharge = paddles[5]
+
+            // The camera shakes and leans as at the host
+            root.shakeAmount *= Math.exp(-7.0 * dt)
+            root.viewOffset = Qt.vector3d((Math.random() - 0.5) * root.shakeAmount,
+                                          (Math.random() - 0.5) * root.shakeAmount, -6.0 * root.slowMotion)
+            root.viewRotation = root.viewRotation.plus(Qt.vector3d(0.07 * mainBall.y, -0.05 * mainBall.x, 0)
+                                                       .minus(root.viewRotation).times(Math.min(1.0, 3.0 * dt)))
+            if (root.running)
+                root.record(dt)
+
+            // Keys, or the first gamepad
+            let move = root.keyInput(root.remoteUp, root.remoteDown)
+            let charging = root.remoteCharging
+            const pad = Gamepads.count > 0 ? Gamepads.pads[0] : null
+            if (pad) {
+                if (move === 0)
+                    move = pad.direction.y
+                charging = charging || pad.isPressed(Gamepad.South)
+            }
+            root.sinceSent += dt
+            if (move !== root.sentMove || charging !== root.sentCharging || root.sinceSent > 0.2) {
+                Lan.sendToHost({ t: "input", move: move, charging: charging })
+                root.sentMove = move
+                root.sentCharging = charging
+                root.sinceSent = 0.0
+            }
+        }
     }
 
     // The last seconds of play, replayed when the match is decided
@@ -261,9 +581,21 @@ Scene {
                                    : Gamepads.count > 0 ? Gamepads.pads[0] : null
     readonly property var rightPad: mode === GameScene.TwoPlayers ? rightPadAssigned : null
     // Gamepads work the pause menu and skip the replay, not the game
-    menuNavigation: match.state === Match.Paused || match.state === Match.Finished
+    menuNavigation: match.state === Match.Paused || match.state === Match.Finished || askLeave
 
     function gamepadButton(pad, button, pressed) {
+        if (remote) {
+            if (!pressed || pad !== Gamepads.pads[0])
+                return
+            if (button === Gamepad.Start)
+                askLeave = !askLeave
+            else if (button === Gamepad.East && running)
+                Lan.sendToHost({ t: "action", a: "special" })
+            else if ((button === Gamepad.West || button === Gamepad.LeftShoulder || button === Gamepad.RightShoulder)
+                     && running && Math.abs(pad.direction.y) > 0.3)
+                Lan.sendToHost({ t: "action", a: "tap", d: pad.direction.y > 0 ? 1 : -1 })
+            return
+        }
         if (replaying) {
             if (pressed)
                 endReplay()
@@ -363,12 +695,19 @@ Scene {
     readonly property bool running: match.state === Match.Serving || match.state === Match.Playing
 
     property int currentPauseItem: 0
-    readonly property var pauseItems: [
-        { text: qsTr("Resume"), activate: () => match.resume() },
-        { text: qsTr("Menu"), activate: () => root.leave() }
-    ]
+    // On the joined machine only the host pauses, there one may leave
+    readonly property var pauseItems: remote
+        ? (askLeave ? [{ text: qsTr("Stay"), activate: () => root.askLeave = false },
+                       { text: qsTr("Leave"), activate: () => root.leave() }]
+                    : [{ text: qsTr("Leave"), activate: () => root.leave() }])
+        : [{ text: qsTr("Resume"), activate: () => match.resume() },
+           { text: qsTr("Menu"), activate: () => root.leave() }]
 
     function startMatch() {
+        remote = false
+        rightByComputer = false
+        remoteMoves = [0, 0]
+        netEvents = []
         opponent = tournament ? Tournament.opponent : {}
         leftPaddleY = rightPaddleY = 0.0
         leftPaddleAngle = rightPaddleAngle = 0.0
@@ -394,6 +733,15 @@ Scene {
         modifiers.reset()
         match.start()
         banner.show(bricks ? qsTr("Bricks") : squash ? qsTr("Squash") : arena.name ?? "", Theme.title)
+
+        // The players on the network start with it
+        if (hostingLan) {
+            remotes.forEach((remote, side) => {
+                if (remote)
+                    Lan.send(remote.id, { t: "start", party: false, side: side, arena: arenaId,
+                                          match: match.snapshot(), modifiers: modifiers.snapshot() })
+            })
+        }
     }
 
     // Bricks and squash play on the empty field
@@ -478,7 +826,14 @@ Scene {
     function leave() {
         match.stop()
         releaseInput()
-        phong.previousScene()
+        Lan.leave()
+        remote = false
+        // The tournament goes back to its bracket, the rest to the menu,
+        // also past the lobby
+        if (tournament)
+            phong.previousScene()
+        else
+            phong.returnTo(root.menuScene)
     }
 
     function togglePause() {
@@ -692,13 +1047,11 @@ Scene {
             const before = body.ball.velocity.y
             match.wallHit(body.ball, other === topWall)
             if (body.ball.velocity.y !== before)
-                SoundEffects.play(SoundEffects.WallHit)
+                effect({ e: "wall" })
         }
         else if (other === leftShield || other === rightShield) {
             if (modifiers.shieldHit(body.ball, other === leftShield ? Match.LeftSide : Match.RightSide)) {
-                SoundEffects.play(SoundEffects.ShieldHit)
-                sparks.burst(Qt.vector3d(body.x, body.y, 0.5), Theme.shield, 30)
-                shake(0.35)
+                effect({ e: "shield", x: body.x, y: body.y })
                 callout(qsTr("What a save!"))
             }
         }
@@ -716,9 +1069,7 @@ Scene {
         else if (other.obstacle === true) {
             if (match.bounce(body.ball, normal)) {
                 other.flash()
-                SoundEffects.play(SoundEffects.Bounce)
-                sparks.burst(Qt.vector3d(body.x, body.y, 0.5), Theme.bumper, 14)
-                shake(0.12)
+                effect({ e: "bounce", x: body.x, y: body.y })
             }
         }
     }
@@ -757,9 +1108,7 @@ Scene {
             body.reset(Qt.vector3d(to.x, to.y, 0), Qt.vector3d(0, 0, 0))
             body.applyVelocity()
             body.clearTrail()
-            SoundEffects.play(SoundEffects.Portal)
-            sparks.burst(Qt.vector3d(from.x, from.y, 0.5), Theme.tint(portalColors[passage.index]), 16)
-            sparks.burst(Qt.vector3d(to.x, to.y, 0.5), Theme.tint(portalColors[1 - passage.index]), 16)
+            effect({ e: "portal", index: passage.index, from: [from.x, from.y], to: [to.x, to.y] })
         }
     }
 
@@ -807,16 +1156,18 @@ Scene {
         const leftKeys = leftSign * (onePlayer ? keyInput(leftUp || rightUp, leftDown || rightDown)
                                                : keyInput(leftUp, leftDown))
         let leftInput = humanInput(leftKeys > 0, leftKeys < 0, leftSign * leftPointerY, leftPaddleY)
-        // A stick moves the paddle as far as it is tilted
-        const leftStick = leftKeys === 0 && leftPad ? leftSign * leftPad.direction.y : 0
-        if (leftStick !== 0)
+        // A stick moves the paddle as far as it is tilted, a player on the
+        // network as far as they want
+        const leftStick = remotes[0] ? leftSign * remoteMoves[0]
+                        : leftKeys === 0 && leftPad ? leftSign * leftPad.direction.y : 0
+        if (leftStick !== 0 || remotes[0])
             leftInput = leftStick
 
         let rightInput
         const rightKeys = onePlayer ? 0 : rightSign * keyInput(rightUp, rightDown)
         const leftHeld = heldBody(Match.LeftSide)
         const rightHeld = heldBody(Match.RightSide)
-        if (againstComputer) {
+        if (againstComputer || rightByComputer) {
             const urgent = urgentBall()
             // Bricks give points, worth aiming at
             computer.targets = bricks ? modifiers.itemPositions().concat(brickPositions()) : modifiers.itemPositions()
@@ -835,6 +1186,9 @@ Scene {
         else if (squash) {
             rightInput = 0
         }
+        else if (remotes[1]) {
+            rightInput = rightSign * remoteMoves[1]
+        }
         else {
             rightInput = humanInput(rightKeys > 0, rightKeys < 0, rightSign * rightPointerY, rightPaddleY)
             const rightStick = rightKeys === 0 && rightPad ? rightSign * rightPad.direction.y : 0
@@ -848,10 +1202,11 @@ Scene {
             leftInput = 0
         }
         if (rightHeld) {
-            if (againstComputer)
+            if (againstComputer || rightByComputer)
                 computerHold(rightHeld, dt)
             else
-                aimHeld(rightHeld, rightKeys || (rightPad ? rightSign * rightPad.direction.y : 0), rightPointerY,
+                aimHeld(rightHeld, remotes[1] ? rightSign * remoteMoves[1]
+                                   : rightKeys || (rightPad ? rightSign * rightPad.direction.y : 0), rightPointerY,
                         rightPaddleY, rightPaddleLength, dt)
             rightInput = 0
         }
@@ -876,7 +1231,7 @@ Scene {
         }
 
         leftCharge = windUp(leftCharge, leftCharging, dt)
-        rightCharge = windUp(rightCharge, againstComputer ? computer.charging : rightCharging, dt)
+        rightCharge = windUp(rightCharge, againstComputer || rightByComputer ? computer.charging : rightCharging, dt)
         arenaTime += dt
 
         const leftY = movePaddle(leftPaddleY, leftInput, leftPaddleLength, leftCharge, dt)
@@ -905,6 +1260,7 @@ Scene {
                                          .minus(viewRotation).times(follow))
 
         record(realDt)
+        sendState()
     }
 
     // Letting go of the smash key throws a held ball
@@ -985,9 +1341,11 @@ Scene {
         }
     }
 
+    // Others on the network play on
     onFocusLost: {
         releaseInput()
-        match.pause()
+        if (!hostingLan && !remote)
+            match.pause()
     }
 
     onKeyPressed: (event) => {
@@ -998,6 +1356,37 @@ Scene {
         // Any key skips the replay
         if (replaying) {
             endReplay()
+            return
+        }
+
+        if (remote) {
+            if (askLeave || match.state === Match.Paused) {
+                switch (event.key) {
+                    case Qt.Key_Escape:
+                        if (askLeave)
+                            askLeave = false
+                        else
+                            leave()
+                        break
+                    case Qt.Key_Up:
+                    case Qt.Key_Down:
+                        currentPauseItem = event.key === Qt.Key_Up ? 0 : pauseItems.length - 1
+                        SoundEffects.play(SoundEffects.MenuMove)
+                        break
+                    case Qt.Key_Enter:
+                    case Qt.Key_Return:
+                        SoundEffects.play(SoundEffects.MenuSelect)
+                        pauseItems[Math.min(currentPauseItem, pauseItems.length - 1)].activate()
+                        break
+                }
+                return
+            }
+            if (event.key === Qt.Key_Escape || KeySettings.action(event.key) === KeySettings.Pause) {
+                currentPauseItem = 0
+                askLeave = true
+                return
+            }
+            remoteKey(event.key, true)
             return
         }
 
@@ -1048,7 +1437,11 @@ Scene {
 
     onKeyReleased: (event) => {
         event.accepted = true
-        if (!event.isAutoRepeat)
+        if (event.isAutoRepeat)
+            return
+        if (remote)
+            remoteKey(event.key, false)
+        else
             setKey(event.key, false)
     }
 
@@ -1095,17 +1488,17 @@ Scene {
         paddleSpeed: root.paddleSpeed
         serveDelay: GameSettings.kickoffTime
 
-        left.name: root.mode !== GameScene.TwoPlayers ? qsTr("You") : qsTr("Ping")
-        right.name: root.tournament ? root.opponent.name ?? ""
+        // On the LAN the machines' names
+        left.name: root.remotes[0]?.name ?? (root.hostingLan ? Lan.machineName
+                   : root.mode !== GameScene.TwoPlayers ? qsTr("You") : qsTr("Ping"))
+        right.name: root.remotes[1]?.name ?? (root.hostingLan ? Lan.machineName
+                    : root.tournament ? root.opponent.name ?? ""
                     : root.squash ? qsTr("Wall")
-                    : root.againstComputer ? qsTr("CPU") : qsTr("Pong")
+                    : root.againstComputer ? qsTr("CPU") : qsTr("Pong"))
         right.computer: root.againstComputer
 
         // The replay shows the deciding rally only
-        onServed: {
-            SoundEffects.play(SoundEffects.Serve)
-            root.clearRecording()
-        }
+        onServed: root.effect({ e: "serve" })
 
         onServeCountdownChanged: {
             const second = Math.ceil(match.serveCountdown)
@@ -1115,20 +1508,10 @@ Scene {
         }
 
         onPaddleHitBall: (ball, side, smash, perfect) => {
-            const paddle = side === Match.LeftSide ? leftPaddle : rightPaddle
-            const speed = ball.velocity.length() / match.serveSpeed
-            const sparkX = paddle.x + (side === Match.LeftSide ? 0.6 : -0.6)
-            paddle.flash()
-
-            // Perfect hits ring an octave higher
+            root.effect({ e: "hit", side: side, smash: smash, perfect: perfect,
+                          speed: ball.velocity.length() / match.serveSpeed })
             if (perfect && side === Match.LeftSide && ++root.leftPerfects >= 5)
                 root.achieve("perfectionist")
-            if (perfect) {
-                SoundEffects.play(SoundEffects.Perfect, root.rallyPitch(match.rally))
-                sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.text, 30)
-                perfectPopup.show(qsTr("Perfect!"), Theme.text,
-                                  Qt.vector3d(side === Match.LeftSide ? sparkX + 3.5 : sparkX - 3.5, paddle.y, 0))
-            }
 
             // A hard smash returned with a hard smash, once a rally
             if (smash >= 0.5) {
@@ -1143,18 +1526,6 @@ Scene {
                 root.lastSmash = Match.NoSide
             }
 
-            if (smash >= 0.25) {
-                SoundEffects.play(SoundEffects.Smash, 0.8 + 0.4 * smash)
-                sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.text, Math.round(20 + 40 * smash))
-                root.shake(0.3 + 0.5 * smash)
-            }
-            else {
-                SoundEffects.play(SoundEffects.PaddleHit, root.rallyPitch(match.rally))
-                sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.ball, Math.round(6 + 6 * speed))
-                if (speed > 1.5)
-                    root.shake(0.08 * speed)
-            }
-
             // The smash is spent
             if (side === Match.LeftSide)
                 root.leftCharge = 0.0
@@ -1162,20 +1533,8 @@ Scene {
                 root.rightCharge = 0.0
         }
 
-        onSpecialUsed: (side) => {
-            const paddle = side === Match.LeftSide ? leftPaddle : rightPaddle
-            SoundEffects.play(SoundEffects.Special)
-            sparks.burst(Qt.vector3d(paddle.x, paddle.y, 0.5), paddle.color, 40)
-            root.shake(0.2)
-        }
-
-        onBallCaught: (ball, side) => {
-            const paddle = side === Match.LeftSide ? leftPaddle : rightPaddle
-            paddle.flash()
-            SoundEffects.play(SoundEffects.Catch)
-            sparks.burst(Qt.vector3d(paddle.x + (side === Match.LeftSide ? 0.6 : -0.6), paddle.y, 0.5),
-                         Theme.tint(paddle.magnetColor), 16)
-        }
+        onSpecialUsed: (side) => root.effect({ e: "special", side: side })
+        onBallCaught: (ball, side) => root.effect({ e: "catch", side: side })
 
         // Every fifth hit of a rally gets a louder cheer
         onRallyChanged: {
@@ -1201,14 +1560,7 @@ Scene {
             root.countPoint(scorer)
             if (scorer === Match.LeftSide && ball.smashed)
                 root.achieve("smashGoal")
-            const goalX = scorer === Match.LeftSide ? root.goalLine : -root.goalLine
-            SoundEffects.play(SoundEffects.Goal)
-            sparks.burst(Qt.vector3d(goalX, 0, 0.5), Theme.text, 60)
-            root.shake(0.7)
-            if (scorer === Match.LeftSide)
-                rightGoalFlash.restart()
-            else
-                leftGoalFlash.restart()
+            root.effect({ e: "goal", scorer: scorer })
 
             if (!ball.extra) {
                 root.resetBall()
@@ -1222,12 +1574,14 @@ Scene {
             root.comebackCalled = [false, false]
             const player = winner === Match.LeftSide ? match.left : match.right
             if (player.sets < match.setsToWin)
-                banner.show(qsTr("Set %1").arg(player.name), Theme.title)
+                root.effect({ e: "set", name: player.name })
         }
 
         // Every pause starts on resume, a wall down is built anew for
         // the next kickoff
         onStateChanged: {
+            // Pauses and the end get to the network too, no steps run then
+            root.sendState()
             if (match.state === Match.Paused)
                 root.currentPauseItem = 0
             if (match.state === Match.Serving && root.bricks && brickModel.count === 0)
@@ -1244,6 +1598,10 @@ Scene {
         }
 
         onFinished: {
+            if (root.remote)
+                return
+            root.effect({ e: "finished" })
+            root.sendState()
             const won = match.winner === match.left
             SoundEffects.play(root.againstComputer && !won ? SoundEffects.Lose : SoundEffects.Win)
             if (root.endless)
@@ -1290,8 +1648,7 @@ Scene {
     }
 
     function dashed(paddle) {
-        SoundEffects.play(SoundEffects.Dash)
-        sparks.burst(Qt.vector3d(paddle.x, paddle.y, 0.5), paddle.color, 10)
+        effect({ e: "dash", side: paddle === leftPaddle ? Match.LeftSide : Match.RightSide })
     }
 
     onEndlessScoreChanged: {
@@ -1355,20 +1712,7 @@ Scene {
         spawnArea: Qt.rect(-8.0, -0.5 * spawnHeight, 16.0, spawnHeight)
 
         onCollected: (index, side, position) => {
-            const definition = modifiers.definition(index)
-            pickupPopup.show(definition.name, Theme.tint(definition.color), position)
-            sparks.burst(Qt.vector3d(position.x, position.y, 0.5), Theme.tint(definition.color), 24)
-
-            if (definition.effect === Modifiers.MultiBall)
-                SoundEffects.play(SoundEffects.MultiBall)
-            else if (definition.effect === Modifiers.Portals)
-                SoundEffects.play(SoundEffects.Portal)
-            else if (definition.effect === Modifiers.Freeze)
-                SoundEffects.play(SoundEffects.Freeze)
-            else if (definition.target === Modifiers.Opponent || definition.effect === Modifiers.GhostBall)
-                SoundEffects.play(SoundEffects.Curse)
-            else
-                SoundEffects.play(SoundEffects.Pickup)
+            root.effect({ e: "pickup", def: modifiers.definition(index).id, x: position.x, y: position.y })
         }
         onEffectsChanged: {
             root.leftEffects = activeEffects(Match.LeftSide)
@@ -1384,7 +1728,7 @@ Scene {
 
     PhysicsWorld {
         scene: root
-        running: root.active && root.running
+        running: root.active && root.running && !root.remote
         gravity: Qt.vector3d(0, 0, 0)
         enableCCD: true
         // A handful of bodies, and single-threaded wasm hangs waiting for workers
@@ -1686,8 +2030,8 @@ Scene {
         visible: !root.replaying
         color: Theme.leftPlayer
         charge: root.leftCharge
-        dash: leftDash.direction
-        dashCooldown: leftDash.cooldown
+        dash: root.remote ? root.remotePaddles[6] : leftDash.direction
+        dashCooldown: root.remote ? root.remotePaddles[8] : leftDash.cooldown
         magnet: match.left.catches > 0
         frozen: match.left.frozen
         reversed: match.left.reversed
@@ -1704,8 +2048,8 @@ Scene {
         visible: !root.squash && !root.replaying
         color: Theme.rightPlayer
         charge: root.rightCharge
-        dash: rightDash.direction
-        dashCooldown: rightDash.cooldown
+        dash: root.remote ? root.remotePaddles[7] : rightDash.direction
+        dashCooldown: root.remote ? root.remotePaddles[9] : rightDash.cooldown
         magnet: match.right.catches > 0
         frozen: match.right.frozen
         reversed: match.right.reversed
@@ -2542,7 +2886,7 @@ Scene {
     // Pause overlay
     Node {
         id: pauseOverlay
-        visible: match.state === Match.Paused
+        visible: match.state === Match.Paused || root.askLeave
         z: 1.0
 
         Model {
@@ -2560,7 +2904,7 @@ Scene {
             scale: Qt.vector3d(2, 2, 2)
             horizontalAlignment: Text.AlignHCenter
             color: Theme.title
-            text: qsTr("Paused")
+            text: root.askLeave ? qsTr("Leave?") : qsTr("Paused")
         }
 
         Repeater3D {

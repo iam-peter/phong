@@ -719,6 +719,53 @@ private slots:
         QCOMPARE(match.player(Match::opponent(side))->power(), 0.0);
     }
 
+    void snapshotTravels()
+    {
+        Match host;
+        host.setPointsToWin(7);
+        host.setSetsToWin(2);
+        host.left()->setName(QStringLiteral("Ping"));
+        serve(host);
+        host.left()->setCatches(2);
+        host.right()->setShielded(true);
+        host.paddleHit(host.ballVelocity().x() < 0.0f ? Match::Side::LeftSide : Match::Side::RightSide, 0.4, 5.0);
+        host.addBall(QVector2D(1, 2), Match::Side::LeftSide, 5.0, Match::Side::RightSide);
+        host.addBall(QVector2D(-1, 2), Match::Side::RightSide, 4.0, Match::Side::LeftSide);
+        host.advance(0.5);
+
+        Match client;
+        QSignalSpy rally(&client, &Match::rallyChanged);
+        client.applySnapshot(host.snapshot());
+        QCOMPARE(client.state(), Match::State::Playing);
+        QCOMPARE(client.pointsToWin(), 7);
+        QCOMPARE(client.setsToWin(), 2);
+        QCOMPARE(client.left()->name(), QStringLiteral("Ping"));
+        QCOMPARE(client.left()->catches(), 2);
+        QVERIFY(client.right()->isShielded());
+        QCOMPARE(client.rally(), 1);
+        QCOMPARE(rally.count(), 1);
+        QCOMPARE(client.ballVelocity(), host.ballVelocity());
+        QCOMPARE(client.ball()->lastTouch(), host.ball()->lastTouch());
+        QCOMPARE(client.playTime(), host.playTime());
+
+        // The extra balls as well, and when one is gone
+        QCOMPARE(client.extraBalls()->rowCount(), 2);
+        QCOMPARE(client.extraBalls()->balls().at(0)->spawnPosition(), QVector2D(1, 2));
+        QCOMPARE(client.extraBalls()->balls().at(1)->lifetime(), host.extraBalls()->balls().at(1)->lifetime());
+        host.goal(host.extraBalls()->balls().at(0), Match::Side::RightSide);
+        client.applySnapshot(host.snapshot());
+        QCOMPARE(client.extraBalls()->rowCount(), 1);
+        QCOMPARE(client.right()->score(), 1);
+
+        // Through to the winner
+        host.setPointsToWin(1);
+        host.setSetsToWin(1);
+        host.goal(Match::Side::LeftSide);
+        client.applySnapshot(host.snapshot());
+        QCOMPARE(client.state(), Match::State::Finished);
+        QCOMPARE(client.winner(), client.left());
+    }
+
     void matchPoint()
     {
         Match match;

@@ -16,6 +16,8 @@ Scene {
     // Names of the achievements of the match
     property var achievements: []
     property int currentItem: 0
+    // Joined to a host on the network
+    property bool remote: false
 
     readonly property bool won: match?.winner === match?.left
     readonly property bool ladder: mode === GameScene.Ladder
@@ -26,7 +28,10 @@ Scene {
 
     // The last item always leads back to the menu
     readonly property var items: {
-        const menu = { text: qsTr("Menu"), activate: () => phong.returnTo(root.menuScene) }
+        const menu = { text: qsTr("Menu"), activate: () => { Lan.leave(); phong.returnTo(root.menuScene) } }
+        // Joined over the network the host decides on a rematch
+        if (remote)
+            return [menu]
         if (tournament) {
             if (Tournament.champion)
                 return [{ text: qsTr("Bracket"), activate: () => phong.showBracket() }, menu]

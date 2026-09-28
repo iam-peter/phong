@@ -447,6 +447,39 @@ private slots:
         QCOMPARE(modifiers.spawnAt(QVector2D(0, 0)), -1);
     }
 
+    void snapshotTravels()
+    {
+        Match match;
+        Modifiers host;
+        host.setMatch(&match);
+        touch(match, Match::Side::LeftSide);
+        host.collect(spawn(host, "bigPaddle"));
+        host.collect(spawn(host, "portals"));
+        host.collect(spawn(host, "gravityWell"));
+        host.collect(spawn(host, "narrowField"));
+        const int item = host.spawn(host.findDefinition("shield"), QVector2D(3, 4));
+
+        Modifiers client;
+        QSignalSpy effects(&client, &Modifiers::effectsChanged);
+        client.applySnapshot(host.snapshot());
+        QCOMPARE(client.rowCount(), 1);
+        QCOMPARE(client.data(client.index(0), Modifiers::ItemIdRole).toInt(), item);
+        QCOMPARE(client.data(client.index(0), Modifiers::ItemGlyphRole).toString(),
+                 definition(host, "shield").glyph);
+        QCOMPARE(client.portals(), host.portals());
+        QCOMPARE(client.gravityStrength(), host.gravityStrength());
+        QCOMPARE(client.fieldInset(), host.fieldInset());
+        QCOMPARE(effects.count(), 1);
+        QCOMPARE(client.activeEffects(Match::Side::LeftSide).size(), 1);
+        QCOMPARE(client.activeEffects(Match::Side::LeftSide).first().toMap().value("id").toString(),
+                 QStringLiteral("bigPaddle"));
+
+        // The item is collected at the host, gone at the client
+        host.collect(item);
+        client.applySnapshot(host.snapshot());
+        QCOMPARE(client.rowCount(), 0);
+    }
+
     void multiBallFromTheItem()
     {
         Match match;

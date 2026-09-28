@@ -135,6 +135,12 @@ public:
     Q_INVOKABLE bool shieldHit(Ball* ball, Match::Side side);
     bool shieldHit(Match::Side side);
 
+    // The state for a player on the network, and applying it there:
+    // items, field effects and the effects on the players, definitions by
+    // their ids. A replica shows the effects it was given.
+    Q_INVOKABLE QVariantMap snapshot() const;
+    Q_INVOKABLE void applySnapshot(const QVariantMap& snapshot);
+
     // Places an item, for tests and debugging
     Q_INVOKABLE int spawn(int definition, const QVector2D& position);
     // Places a random item, picked by weight, returns its id or -1
@@ -243,6 +249,10 @@ private:
     qreal m_gravityStrength;
 
     QRandomGenerator m_random;
+
+    // Set by applySnapshot(): definitions of the effects on each player
+    bool m_replica;
+    QList<int> m_replicaEffects[2];
 };
 
 #endif // MODIFIERS_H

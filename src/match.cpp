@@ -775,6 +775,152 @@ void Match::endRally(Side scorer, bool setWon)
     setState(State::Serving);
 }
 
+namespace {
+QVariantList pair(const QVector2D& vector)
+{
+    return { vector.x(), vector.y() };
+}
+
+QVector2D vector(const QVariant& pair)
+{
+    const QVariantList list = pair.toList();
+    return list.size() == 2 ? QVector2D(list.at(0).toFloat(), list.at(1).toFloat()) : QVector2D();
+}
+
+QVariantMap playerSnapshot(const Player* player)
+{
+    return { { QStringLiteral("name"), player->name() },
+             { QStringLiteral("score"), player->score() },
+             { QStringLiteral("sets"), player->sets() },
+             { QStringLiteral("hits"), player->hits() },
+             { QStringLiteral("scale"), player->paddleScale() },
+             { QStringLiteral("spin"), player->spinSpeed() },
+             { QStringLiteral("shielded"), player->isShielded() },
+             { QStringLiteral("catches"), player->catches() },
+             { QStringLiteral("frozen"), player->isFrozen() },
+             { QStringLiteral("reversed"), player->isReversed() },
+             { QStringLiteral("power"), player->power() } };
+}
+
+void applyPlayer(Player* player, const QVariantMap& snapshot)
+{
+    player->setName(snapshot.value(QStringLiteral("name")).toString());
+    player->setScore(snapshot.value(QStringLiteral("score")).toInt());
+    player->setSets(snapshot.value(QStringLiteral("sets")).toInt());
+    player->setHits(snapshot.value(QStringLiteral("hits")).toInt());
+    player->setPaddleScale(snapshot.value(QStringLiteral("scale"), 1.0).toDouble());
+    player->setSpinSpeed(snapshot.value(QStringLiteral("spin")).toDouble());
+    player->setShielded(snapshot.value(QStringLiteral("shielded")).toBool());
+    player->setCatches(snapshot.value(QStringLiteral("catches")).toInt());
+    player->setFrozen(snapshot.value(QStringLiteral("frozen")).toBool());
+    player->setReversed(snapshot.value(QStringLiteral("reversed")).toBool());
+    player->setPower(snapshot.value(QStringLiteral("power")).toDouble());
+}
+}
+
+QVariantMap Match::snapshot() const
+{
+    const auto ball = [](const Ball* ball) {
+        return QVariantMap{ { QStringLiteral("v"), pair(ball->velocity()) },
+                            { QStringLiteral("spin"), ball->spin() },
+                            { QStringLiteral("touch"), int(ball->lastTouch()) },
+                            { QStringLiteral("smashed"), ball->isSmashed() },
+                            { QStringLiteral("held"), int(ball->heldBy()) },
+                            { QStringLiteral("offset"), ball->holdOffset() },
+                            { QStringLiteral("hold"), ball->holdTime() },
+                            { QStringLiteral("life"), ball->lifetime() },
+                            { QStringLiteral("spawn"), pair(ball->spawnPosition()) } };
+    };
+
+    QVariantList extras;
+    for (const Ball* extra : m_extraBalls->balls())
+        extras.append(ball(extra));
+
+    return { { QStringLiteral("state"), int(m_state) },
+             { QStringLiteral("left"), playerSnapshot(m_left) },
+             { QStringLiteral("right"), playerSnapshot(m_right) },
+             { QStringLiteral("winner"), m_winner == m_left ? 0 : m_winner == m_right ? 1 : -1 },
+             { QStringLiteral("pointsToWin"), m_pointsToWin },
+             { QStringLiteral("setsToWin"), m_setsToWin },
+             { QStringLiteral("winByTwo"), m_winByTwo },
+             { QStringLiteral("endless"), m_endless },
+             { QStringLiteral("matchPoint"), m_matchPoint },
+             { QStringLiteral("countdown"), m_serveCountdown },
+             { QStringLiteral("serveTo"), int(m_serveTo) },
+             { QStringLiteral("serve"), pair(m_serveDirection) },
+             { QStringLiteral("rally"), m_rally },
+             { QStringLiteral("longestRally"), m_longestRally },
+             { QStringLiteral("totalHits"), m_totalHits },
+             { QStringLiteral("playTime"), m_playTime },
+             { QStringLiteral("ball"), ball(m_ball) },
+             { QStringLiteral("extras"), extras } };
+}
+
+void Match::applySnapshot(const QVariantMap& snapshot)
+{
+    setPointsToWin(snapshot.value(QStringLiteral("pointsToWin"), m_pointsToWin).toInt());
+    setSetsToWin(snapshot.value(QStringLiteral("setsToWin"), m_setsToWin).toInt());
+    setWinByTwo(snapshot.value(QStringLiteral("winByTwo")).toBool());
+    setEndless(snapshot.value(QStringLiteral("endless")).toBool());
+    applyPlayer(m_left, snapshot.value(QStringLiteral("left")).toMap());
+    applyPlayer(m_right, snapshot.value(QStringLiteral("right")).toMap());
+
+    const auto applyBall = [](Ball* ball, const QVariantMap& snapshot) {
+        ball->setVelocity(vector(snapshot.value(QStringLiteral("v"))));
+        ball->setSpin(snapshot.value(QStringLiteral("spin")).toDouble());
+        ball->setLastTouch(Side(snapshot.value(QStringLiteral("touch"), -1).toInt()));
+        ball->setSmashed(snapshot.value(QStringLiteral("smashed")).toBool());
+        ball->setHold(Side(snapshot.value(QStringLiteral("held"), -1).toInt()),
+                      snapshot.value(QStringLiteral("offset")).toDouble(),
+                      snapshot.value(QStringLiteral("hold")).toDouble());
+        ball->setLifetime(snapshot.value(QStringLiteral("life")).toDouble());
+    };
+    applyBall(m_ball, snapshot.value(QStringLiteral("ball")).toMap());
+
+    // As many extra balls as the host has, in its order
+    const QVariantList extras = snapshot.value(QStringLiteral("extras")).toList();
+    while (m_extraBalls->balls().size() > extras.size())
+        m_extraBalls->remove(m_extraBalls->balls().last());
+    for (qsizetype i = 0; i < extras.size(); ++i) {
+        const QVariantMap extra = extras.at(i).toMap();
+        if (i >= m_extraBalls->balls().size())
+            m_extraBalls->append(new Ball(true, vector(extra.value(QStringLiteral("spawn"))), this));
+        applyBall(m_extraBalls->balls().at(i), extra);
+    }
+
+    const int winner = snapshot.value(QStringLiteral("winner"), -1).toInt();
+    setWinner(winner == 0 ? m_left : winner == 1 ? m_right : nullptr);
+
+    const bool matchPoint = snapshot.value(QStringLiteral("matchPoint")).toBool();
+    if (m_matchPoint != matchPoint) {
+        m_matchPoint = matchPoint;
+        emit matchPointChanged(matchPoint);
+    }
+
+    const Side serveTo = Side(snapshot.value(QStringLiteral("serveTo"), 0).toInt());
+    const QVector2D serveDirection = vector(snapshot.value(QStringLiteral("serve")));
+    if (m_serveTo != serveTo || m_serveDirection != serveDirection) {
+        m_serveTo = serveTo;
+        m_serveDirection = serveDirection;
+        emit serveDirectionChanged();
+    }
+    setServeCountdown(snapshot.value(QStringLiteral("countdown")).toDouble());
+
+    const int longestRally = snapshot.value(QStringLiteral("longestRally")).toInt();
+    if (m_longestRally != longestRally) {
+        m_longestRally = longestRally;
+        emit longestRallyChanged(longestRally);
+    }
+    setRally(snapshot.value(QStringLiteral("rally")).toInt());
+    const int totalHits = snapshot.value(QStringLiteral("totalHits")).toInt();
+    if (m_totalHits != totalHits) {
+        m_totalHits = totalHits;
+        emit totalHitsChanged(totalHits);
+    }
+    setPlayTime(snapshot.value(QStringLiteral("playTime")).toDouble());
+    setState(State(std::clamp(snapshot.value(QStringLiteral("state")).toInt(), 0, int(State::Finished))));
+}
+
 bool Match::winsWithNextPoint(Side side) const
 {
     if (m_endless && side == Side::LeftSide)

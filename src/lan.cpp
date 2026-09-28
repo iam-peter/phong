@@ -3,12 +3,12 @@
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QLoggingCategory>
-#include <QNetworkInterface>
 #include <QSysInfo>
 #include <QUrl>
 #include <QWebSocket>
 
 #if !defined(Q_OS_WASM)
+#include <QNetworkInterface>
 #include <QUdpSocket>
 #include <QWebSocketServer>
 #endif
@@ -269,6 +269,7 @@ QVariantList Lan::peers() const
 QStringList Lan::addresses() const
 {
     QStringList addresses;
+#if !defined(Q_OS_WASM)
     if (m_role != Role::Host)
         return addresses;
 
@@ -292,6 +293,7 @@ QStringList Lan::addresses() const
                      [&rank](const QHostAddress& a, const QHostAddress& b) { return rank(a) < rank(b); });
     for (const QHostAddress& address : std::as_const(found))
         addresses.append(QStringLiteral("%1:%2").arg(address.toString()).arg(port()));
+#endif
     return addresses;
 }
 

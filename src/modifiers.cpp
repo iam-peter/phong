@@ -108,6 +108,7 @@ Modifiers::Modifiers(QObject* parent):
     m_gravityTime(0.0),
     m_gravityWell(),
     m_gravityStrength(0.0),
+    m_replica(false),
     m_random(QRandomGenerator::global()->generate())
 {
     // A broken custom configuration shouldn't take the modifiers away
@@ -296,6 +297,15 @@ QVariantMap Modifiers::definition(int index) const
 
 QVariantList Modifiers::activeEffects(Match::Side side) const
 {
+    if (m_replica) {
+        QVariantList active;
+        if (side == Match::Side::LeftSide || side == Match::Side::RightSide) {
+            for (int index : m_replicaEffects[side])
+                active.append(definition(index));
+        }
+        return active;
+    }
+
     Player* player = m_match ? m_match->player(side) : nullptr;
     if (!player)
         return QVariantList();
@@ -513,6 +523,105 @@ bool Modifiers::shieldHit(Ball* ball, Match::Side side)
     player->setShielded(false);
     emit effectsChanged();
     return true;
+}
+
+QVariantMap Modifiers::snapshot() const
+{
+    const auto id = [this](int index) {
+        return index >= 0 && index < m_definitions.size() ? m_definitions.at(index).id : QString();
+    };
+
+    QVariantList items;
+    for (const Item& item : m_items) {
+        items.append(QVariantMap{ { QStringLiteral("id"), item.id },
+                                  { QStringLiteral("def"), id(item.definition) },
+                                  { QStringLiteral("x"), item.position.x() },
+                                  { QStringLiteral("y"), item.position.y() } });
+    }
+
+    QVariantMap effects;
+    for (Match::Side side : { Match::Side::LeftSide, Match::Side::RightSide }) {
+        QStringList ids;
+        for (const QVariant& active : activeEffects(side))
+            ids.append(active.toMap().value(QStringLiteral("id")).toString());
+        effects.insert(side == Match::Side::LeftSide ? QStringLiteral("left") : QStringLiteral("right"), ids);
+    }
+
+    QVariantList portals;
+    for (const QVector2D& portal : m_portals)
+        portals.append(QVariant(QVariantList{ portal.x(), portal.y() }));
+
+    return { { QStringLiteral("items"), items },
+             { QStringLiteral("effects"), effects },
+             { QStringLiteral("portals"), portals },
+             { QStringLiteral("ghost"), m_ghostBall },
+             { QStringLiteral("well"), QVariantList{ m_gravityWell.x(), m_gravityWell.y() } },
+             { QStringLiteral("strength"), m_gravityStrength },
+             { QStringLiteral("inset"), m_fieldInset } };
+}
+
+void Modifiers::applySnapshot(const QVariantMap& snapshot)
+{
+    m_replica = true;
+
+    // Items the host no longer has go, new ones come with its ids
+    QList<Item> wanted;
+    for (const QVariant& entry : snapshot.value(QStringLiteral("items")).toList()) {
+        const QVariantMap item = entry.toMap();
+        const int definition = findDefinition(item.value(QStringLiteral("def")).toString());
+        if (definition >= 0) {
+            wanted.append({ item.value(QStringLiteral("id")).toInt(), definition,
+                            QVector2D(item.value(QStringLiteral("x")).toFloat(),
+                                      item.value(QStringLiteral("y")).toFloat()),
+                            0.0 });
+        }
+    }
+    for (int row = int(m_items.size()) - 1; row >= 0; --row) {
+        const int id = m_items.at(row).id;
+        if (std::none_of(wanted.cbegin(), wanted.cend(), [id](const Item& item) { return item.id == id; }))
+            removeItem(row);
+    }
+    for (const Item& item : std::as_const(wanted)) {
+        const auto it = std::find_if(m_items.cbegin(), m_items.cend(),
+                                     [&item](const Item& other) { return other.id == item.id; });
+        if (it != m_items.cend())
+            continue;
+        const int row = int(m_items.size());
+        beginInsertRows(QModelIndex(), row, row);
+        m_items.append(item);
+        endInsertRows();
+    }
+
+    bool changed = false;
+    const QVariantMap effects = snapshot.value(QStringLiteral("effects")).toMap();
+    for (Match::Side side : { Match::Side::LeftSide, Match::Side::RightSide }) {
+        QList<int> indices;
+        const QString key = side == Match::Side::LeftSide ? QStringLiteral("left") : QStringLiteral("right");
+        for (const QString& id : effects.value(key).toStringList()) {
+            const int index = findDefinition(id);
+            if (index >= 0)
+                indices.append(index);
+        }
+        if (m_replicaEffects[side] != indices) {
+            m_replicaEffects[side] = indices;
+            changed = true;
+        }
+    }
+    if (changed)
+        emit effectsChanged();
+
+    QList<QVector2D> portals;
+    for (const QVariant& portal : snapshot.value(QStringLiteral("portals")).toList()) {
+        const QVariantList xy = portal.toList();
+        if (xy.size() == 2)
+            portals.append(QVector2D(xy.at(0).toFloat(), xy.at(1).toFloat()));
+    }
+    setPortals(portals);
+    setGhostBall(snapshot.value(QStringLiteral("ghost")).toBool());
+    const QVariantList well = snapshot.value(QStringLiteral("well")).toList();
+    setGravityWell(well.size() == 2 ? QVector2D(well.at(0).toFloat(), well.at(1).toFloat()) : QVector2D(),
+                   snapshot.value(QStringLiteral("strength")).toDouble());
+    setFieldInset(snapshot.value(QStringLiteral("inset")).toDouble());
 }
 
 int Modifiers::spawn(int definition, const QVector2D& position)

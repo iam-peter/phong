@@ -158,6 +158,11 @@ public:
     // Whether side wins the match with its next point
     Q_INVOKABLE bool winsWithNextPoint(Match::Side side) const;
 
+    // The state for a player on the network, and applying it there, where
+    // no rules run: scores, players, balls, the serve
+    Q_INVOKABLE QVariantMap snapshot() const;
+    Q_INVOKABLE void applySnapshot(const QVariantMap& snapshot);
+
     Player* left() const;
     Player* right() const;
     Player* player(Side side) const;

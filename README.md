@@ -138,14 +138,16 @@ rest.
 
 ### On the LAN
 
-In the lobby of the polygon mode `LAN open` lets players on the local
-network join. The host runs the game, the others send their paddle and get
-the picture back, each with their own side at the bottom. `Join LAN game` in
+In the lobby of 2 Players and of the polygon mode `LAN open` lets players on
+the local network join. The host runs the game, the others send their
+paddle, smashes, specials and dashes and get the picture back, on the
+polygon each with their own side at the bottom. `Join LAN game` in
 the menu lists the games open on the network. The browser build can't look
 for games or open one, but it joins a desktop host by the address the host
 shows in its lobby, e.g. `192.168.1.5:45455`. The game uses TCP port 45455
 for the players and UDP port 45454 to find games, a firewall has to let
-them through. A player who leaves is replaced by the computer.
+them through. A player who leaves is replaced by the computer, only the host
+pauses, the others can leave with `Esc`.
 - **Ladder** against Easy, Normal and Hard in a row, a loss can be retried.
 - **Endless** against a computer getting harder and faster the longer you
   last, with three balls to lose. Every return scores a point, every ball the
