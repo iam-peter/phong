@@ -383,6 +383,10 @@ Scene {
     }
 
     function step(dt) {
+        // The ball waits for the kickoff in the middle, see GameScene
+        if (match.state === PartyMatch.Serving && (Math.abs(ball.x) > 0.01 || Math.abs(ball.y) > 0.01))
+            resetBall()
+
         match.advance(dt)
         if (!running)
             return

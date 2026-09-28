@@ -464,8 +464,8 @@ Scene {
             root.shakeAmount *= Math.exp(-7.0 * dt)
             root.viewOffset = Qt.vector3d((Math.random() - 0.5) * root.shakeAmount,
                                           (Math.random() - 0.5) * root.shakeAmount, -6.0 * root.slowMotion)
-            root.viewRotation = root.viewRotation.plus(Qt.vector3d(0.07 * mainBall.y, -0.05 * mainBall.x, 0)
-                                                       .minus(root.viewRotation).times(Math.min(1.0, 3.0 * dt)))
+            root.viewRotation = root.viewRotation.plus(root.lean().minus(root.viewRotation)
+                                                       .times(Math.min(1.0, 3.0 * dt)))
             if (root.running)
                 root.record(dt)
 
@@ -856,6 +856,14 @@ Scene {
         mainBall.clearTrail()
     }
 
+    // The camera leans a little towards the ball, never further than to
+    // the edge of the field, wherever a ball may get to
+    function lean() {
+        const x = Math.max(-0.5 * stageWidth, Math.min(0.5 * stageWidth, mainBall.x || 0))
+        const y = Math.max(-0.5 * stageHeight, Math.min(0.5 * stageHeight, mainBall.y || 0))
+        return Qt.vector3d(0.07 * y, -0.05 * x, 0)
+    }
+
     function shake(amount) {
         shakeAmount = Math.max(shakeAmount, amount)
     }
@@ -1141,6 +1149,13 @@ Scene {
                 releaseHeld(body.ball.heldBy)
         }
 
+        // The ball waits for the kickoff on the serve spot. A reset while
+        // the physics stood still, after the last point of a match, is lost,
+        // and the ball would start where it ended, e.g. behind the wall of
+        // squash.
+        if (match.state === Match.Serving && (Math.abs(mainBall.x) > 0.01 || Math.abs(mainBall.y) > 0.01))
+            resetBall()
+
         match.advance(dt)
         if (!running)
             return
@@ -1256,8 +1271,7 @@ Scene {
         viewOffset = Qt.vector3d((Math.random() - 0.5) * shakeAmount,
                                  (Math.random() - 0.5) * shakeAmount, -6.0 * slowMotion)
         const follow = Math.min(1.0, 3.0 * realDt)
-        viewRotation = viewRotation.plus(Qt.vector3d(0.07 * mainBall.y, -0.05 * mainBall.x, 0)
-                                         .minus(viewRotation).times(follow))
+        viewRotation = viewRotation.plus(lean().minus(viewRotation).times(follow))
 
         record(realDt)
         sendState()
