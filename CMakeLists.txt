@@ -39,6 +39,7 @@ qt_add_qml_module(phong
         qml/StatsScene.qml
         qml/GraphicsScene.qml
         qml/OptionsScene.qml
+        qml/ControlsScene.qml
         qml/PartyScene.qml
         qml/PhongMaterial.qml
         qml/Starfield.qml
@@ -60,6 +61,7 @@ qt_add_qml_module(phong
         src/stats.h src/stats.cpp
         src/graphicssettings.h src/graphicssettings.cpp
         src/gamesettings.h src/gamesettings.cpp
+        src/keysettings.h src/keysettings.cpp
     RESOURCES
         config/modifiers.json
         config/arenas.json

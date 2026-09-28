@@ -260,6 +260,13 @@ Window {
             phong: phong
             position: Qt.vector3d(-phong.sceneSpacingX, phong.sceneSpacingY, 0)
             graphicsScene: graphicsScene
+            controlsScene: controlsScene
+        }
+
+        ControlsScene {
+            id: controlsScene
+            phong: phong
+            position: Qt.vector3d(-2 * phong.sceneSpacingX, phong.sceneSpacingY, 0)
         }
 
         GraphicsScene {

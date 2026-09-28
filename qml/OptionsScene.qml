@@ -10,15 +10,26 @@ Scene {
     id: root
 
     property string title
-    // { label, values, names, get, set } or { label, values: [], set, hint }
+    // { label, values, names, get, set } or { label, values: [], set, hint },
+    // or { label, values: [], capture: true, get, set } for a key: set gets
+    // the next key pressed
     property var rows: []
     property int currentItem: 0
+    // The row waiting for its key, -1 for none
+    property int capturing: -1
 
     // The rows fit between the title and the hint
     readonly property real rowSpacing: Math.min(2.0, 15.0 / Math.max(rows.length, 1))
+    // Long lists get smaller text
+    readonly property real rowScale: Math.min(1.0, rowSpacing / 1.45)
 
     function change(row, step) {
         const values = row.values
+        if (row.capture) {
+            SoundEffects.play(SoundEffects.MenuSelect)
+            capturing = rows.indexOf(row)
+            return
+        }
         if (values.length === 0) {
             SoundEffects.play(SoundEffects.MenuSelect)
             row.set()
@@ -32,8 +43,23 @@ Scene {
         SoundEffects.play(SoundEffects.MenuSelect)
     }
 
+    onActiveChanged: capturing = -1
+
     onKeyPressed: (event) => {
         event.accepted = true
+        if (capturing >= 0) {
+            if (event.isAutoRepeat)
+                return
+            // Escape keeps the key, reserved keys are refused
+            if (event.key !== Qt.Key_Escape && !rows[capturing].set(event.key)) {
+                SoundEffects.play(SoundEffects.Curse)
+                return
+            }
+            SoundEffects.play(SoundEffects.MenuSelect)
+            capturing = -1
+            return
+        }
+
         switch (event.key) {
             case Qt.Key_Escape:
                 phong.previousScene()
@@ -90,6 +116,7 @@ Scene {
             }
 
             y: 6.0 - index * root.rowSpacing
+            scale: Qt.vector3d(root.rowScale, root.rowScale, root.rowScale)
 
             Disc {
                 visible: row.selected
@@ -141,6 +168,20 @@ Scene {
                 text: ">"
                 clickable: visible
                 onClicked: root.change(row.modelData, 1)
+            }
+
+            // A key, or the request for one
+            Text3D {
+                x: 10.0
+                visible: row.modelData.capture ?? false
+                horizontalAlignment: Text.AlignRight
+                color: root.capturing === row.index ? Theme.title : row.selected ? Theme.text : Theme.dimmed
+                text: root.capturing === row.index ? qsTr("Press a key") : row.modelData.get?.() ?? ""
+                clickable: visible
+                onClicked: {
+                    root.currentItem = row.index
+                    root.change(row.modelData, 1)
+                }
             }
 
             // Actions leading to another screen say so

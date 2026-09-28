@@ -8,6 +8,7 @@ OptionsScene {
     id: root
 
     property Scene graphicsScene
+    property Scene controlsScene
 
     title: qsTr("Settings")
 
@@ -95,6 +96,13 @@ OptionsScene {
             names: [],
             hint: ">",
             set: () => phong.nextScene(root.graphicsScene)
+        },
+        {
+            label: qsTr("Controls"),
+            values: [],
+            names: [],
+            hint: ">",
+            set: () => phong.nextScene(root.controlsScene)
         },
         {
             label: qsTr("Restore defaults"),

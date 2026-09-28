@@ -46,6 +46,10 @@ phong_add_test(tst_stats
     ${PROJECT_SOURCE_DIR}/src/stats.cpp
 )
 
+phong_add_test(tst_keysettings
+    ${PROJECT_SOURCE_DIR}/src/keysettings.cpp
+)
+
 phong_add_test(tst_graphicssettings
     ${PROJECT_SOURCE_DIR}/src/graphicssettings.cpp
 )

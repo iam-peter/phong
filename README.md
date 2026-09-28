@@ -65,6 +65,10 @@ browser's local storage.
 `Esc` or `P` pauses and resumes, the pause menu also leads back to the main
 menu. Menus take arrow keys, `Enter` and clicks.
 
+The keys of both players and the pause key can be changed on the controls
+screen in the settings: pick an action and press the new key. A key that
+another action has swaps with it, `Esc` and `Enter` stay with the menus.
+
 Moving the paddle while it hits the ball puts spin on it: brushed upwards the
 ball dips on its way over, brushed downwards it rises.
 

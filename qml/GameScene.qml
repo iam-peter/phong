@@ -828,30 +828,31 @@ Scene {
         }
     }
 
+    // The keys come from the controls settings. Against the computer both
+    // sets move your paddle, and space smashes too.
     function setKey(key, pressed) {
-        switch (key) {
-            case Qt.Key_W: leftUp = pressed; return true
-            case Qt.Key_S: leftDown = pressed; return true
-            case Qt.Key_Up: rightUp = pressed; return true
-            case Qt.Key_Down: rightDown = pressed; return true
-            // Smash, towards the middle of the keyboard, also space alone
-            case Qt.Key_D: setCharging(Match.LeftSide, pressed); return true
-            case Qt.Key_Space:
-                if (mode === GameScene.TwoPlayers)
-                    return false
-                setCharging(Match.LeftSide, pressed)
-                return true
-            case Qt.Key_Left:
-                setCharging(mode === GameScene.TwoPlayers ? Match.RightSide : Match.LeftSide, pressed)
-                return true
+        const twoPlayers = mode === GameScene.TwoPlayers
+        if (key === Qt.Key_Space && !twoPlayers) {
+            setCharging(Match.LeftSide, pressed)
+            return true
+        }
+
+        const right = twoPlayers ? Match.RightSide : Match.LeftSide
+        switch (KeySettings.action(key)) {
+            case KeySettings.LeftUp: leftUp = pressed; return true
+            case KeySettings.LeftDown: leftDown = pressed; return true
+            case KeySettings.RightUp: rightUp = pressed; return true
+            case KeySettings.RightDown: rightDown = pressed; return true
+            case KeySettings.LeftSmash: setCharging(Match.LeftSide, pressed); return true
+            case KeySettings.RightSmash: setCharging(right, pressed); return true
             // The special, when the power bar is full
-            case Qt.Key_A:
+            case KeySettings.LeftSpecial:
                 if (pressed)
                     match.useSpecial(Match.LeftSide)
                 return true
-            case Qt.Key_Right:
+            case KeySettings.RightSpecial:
                 if (pressed)
-                    match.useSpecial(mode === GameScene.TwoPlayers ? Match.RightSide : Match.LeftSide)
+                    match.useSpecial(right)
                 return true
         }
         return false
@@ -863,11 +864,11 @@ Scene {
         const upDown = twoPlayers ? rightDash : leftDash
         const left = match.left.frozen ? 0 : match.left.reversed ? -1 : 1
         const right = twoPlayers ? (match.right.frozen ? 0 : match.right.reversed ? -1 : 1) : left
-        switch (key) {
-            case Qt.Key_W: return leftDash.tap(left)
-            case Qt.Key_S: return leftDash.tap(-left)
-            case Qt.Key_Up: return upDown.tap(right)
-            case Qt.Key_Down: return upDown.tap(-right)
+        switch (KeySettings.action(key)) {
+            case KeySettings.LeftUp: return leftDash.tap(left)
+            case KeySettings.LeftDown: return leftDash.tap(-left)
+            case KeySettings.RightUp: return upDown.tap(right)
+            case KeySettings.RightDown: return upDown.tap(-right)
         }
         return false
     }
@@ -942,9 +943,12 @@ Scene {
                 else if (match.state !== Match.Paused)
                     leave()
                 break
-            case Qt.Key_P:
             case Qt.Key_Space:
                 togglePause()
+                break
+            default:
+                if (KeySettings.action(event.key) === KeySettings.Pause)
+                    togglePause()
                 break
         }
     }
@@ -2395,16 +2399,25 @@ Scene {
         Text3D {
             x: -root.stageWidth
             color: Theme.dimmed
+            // The keys as set in the controls
+            readonly property var names: KeySettings.keyNames
+            function keys(...actions) {
+                return "[" + actions.map((action) => names[action]).join("/") + "]"
+            }
+            readonly property string left: qsTr("%1 move %2 smash %3 special")
+                .arg(keys(KeySettings.LeftUp, KeySettings.LeftDown)).arg(keys(KeySettings.LeftSmash))
+                .arg(keys(KeySettings.LeftSpecial))
+            readonly property string solo: qsTr("%1 move, twice dashes   [Space] smash   %2 special")
+                .arg(keys(KeySettings.LeftUp, KeySettings.LeftDown)).arg(keys(KeySettings.LeftSpecial))
+
             text: root.mode === GameScene.TwoPlayers
-                  ? qsTr("[W/S] move [D] smash [A] special   [Up/Down] move [Left] smash [Right] special")
-                  : root.mode === GameScene.Ladder
-                  ? qsTr("Ladder %1/3   [W/S] move, twice dashes   [Space] smash   [A] special").arg(root.ladderStage + 1)
-                  : root.tournament
-                  ? qsTr("Tournament   [W/S] move, twice dashes   [Space] smash   [A] special")
-                  : root.squash
-                  ? qsTr("Best %1   [W/S] move, twice dashes   [Space] smash   [A] special")
-                    .arg(Math.max(match.longestRally, Stats.squashBest))
-                  : qsTr("[W/S] or [Up/Down] move, twice dashes   [Space] smash   [A] special")
+                  ? left + "   " + qsTr("%1 move %2 smash %3 special")
+                    .arg(keys(KeySettings.RightUp, KeySettings.RightDown)).arg(keys(KeySettings.RightSmash))
+                    .arg(keys(KeySettings.RightSpecial))
+                  : root.mode === GameScene.Ladder ? qsTr("Ladder %1/3").arg(root.ladderStage + 1) + "   " + solo
+                  : root.tournament ? qsTr("Tournament") + "   " + solo
+                  : root.squash ? qsTr("Best %1").arg(Math.max(match.longestRally, Stats.squashBest)) + "   " + solo
+                  : solo
         }
 
         Text3D {
