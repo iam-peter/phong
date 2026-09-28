@@ -15,6 +15,20 @@ Window {
     property var sceneStack: []
     readonly property Scene currentScene: sceneStack.length ? sceneStack[sceneStack.length - 1] : null
 
+    // Scene layout follows the window: the camera backs off until the widest
+    // scene fits, and the scenes are spread so that only the current one is
+    // in view. The game scene stays at the origin, the physics world with it.
+    readonly property real contentHalfWidth: 18.5
+    readonly property real contentHalfHeight: 13.0
+    readonly property real tanHalfFieldOfView: Math.tan(0.5 * camera.fieldOfView * Math.PI / 180)
+    readonly property real aspectRatio: Math.max(width, 1) / Math.max(height, 1)
+    readonly property real cameraDistance: Math.max(Theme.cameraDistance,
+                                                    contentHalfWidth / (tanHalfFieldOfView * aspectRatio))
+    readonly property real sceneSpacingX: Math.max(40, cameraDistance * tanHalfFieldOfView * aspectRatio
+                                                       + contentHalfWidth + 1.0)
+    readonly property real sceneSpacingY: Math.max(40, cameraDistance * tanHalfFieldOfView
+                                                       + contentHalfHeight + 1.0)
+
     function nextScene(scene) {
         if (currentScene)
             currentScene.active = false
@@ -46,12 +60,28 @@ Window {
         currentScene.active = true
     }
 
+    function cameraPosition(scene) {
+        return scene.position.plus(Qt.vector3d(0, 0, cameraDistance))
+    }
+
     function transformCamera(position) {
         cameraAnimation.stop()
         cameraAnimation.from = camera.position
-        cameraAnimation.to = position.plus(Qt.vector3d(0, 0, Theme.cameraDistance))
+        cameraAnimation.to = position.plus(Qt.vector3d(0, 0, cameraDistance))
         cameraAnimation.start()
     }
+
+    // The scenes moved with the window size, catch up with the current one
+    function snapCamera() {
+        if (!currentScene)
+            return
+
+        cameraAnimation.stop()
+        camera.position = cameraPosition(currentScene)
+    }
+
+    onWidthChanged: Qt.callLater(snapCamera)
+    onHeightChanged: Qt.callLater(snapCamera)
 
     function startGame(mode) {
         gameScene.mode = mode
@@ -111,7 +141,6 @@ Window {
         PerspectiveCamera {
             id: camera
 
-            position: Qt.vector3d(menuScene.x, menuScene.y, Theme.cameraDistance)
             fieldOfView: 45
             clipNear: 0.1
             clipFar: 1000
@@ -136,26 +165,26 @@ Window {
         MenuScene {
             id: menuScene
             phong: phong
-            position: Qt.vector3d(0, 0, 0)
+            position: Qt.vector3d(-phong.sceneSpacingX, 0, 0)
             settingsScene: settingsScene
         }
 
         GameScene {
             id: gameScene
             phong: phong
-            position: Qt.vector3d(40, 0, 0)
+            position: Qt.vector3d(0, 0, 0)
         }
 
         SettingsScene {
             id: settingsScene
             phong: phong
-            position: Qt.vector3d(0, 40, 0)
+            position: Qt.vector3d(-phong.sceneSpacingX, phong.sceneSpacingY, 0)
         }
 
         ResultScene {
             id: resultScene
             phong: phong
-            position: Qt.vector3d(40, -40, 0)
+            position: Qt.vector3d(0, -phong.sceneSpacingY, 0)
             match: gameScene.match
             menuScene: menuScene
             mode: gameScene.mode
@@ -196,5 +225,8 @@ Window {
         }
     }
 
-    Component.onCompleted: nextScene(menuScene)
+    Component.onCompleted: {
+        camera.position = cameraPosition(menuScene)
+        nextScene(menuScene)
+    }
 }
