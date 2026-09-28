@@ -47,6 +47,7 @@ phong_add_test(tst_graphicssettings
 # Without an audio backend, the synthesis is what's tested
 phong_add_test(tst_soundeffects
     ${PROJECT_SOURCE_DIR}/src/soundeffects.cpp
+    ${PROJECT_SOURCE_DIR}/src/music.cpp
 )
 
 # The built-in configuration, at the path the app has it

@@ -83,6 +83,13 @@ OptionsScene {
             set: (value) => GameSettings.sound = value
         },
         {
+            label: qsTr("Music"),
+            values: [true, false],
+            names: [qsTr("On"), qsTr("Off")],
+            get: () => GameSettings.music,
+            set: (value) => GameSettings.music = value
+        },
+        {
             label: qsTr("Graphics"),
             values: [],
             names: [],

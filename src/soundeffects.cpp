@@ -1,4 +1,5 @@
 #include "soundeffects.h"
+#include "music.h"
 
 #include <QLoggingCategory>
 #include <QtMath>
@@ -9,6 +10,8 @@
 
 #if defined(Q_OS_WASM)
 #include <emscripten.h>
+
+#include <QTimer>
 #elif defined(PHONG_HAVE_MULTIMEDIA)
 #include <QAudioFormat>
 #include <QAudioSink>
@@ -47,6 +50,20 @@ qreal waveform(SoundEffects::Waveform waveform, qreal phase)
             return std::sin(2.0 * M_PI * phase);
     }
 }
+
+// The same noise every time, a sound must not change between two renders
+class NoiseSource
+{
+public:
+    float next()
+    {
+        m_state = m_state * 1664525u + 1013904223u;
+        return float(m_state >> 8) / float(1u << 24) * 2.0f - 1.0f;
+    }
+
+private:
+    quint32 m_state = 0x2545f491u;
+};
 }
 
 #if defined(Q_OS_WASM)
@@ -84,20 +101,44 @@ EM_JS(void, phong_play_tone, (int waveform, double start, double duration, doubl
         context.resume();
 
     const time = context.currentTime + start;
-    const oscillator = context.createOscillator();
-    oscillator.type = ["square", "triangle", "sawtooth", "sine"][waveform];
-    oscillator.frequency.setValueAtTime(from, time);
-    oscillator.frequency.exponentialRampToValueAtTime(Math.max(to, 1), time + duration);
+    let source;
+    if (waveform === 4) {
+        // Noise from a looped buffer, slower playback darkens it like the
+        // held levels of the desktop synthesis
+        if (!globalThis.phongNoise) {
+            const buffer = context.createBuffer(1, context.sampleRate, context.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < data.length; ++i)
+                data[i] = 2 * Math.random() - 1;
+            globalThis.phongNoise = buffer;
+        }
+        source = context.createBufferSource();
+        source.buffer = globalThis.phongNoise;
+        source.loop = true;
+        source.playbackRate.value = Math.min(1, 2 * from / context.sampleRate);
+    }
+    else {
+        source = context.createOscillator();
+        source.type = ["square", "triangle", "sawtooth", "sine"][waveform];
+        source.frequency.setValueAtTime(from, time);
+        source.frequency.exponentialRampToValueAtTime(Math.max(to, 1), time + duration);
+    }
 
     const gain = context.createGain();
     gain.gain.setValueAtTime(0, time);
     gain.gain.linearRampToValueAtTime(volume, time + 0.003);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
 
-    oscillator.connect(gain);
+    source.connect(gain);
     gain.connect(context.destination);
-    oscillator.start(time);
-    oscillator.stop(time + duration + 0.05);
+    source.start(time);
+    source.stop(time + duration + 0.05);
+});
+
+// The audio clock, -1 while there is no running context
+EM_JS(double, phong_audio_time, (), {
+    const context = globalThis.phongAudio;
+    return context && context.state === "running" ? context.currentTime : -1;
 });
 
 class SoundEffects::Backend
@@ -106,6 +147,10 @@ public:
     Backend()
     {
         phong_setup_audio();
+        // The music is scheduled a little ahead on the audio clock, the
+        // timer only has to keep up
+        m_timer.setInterval(25);
+        QObject::connect(&m_timer, &QTimer::timeout, [this] { scheduleMusic(); });
     }
 
     bool isAvailable() const
@@ -113,24 +158,84 @@ public:
         return true;
     }
 
-    void play(const QList<Tone>& tones, qreal pitch)
+    void play(const QList<Tone>& tones, qreal pitch, qreal start = 0.0)
     {
         for (const Tone& tone : tones)
-            phong_play_tone(int(tone.waveform), tone.start, tone.duration, tone.from * pitch,
+            phong_play_tone(int(tone.waveform), start + tone.start, tone.duration, tone.from * pitch,
                             tone.to * pitch, tone.volume * masterVolume);
     }
+
+    void setMusic(bool playing, int intensity, qreal bpm)
+    {
+        m_intensity = intensity;
+        m_bpm = bpm;
+        if (playing == m_timer.isActive())
+            return;
+
+        if (playing) {
+            m_step = 0;
+            m_nextStep = -1.0;
+            m_timer.start();
+        }
+        else {
+            m_timer.stop();
+        }
+    }
+
+private:
+    void scheduleMusic()
+    {
+        const qreal now = phong_audio_time();
+        if (now < 0.0)
+            return;
+
+        // Starting, or the tab was in the background
+        if (m_nextStep < now)
+            m_nextStep = now + 0.05;
+
+        while (m_nextStep < now + lookahead) {
+            const qreal duration = Music::stepDuration(m_bpm);
+            play(Music::step(m_step++, m_intensity, duration), 1.0, m_nextStep - now);
+            m_nextStep += duration;
+        }
+    }
+
+    static constexpr qreal lookahead = 0.15;
+
+    QTimer m_timer;
+    int m_intensity = 0;
+    qreal m_bpm = 120.0;
+    int m_step = 0;
+    qreal m_nextStep = -1.0;
 };
 
 #elif defined(PHONG_HAVE_MULTIMEDIA)
 
-// Mixes the playing sounds into the output, silence in between
+// Mixes the playing sounds into the output, silence in between. The music
+// is sequenced here too, on the audio thread, to keep its time.
 class Mixer
 {
 public:
+    explicit Mixer(int sampleRate):
+        m_sampleRate(sampleRate)
+    {}
+
     void add(const QList<float>& samples)
     {
         QMutexLocker locker(&m_mutex);
         m_voices.append({ samples, 0 });
+    }
+
+    void setMusic(bool playing, int intensity, qreal bpm)
+    {
+        QMutexLocker locker(&m_mutex);
+        if (playing && !m_musicPlaying) {
+            m_step = 0;
+            m_nextStep = qreal(m_frame);
+        }
+        m_musicPlaying = playing;
+        m_intensity = intensity;
+        m_bpm = bpm;
     }
 
     template<typename Sample>
@@ -138,11 +243,15 @@ public:
     {
         QMutexLocker locker(&m_mutex);
         const qsizetype frames = output.size() / channels;
+        sequence(frames);
+
         for (qsizetype frame = 0; frame < frames; ++frame) {
             float sample = 0.0f;
             for (Voice& voice : m_voices) {
-                if (voice.position < voice.samples.size())
-                    sample += voice.samples.at(voice.position++);
+                // Voices of the music may start later in the buffer
+                if (voice.position >= 0 && voice.position < voice.samples.size())
+                    sample += voice.samples.at(voice.position);
+                ++voice.position;
             }
 
             const Sample value = convert<Sample>(std::clamp(sample, -1.0f, 1.0f));
@@ -150,6 +259,7 @@ public:
                 output[frame * channels + channel] = value;
         }
 
+        m_frame += frames;
         m_voices.removeIf([](const Voice& voice) { return voice.position >= voice.samples.size(); });
     }
 
@@ -167,13 +277,37 @@ private:
             return quint8((sample + 1.0f) * 127.5f);
     }
 
+    // Starts the steps of the music due within the next frames
+    void sequence(qsizetype frames)
+    {
+        if (!m_musicPlaying)
+            return;
+
+        const qreal end = qreal(m_frame + frames);
+        while (m_nextStep < end) {
+            const qreal duration = Music::stepDuration(m_bpm);
+            const QList<float> samples = SoundEffects::render(Music::step(m_step++, m_intensity, duration),
+                                                              m_sampleRate);
+            const qsizetype delay = std::max(qsizetype(m_nextStep) - qsizetype(m_frame), qsizetype(0));
+            m_voices.append({ samples, -delay });
+            m_nextStep += duration * m_sampleRate;
+        }
+    }
+
     struct Voice {
         QList<float> samples;
-        qsizetype position;
+        qsizetype position; // negative while waiting to start
     };
 
     QMutex m_mutex;
     QList<Voice> m_voices;
+    const int m_sampleRate;
+    qint64 m_frame = 0;
+    bool m_musicPlaying = false;
+    int m_intensity = 0;
+    qreal m_bpm = 120.0;
+    int m_step = 0;
+    qreal m_nextStep = 0.0;
 };
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
@@ -255,6 +389,15 @@ public:
             m_mixer->add(SoundEffects::render(tones, m_sampleRate, pitch));
     }
 
+    void setMusic(bool playing, int intensity, qreal bpm)
+    {
+        m_musicPlaying = playing;
+        m_intensity = intensity;
+        m_bpm = bpm;
+        if (m_mixer)
+            m_mixer->setMusic(playing, intensity, bpm);
+    }
+
 private:
     // An error stops a sink for good, e.g. a write error when the output
     // device changes or is suspended, so a new one takes over
@@ -284,7 +427,8 @@ private:
             format = device.preferredFormat();
 
         m_sampleRate = format.sampleRate();
-        m_mixer = std::make_shared<Mixer>();
+        m_mixer = std::make_shared<Mixer>(m_sampleRate);
+        m_mixer->setMusic(m_musicPlaying, m_intensity, m_bpm);
         m_sink = std::make_unique<QAudioSink>(device, format);
         m_sink->setBufferSize(format.bytesForDuration(60000));
 
@@ -341,6 +485,9 @@ private:
     QMediaDevices m_devices;
     bool m_restartPending = false;
     int m_sampleRate = 44100;
+    bool m_musicPlaying = false;
+    int m_intensity = 0;
+    qreal m_bpm = 120.0;
     std::shared_ptr<Mixer> m_mixer;
 #if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
     std::unique_ptr<MixerDevice> m_device;
@@ -359,6 +506,9 @@ public:
     }
 
     void play(const QList<Tone>&, qreal)
+    {}
+
+    void setMusic(bool, int, qreal)
     {}
 };
 
@@ -460,6 +610,8 @@ QList<float> SoundEffects::render(const QList<Tone>& tones, int sampleRate, qrea
         const qreal to = tone.to * pitch;
 
         qreal phase = 0.0;
+        NoiseSource noise;
+        float held = noise.next();
         for (qsizetype i = 0; i < count && first + i < samples.size(); ++i) {
             const qreal t = qreal(i) / sampleRate;
             const qreal progress = t / tone.duration;
@@ -467,8 +619,15 @@ QList<float> SoundEffects::render(const QList<Tone>& tones, int sampleRate, qrea
             const qreal envelope = volume * std::pow(silence / volume, progress)
                                    * std::min(1.0, t / attack);
 
-            samples[first + i] += float(envelope * waveform(tone.waveform, phase));
-            phase = std::fmod(phase + frequency / sampleRate, 1.0);
+            const qreal value = tone.waveform == Noise ? held : waveform(tone.waveform, phase);
+            samples[first + i] += float(envelope * value);
+
+            // Noise holds a level for a cycle
+            phase += frequency / sampleRate;
+            if (phase >= 1.0) {
+                phase = std::fmod(phase, 1.0);
+                held = noise.next();
+            }
         }
     }
 
@@ -478,6 +637,10 @@ QList<float> SoundEffects::render(const QList<Tone>& tones, int sampleRate, qrea
 SoundEffects::SoundEffects(QObject* parent):
     QObject(parent),
     m_enabled(true),
+    m_musicEnabled(true),
+    m_musicPlaying(false),
+    m_musicIntensity(0),
+    m_musicTempo(120.0),
     m_backend(std::make_unique<Backend>())
 {}
 
@@ -496,6 +659,74 @@ void SoundEffects::setEnabled(bool enabled)
 
     m_enabled = enabled;
     emit enabledChanged(enabled);
+    updateMusic();
+}
+
+void SoundEffects::setMusicEnabled(bool musicEnabled)
+{
+    if (m_musicEnabled == musicEnabled)
+        return;
+
+    m_musicEnabled = musicEnabled;
+    emit musicEnabledChanged(musicEnabled);
+    updateMusic();
+}
+
+bool SoundEffects::isMusicEnabled() const
+{
+    return m_musicEnabled;
+}
+
+void SoundEffects::setMusicPlaying(bool musicPlaying)
+{
+    if (m_musicPlaying == musicPlaying)
+        return;
+
+    m_musicPlaying = musicPlaying;
+    emit musicPlayingChanged(musicPlaying);
+    updateMusic();
+}
+
+bool SoundEffects::isMusicPlaying() const
+{
+    return m_musicPlaying;
+}
+
+void SoundEffects::setMusicIntensity(int musicIntensity)
+{
+    musicIntensity = std::clamp(musicIntensity, 0, Music::maxIntensity);
+    if (m_musicIntensity == musicIntensity)
+        return;
+
+    m_musicIntensity = musicIntensity;
+    emit musicIntensityChanged(musicIntensity);
+    updateMusic();
+}
+
+int SoundEffects::musicIntensity() const
+{
+    return m_musicIntensity;
+}
+
+void SoundEffects::setMusicTempo(qreal musicTempo)
+{
+    musicTempo = std::clamp(musicTempo, 60.0, 240.0);
+    if (m_musicTempo == musicTempo)
+        return;
+
+    m_musicTempo = musicTempo;
+    emit musicTempoChanged(musicTempo);
+    updateMusic();
+}
+
+qreal SoundEffects::musicTempo() const
+{
+    return m_musicTempo;
+}
+
+void SoundEffects::updateMusic()
+{
+    m_backend->setMusic(m_enabled && m_musicEnabled && m_musicPlaying, m_musicIntensity, m_musicTempo);
 }
 
 bool SoundEffects::isEnabled() const

@@ -16,6 +16,13 @@ class SoundEffects : public QObject
     QML_SINGLETON
     Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY enabledChanged)
     Q_PROPERTY(bool available READ isAvailable CONSTANT)
+    // The music plays while enabled, like the sounds, and wanted, e.g.
+    // during a match. It gets busier with the intensity, see Music.
+    Q_PROPERTY(bool musicEnabled READ isMusicEnabled WRITE setMusicEnabled NOTIFY musicEnabledChanged)
+    Q_PROPERTY(bool musicPlaying READ isMusicPlaying WRITE setMusicPlaying NOTIFY musicPlayingChanged)
+    Q_PROPERTY(int musicIntensity READ musicIntensity WRITE setMusicIntensity NOTIFY musicIntensityChanged)
+    // Beats per minute
+    Q_PROPERTY(qreal musicTempo READ musicTempo WRITE setMusicTempo NOTIFY musicTempoChanged)
 
 public:
     enum Sound {
@@ -49,7 +56,9 @@ public:
         Square = 0,
         Triangle,
         Sawtooth,
-        Sine
+        Sine,
+        // Random levels held for 1 / frequency seconds, darker when lower
+        Noise
     };
 
     // Frequency glides exponentially from from to to, the volume decays
@@ -79,13 +88,35 @@ public:
     // Whether there is a way to play sound at all
     bool isAvailable() const;
 
+    void setMusicEnabled(bool musicEnabled);
+    bool isMusicEnabled() const;
+
+    void setMusicPlaying(bool musicPlaying);
+    bool isMusicPlaying() const;
+
+    void setMusicIntensity(int musicIntensity);
+    int musicIntensity() const;
+
+    void setMusicTempo(qreal musicTempo);
+    qreal musicTempo() const;
+
 signals:
     void enabledChanged(bool);
+    void musicEnabledChanged(bool);
+    void musicPlayingChanged(bool);
+    void musicIntensityChanged(int);
+    void musicTempoChanged(qreal);
 
 private:
     class Backend;
 
+    void updateMusic();
+
     bool m_enabled;
+    bool m_musicEnabled;
+    bool m_musicPlaying;
+    int m_musicIntensity;
+    qreal m_musicTempo;
     std::unique_ptr<Backend> m_backend;
 };
 

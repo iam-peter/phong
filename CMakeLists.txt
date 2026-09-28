@@ -54,6 +54,7 @@ qt_add_qml_module(phong
         src/modifiers.h src/modifiers.cpp
         src/arenas.h src/arenas.cpp
         src/soundeffects.h src/soundeffects.cpp
+        src/music.h src/music.cpp
         src/stats.h src/stats.cpp
         src/graphicssettings.h src/graphicssettings.cpp
         src/gamesettings.h src/gamesettings.cpp

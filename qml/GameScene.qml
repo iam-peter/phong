@@ -1183,6 +1183,28 @@ Scene {
             achieve("endurance")
     }
 
+    // The music plays during the match, busier and faster with the rally
+    // and slower in slow motion
+    Binding {
+        target: SoundEffects
+        property: "musicPlaying"
+        value: root.active && root.running
+    }
+
+    Binding {
+        target: SoundEffects
+        property: "musicIntensity"
+        when: root.active
+        value: match.state === Match.Playing ? 1 + Math.min(3, Math.floor(match.rally / 4)) : 0
+    }
+
+    Binding {
+        target: SoundEffects
+        property: "musicTempo"
+        when: root.active
+        value: (112 + Math.min(40, 1.5 * match.rally)) * (0.6 + 0.4 * root.timeScale)
+    }
+
     Connections {
         target: Stats
         enabled: root.active

@@ -246,8 +246,16 @@ glow and 4x multisampling.
 
 The sound effects are synthesized from a few tones, there are no audio files.
 The desktop plays them with Qt Multimedia, the browser with the Web Audio API,
-which starts after the first key press or click. Sound can be switched off in
-the settings. `QT_LOGGING_RULES="phong.sound.debug=true"` logs what the audio
+which starts after the first key press or click.
+
+The music is made of the same tones, a chiptune loop over four chords that
+the game sequences as it plays. It starts with a bass line at the kickoff,
+and as the rally grows hi-hats, drums, an arpeggio and a lead come in and
+the tempo rises. In slow motion it slows down too. The desktop sequences it
+on the audio thread, the browser schedules it ahead on the audio clock, so
+the beat keeps its time when the game is busy.
+
+Sound and music can be switched off separately in the settings. `QT_LOGGING_RULES="phong.sound.debug=true"` logs what the audio
 output does.
 
 ## Physics
