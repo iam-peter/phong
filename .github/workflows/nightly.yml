@@ -97,6 +97,23 @@ jobs:
           name: phong-linux
           path: Phong-*.AppImage
 
+      # The server with the Qt it needs in lib/, it finds them there
+      - name: Server
+        run: |
+          mkdir -p phong-server/lib
+          cp build/server/phong-server server/README.txt phong-server/
+          for lib in $(ldd phong-server/phong-server | awk '/=>/ {print $3}' | grep "^$QT_ROOT_DIR/"); do
+            cp -L "$lib" phong-server/lib/
+          done
+          ls -la phong-server/lib
+          ./phong-server/phong-server --help
+          tar czf Phong-server-linux-x64.tar.gz phong-server
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phong-server-linux
+          path: Phong-server-linux-x64.tar.gz
+
   windows:
     needs: changes
     if: needs.changes.outputs.build == 'true'
@@ -128,6 +145,8 @@ jobs:
         run: |
           New-Item -ItemType Directory Phong | Out-Null
           Copy-Item build/Release/phong.exe Phong/
+          # The server needs no more Qt than the game
+          Copy-Item build/server/Release/phong-server.exe Phong/
           windeployqt --release --qmldir qml Phong/phong.exe
           Compress-Archive -Path Phong -DestinationPath Phong-windows-x64.zip
 
@@ -165,7 +184,10 @@ jobs:
 
       - name: Disk image
         run: |
-          macdeployqt build/phong.app -qmldir="$GITHUB_WORKSPACE/qml" -dmg
+          # The server goes into the app, next to the game
+          cp build/server/phong-server build/phong.app/Contents/MacOS/
+          macdeployqt build/phong.app -qmldir="$GITHUB_WORKSPACE/qml" \
+            -executable=build/phong.app/Contents/MacOS/phong-server -dmg
           mv build/phong.dmg Phong-macos.dmg
 
       - uses: actions/upload-artifact@v4
@@ -268,4 +290,4 @@ jobs:
           gh release delete nightly --cleanup-tag --yes || true
           gh release create nightly artifacts/* --prerelease --target "$GITHUB_SHA" \
             --title "Nightly $(date -u +%Y-%m-%d)" \
-            --notes "Built from $GITHUB_SHA. The macOS app isn't signed: open it with a right click and Open the first time."
+            --notes "Built from $GITHUB_SHA. The macOS app isn't signed: open it with a right click and Open the first time. phong-server, for games over the internet and the shared high scores, is the Linux tarball, next to phong.exe in the Windows zip and in phong.app/Contents/MacOS on macOS."

@@ -109,7 +109,11 @@ browser's local storage.
 ### Server
 
 `phong-server` opens rooms for games over the internet and keeps the shared
-high scores of endless and squash. The desktop build builds it along,
+high scores of endless and squash. The
+[nightly release](https://github.com/iam-peter/phong/releases/tag/nightly)
+has it ready to run: `Phong-server-linux-x64.tar.gz` with the Qt libraries
+it needs, next to `phong.exe` in the Windows zip, and in
+`phong.app/Contents/MacOS` on macOS. The desktop build builds it along,
 `-DPHONG_BUILD_SERVER=OFF` leaves it out. It only needs Qt Core and Qt
 WebSockets 6.2 or newer, so it also builds on its own with the Qt of a
 distribution, e.g. on a server running Ubuntu 24.04:

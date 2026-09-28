@@ -24,5 +24,10 @@ add_executable(phong-server
 )
 target_link_libraries(phong-server PRIVATE phongrelay)
 
+# The nightly download carries the Qt libraries in lib/ next to it
+if(UNIX AND NOT APPLE)
+    set_target_properties(phong-server PROPERTIES BUILD_RPATH "\$ORIGIN/lib")
+endif()
+
 include(GNUInstallDirs)
 install(TARGETS phong-server RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
