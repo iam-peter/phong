@@ -62,6 +62,22 @@ Scene {
     // Offset, wind up, dash and dash cooldown of every paddle
     property var remotePaddles: []
     property real remoteAge: 0.0
+    // The input sent in the last moments, [seconds, move], for the own
+    // paddle before the host's state has it
+    property var inputHistory: []
+    // Seconds to the host and back, as measured
+    readonly property real roundTrip: Math.max(0, Math.min(Lan.latency, 500)) / 1000
+
+    function predictOffset(offset, length, charge, window) {
+        const limit = paddleLimit(length)
+        let left = window
+        for (let i = inputHistory.length - 1; i >= 0 && left > 0; --i) {
+            const dt = Math.min(inputHistory[i][0], left)
+            offset = Math.max(-limit, Math.min(limit, offset + inputHistory[i][1] * paddleSpeed * (1.0 - 0.4 * charge) * dt))
+            left -= dt
+        }
+        return offset
+    }
     property real sentInput: 0.0
     property bool sentCharging: false
     property real sinceSent: 0.0
@@ -281,17 +297,14 @@ Scene {
             const dt = Math.min(frameTime, 0.05)
             root.remoteAge += dt
 
-            // The ball flies on from the last state, a moment at most
-            const age = match.state === PartyMatch.Playing ? Math.min(root.remoteAge, 0.1) : 0.0
+            // The ball flies on from the last state to where it is at the
+            // host by now, half a round trip later, a moment at most
+            const age = match.state === PartyMatch.Playing
+                      ? Math.min(root.remoteAge + 0.5 * root.roundTrip, 0.1 + Math.min(0.5 * root.roundTrip, 0.1)) : 0.0
             const v = match.ball.velocity
             ball.position = Qt.vector3d(root.remoteBall.x + v.x * age, root.remoteBall.y + v.y * age, 0)
             ball.hidden = root.ghosted()
             ball.advance(dt)
-            for (let i = 0; i < sides.count; ++i) {
-                const side = sides.objectAt(i)
-                if (side)
-                    side.offset += ((root.remotePaddles[i]?.[0] ?? 0) - side.offset) * Math.min(1.0, 25.0 * dt)
-            }
 
             // The own side is at the bottom here, right is along it
             const pad = Gamepads.count > 0 ? Gamepads.pads[0] : null
@@ -301,6 +314,26 @@ Scene {
             else if (input === 0 && !isNaN(root.pointerX))
                 input = Math.max(-1, Math.min(1, (root.pointerX - (sides.objectAt(root.localSlot)?.offset ?? 0)) / 0.5))
             const charging = root.keysCharging(0) || (pad?.isPressed(KeySettings.padButton(KeySettings.PadSmash)) ?? false)
+
+            // The own paddle answers the input right away: the host's
+            // position after the input it can't have seen yet
+            const own = root.spectating ? null : match.player(root.localSlot)
+            if (own) {
+                root.inputHistory.push([dt, (own.reversed ? -1 : 1) * input])
+                if (root.inputHistory.length > 240)
+                    root.inputHistory.shift()
+            }
+            const predicting = own && !own.frozen && root.running && match.heldBy !== root.localSlot
+            for (let i = 0; i < sides.count; ++i) {
+                const side = sides.objectAt(i)
+                if (!side)
+                    continue
+                let target = root.remotePaddles[i]?.[0] ?? 0
+                if (predicting && i === root.localSlot)
+                    target = root.predictOffset(target, side.length, root.remotePaddles[i]?.[1] ?? 0,
+                                                root.roundTrip + root.remoteAge)
+                side.offset += (target - side.offset) * Math.min(1.0, 25.0 * dt)
+            }
             if (root.spectating)
                 return
             root.sinceSent += dt
@@ -1653,6 +1686,9 @@ Scene {
                 if (!root.spectating)
                     lines.push(qsTr("Tap twice to dash"))
                 lines.push(root.remote ? qsTr("[Esc] leave") : qsTr("[Esc] pause"))
+                // Over the network the time to the host and back
+                if (root.remote && Lan.latency >= 0)
+                    lines.push(qsTr("%1 ms").arg(Lan.latency))
                 return lines
             }
 

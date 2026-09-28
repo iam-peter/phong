@@ -280,6 +280,13 @@ The server is set under Settings, Online, next to the name the others see.
 Without a name they see "Player", the machine's name only goes out on the
 LAN.
 
+Over longer distances the messages take a while. A joined machine measures
+the time to the host and back and shows it at the bottom. Its own paddle
+answers the keys right away instead of waiting for the host, and the ball
+flies on for half that time, until the next state comes in.
+`phong-server --lag 100` holds every message back for 100 ms, to try the
+game with a slow connection.
+
 On Normal and Hard the computer aims its returns through modifiers it wants,
 Hard also plays the ball away from your paddle.
 

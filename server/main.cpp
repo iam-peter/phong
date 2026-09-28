@@ -19,8 +19,12 @@ int main(int argc, char* argv[])
     const QCommandLineOption dataOption(QStringLiteral("scores"),
                                         QStringLiteral("The file keeping the high scores, none by default"),
                                         QStringLiteral("file"));
+    const QCommandLineOption lagOption(QStringLiteral("lag"),
+                                       QStringLiteral("Holds the messages of the games back, for trying"),
+                                       QStringLiteral("ms"), QStringLiteral("0"));
     parser.addOption(portOption);
     parser.addOption(dataOption);
+    parser.addOption(lagOption);
     parser.process(app);
 
     bool valid = false;
@@ -31,6 +35,7 @@ int main(int argc, char* argv[])
     }
 
     RelayServer server(parser.value(dataOption));
+    server.setLag(parser.value(lagOption).toInt());
     if (!server.listen(quint16(port)))
         return 1;
     std::printf("Listening on port %u\n", unsigned(server.port()));

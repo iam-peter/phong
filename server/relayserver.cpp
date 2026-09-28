@@ -49,6 +49,7 @@ RelayServer::RelayServer(const QString& dataFile, QObject* parent):
     m_places(),
     m_scores(),
     m_keepAlive(),
+    m_lag(0),
     m_random(QRandomGenerator::global()->generate())
 {
     connect(m_server, &QWebSocketServer::newConnection, this, &RelayServer::accept);
@@ -102,6 +103,27 @@ void RelayServer::setSeed(quint32 seed)
     m_random.seed(seed);
 }
 
+void RelayServer::setLag(int ms)
+{
+    m_lag = std::max(ms, 0);
+}
+
+void RelayServer::pass(QWebSocket* socket, const QString& text)
+{
+    if (!socket)
+        return;
+    if (m_lag <= 0) {
+        socket->sendTextMessage(text);
+        return;
+    }
+    // Timers of the same length go off in order, so do the messages
+    QPointer<QWebSocket> target(socket);
+    QTimer::singleShot(m_lag, this, [target, text] {
+        if (target)
+            target->sendTextMessage(text);
+    });
+}
+
 void RelayServer::accept()
 {
     while (QWebSocket* socket = m_server->nextPendingConnection()) {
@@ -128,9 +150,9 @@ void RelayServer::received(QWebSocket* socket, const QString& text)
             fromHost(*room, message);
         }
         else if (room->host) {
-            send(room->host, { { QStringLiteral("t"), QStringLiteral("from") },
-                               { QStringLiteral("peer"), place->peer },
-                               { QStringLiteral("m"), message } });
+            pass(room->host, encode({ { QStringLiteral("t"), QStringLiteral("from") },
+                                      { QStringLiteral("peer"), place->peer },
+                                      { QStringLiteral("m"), message } }));
         }
         return;
     }
@@ -226,10 +248,8 @@ void RelayServer::fromHost(Room& room, const QVariantMap& message)
 
     if (type == QLatin1String("all")) {
         const QString text = encode(inner);
-        for (const QPointer<QWebSocket>& peer : std::as_const(room.peers)) {
-            if (peer)
-                peer->sendTextMessage(text);
-        }
+        for (const QPointer<QWebSocket>& peer : std::as_const(room.peers))
+            pass(peer, text);
         return;
     }
 
@@ -237,7 +257,7 @@ void RelayServer::fromHost(Room& room, const QVariantMap& message)
     if (!peer)
         return;
     if (type == QLatin1String("to"))
-        send(peer, inner);
+        pass(peer, encode(inner));
     else if (type == QLatin1String("close"))
         peer->close();
 }

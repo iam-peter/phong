@@ -202,6 +202,33 @@ Scene {
     property bool sentCharging: false
     property real sinceSent: 0.0
     property bool askLeave: false
+    // The input sent in the last moments, [seconds, move], for the own
+    // paddle before the host's state has it
+    property var inputHistory: []
+
+    // Seconds to the host and back, as measured
+    readonly property real roundTrip: Math.max(0, Math.min(Lan.latency, 500)) / 1000
+
+    // Where a paddle at y the host sent is by now, after the input the host
+    // can't have seen yet: sent within the round trip and the age of the
+    // state
+    function predictPaddle(y, length, charge, window) {
+        let left = window
+        for (let i = inputHistory.length - 1; i >= 0 && left > 0; --i) {
+            const dt = Math.min(inputHistory[i][0], left)
+            y = movePaddle(y, inputHistory[i][1], length, charge, dt)
+            left -= dt
+        }
+        return y
+    }
+
+    // The top and bottom walls fold a ball flown on beyond them
+    function foldY(y) {
+        const limit = ballLimit
+        if (Math.abs(y) <= limit)
+            return y
+        return Math.sign(y) * Math.max(0, 2 * limit - Math.abs(y))
+    }
 
     // Sounds, sparks and banners of what happened, at the host they also
     // go to the players on the network
@@ -518,24 +545,37 @@ Scene {
             const dt = Math.min(frameTime, 0.05)
             root.remoteAge += dt
 
-            // The balls fly on from the last state, a moment at most
-            const age = match.state === Match.Playing ? Math.min(root.remoteAge, 0.1) * root.timeScale : 0.0
+            // The balls fly on from the last state to where they are at the
+            // host by now, half a round trip later, a moment at most
+            const age = match.state === Match.Playing
+                      ? Math.min(root.remoteAge + 0.5 * root.roundTrip, 0.1 + Math.min(0.5 * root.roundTrip, 0.1))
+                        * root.timeScale : 0.0
             const bodies = root.ballBodies()
             for (let i = 0; i < bodies.length; ++i) {
                 const at = root.remoteBalls[i]
                 if (!at)
                     continue
                 const v = bodies[i].ball.velocity
-                bodies[i].position = Qt.vector3d(at[0] + v.x * age, at[1] + v.y * age, 0)
+                bodies[i].position = Qt.vector3d(at[0] + v.x * age, root.foldY(at[1] + v.y * age), 0)
                 bodies[i].hidden = modifiers.ghostBall && match.state === Match.Playing
                                    && Math.abs(bodies[i].x) < root.ghostHalfWidth
                 bodies[i].advance(dt)
             }
 
+            // The own paddle answers the input right away, unless something
+            // else moves it
             const paddles = root.remotePaddles
             const follow = Math.min(1.0, 25.0 * dt)
-            root.leftPaddleY += (paddles[0] - root.leftPaddleY) * follow
-            root.rightPaddleY += (paddles[1] - root.rightPaddleY) * follow
+            const own = root.localSide === Match.LeftSide ? match.left : root.localSide === Match.RightSide ? match.right : null
+            const predicting = own && !own.frozen && root.running
+                               && !root.ballBodies().some((body) => body.ball.heldBy === root.localSide)
+            const window = root.roundTrip + root.remoteAge
+            const leftTarget = predicting && root.localSide === Match.LeftSide
+                             ? root.predictPaddle(paddles[0], root.leftPaddleLength, paddles[4], window) : paddles[0]
+            const rightTarget = predicting && root.localSide === Match.RightSide
+                              ? root.predictPaddle(paddles[1], root.rightPaddleLength, paddles[5], window) : paddles[1]
+            root.leftPaddleY += (leftTarget - root.leftPaddleY) * follow
+            root.rightPaddleY += (rightTarget - root.rightPaddleY) * follow
             root.leftPaddleAngle = paddles[2]
             root.rightPaddleAngle = paddles[3]
             root.leftCharge = paddles[4]
@@ -562,6 +602,11 @@ Scene {
             root.sinceSent += dt
             if (root.spectating)
                 return
+            // As the host applies it, reversed controls swap it there
+            const history = root.inputHistory
+            history.push([dt, (own?.reversed ? -1 : 1) * Math.max(-1, Math.min(1, move))])
+            if (history.length > 240)
+                history.shift()
             if (move !== root.sentMove || charging !== root.sentCharging || root.sinceSent > 0.2) {
                 Lan.sendToHost({ t: "input", move: move, charging: charging })
                 root.sentMove = move
@@ -2986,7 +3031,10 @@ Scene {
             readonly property string solo: qsTr("%1 move, twice dashes   [Space] smash   %2 special")
                 .arg(keys(KeySettings.LeftUp, KeySettings.LeftDown)).arg(keys(KeySettings.LeftSpecial))
 
-            text: root.spectating ? qsTr("Watching")
+            // Over the network the time to the host and back
+            readonly property string delay: root.remote && Lan.latency >= 0 ? qsTr("   %1 ms").arg(Lan.latency) : ""
+            text: root.spectating ? qsTr("Watching") + delay
+                  : root.remote ? solo + delay
                   : root.sharedKeyboard ? left
                   : root.mode === GameScene.Ladder ? qsTr("Ladder %1/3").arg(root.ladderStage + 1) + "   " + solo
                   : root.tournament ? qsTr("Tournament") + "   " + solo

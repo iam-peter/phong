@@ -55,6 +55,10 @@ public:
 
     void setSeed(quint32 seed);
 
+    // Holds every message in a room back for ms milliseconds, to try the
+    // game with a slow connection
+    void setLag(int ms);
+
 private:
     struct Room {
         QString code;
@@ -74,6 +78,8 @@ private:
     QString newCode();
     void loadScores();
     void saveScores() const;
+    // Room messages, after the lag
+    void pass(QWebSocket* socket, const QString& text);
     static void send(QWebSocket* socket, const QVariantMap& message);
 
     QWebSocketServer* m_server;
@@ -88,6 +94,7 @@ private:
     QHash<QWebSocket*, Place> m_places;
     QHash<QString, QVariantList> m_scores;
     QTimer m_keepAlive;
+    int m_lag;
     QRandomGenerator m_random;
 };
 
