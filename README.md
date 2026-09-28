@@ -39,6 +39,47 @@ ctest --test-dir build/desktop
 ./build/desktop/phong
 ```
 
+### SDL 3 for gamepads
+
+The desktop build uses an installed SDL 3 for gamepads. Without one it
+downloads SDL 3.2.30 while configuring and builds the gamepad parts into
+the game, so nothing needs installing. `-DPHONG_FETCH_SDL3=OFF` builds
+without gamepads instead of downloading.
+
+Few distributions package SDL 3 yet. Ubuntu has it since 25.04:
+
+```
+sudo apt install libsdl3-dev
+```
+
+On Ubuntu 24.04 and other systems without a package, SDL 3 builds from its
+source release and installs to `/usr/local`, where CMake finds it on its
+own. The build dependencies first, `libudev-dev` lets SDL find gamepads
+plugged in while the game runs, the full list is in SDL's
+[docs/README-linux.md](https://github.com/libsdl-org/SDL/blob/main/docs/README-linux.md):
+
+```
+sudo apt install build-essential cmake ninja-build libudev-dev libdbus-1-dev \
+    libx11-dev libxext-dev libwayland-dev libxkbcommon-dev libpulse-dev libasound2-dev
+```
+
+Then SDL itself:
+
+```
+curl -LO https://github.com/libsdl-org/SDL/releases/download/release-3.2.30/SDL3-3.2.30.tar.gz
+tar xzf SDL3-3.2.30.tar.gz
+cmake -S SDL3-3.2.30 -B SDL3-build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build SDL3-build
+sudo cmake --install SDL3-build
+```
+
+An SDL 3 installed somewhere else is found with
+`-DSDL3_DIR=<prefix>/lib/cmake/SDL3`. The configure output says which one
+the build uses: `Gamepads with SDL3 3.2.30`, after `Fetching SDL 3 for
+gamepads` if it downloaded it. A build that fetched SDL before udev was
+installed gets it after removing `build/desktop/_deps` and configuring
+again.
+
 ### WebAssembly
 
 ```
@@ -85,13 +126,8 @@ the right paddle, next to the keys:
 | `Start` | pause |
 
 In the menus the stick and the d-pad move, `A` confirms and `B` goes back.
-The browser reads gamepads with the Gamepad API, the desktop with SDL 3. An
-installed SDL 3 is used, e.g. with `-DSDL3_DIR=<SDL3>/lib/cmake/SDL3`,
-otherwise the build downloads SDL 3.2.30 and links a static library with
-just the gamepad parts. Few distributions have SDL 3 packages yet, Ubuntu
-since 25.04 as `libsdl3-dev`. `-DPHONG_FETCH_SDL3=OFF` builds without
-gamepads instead of downloading. On Linux SDL finds gamepads plugged in
-later with udev, that needs `libudev-dev` when SDL is built.
+The browser reads gamepads with the Gamepad API, the desktop with SDL 3,
+see [SDL 3 for gamepads](#sdl-3-for-gamepads) for installing it.
 
 Moving the paddle while it hits the ball puts spin on it: brushed upwards the
 ball dips on its way over, brushed downwards it rises.
