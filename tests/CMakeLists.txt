@@ -76,6 +76,12 @@ if(TARGET phongrelay)
 endif()
 
 if(TARGET phongrelay)
+    phong_add_test(tst_highscores
+        ${PROJECT_SOURCE_DIR}/src/highscores.cpp
+        ${PROJECT_SOURCE_DIR}/src/lan.cpp
+    )
+    target_link_libraries(tst_highscores PRIVATE phongrelay Qt6::Network Qt6::WebSockets)
+
     phong_add_test(tst_server)
     target_link_libraries(tst_server PRIVATE phongrelay Qt6::WebSockets)
 endif()

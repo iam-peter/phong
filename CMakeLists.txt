@@ -85,6 +85,7 @@ qt_add_qml_module(phong
         src/match.h src/match.cpp
         src/partymatch.h src/partymatch.cpp
         src/partymodifiers.h src/partymodifiers.cpp
+        src/highscores.h src/highscores.cpp
         src/dash.h src/dash.cpp
         src/computerplayer.h src/computerplayer.cpp
         src/tournament.h src/tournament.cpp

@@ -1784,6 +1784,15 @@ Scene {
                 root.newHighScore = Stats.recordEndless(root.endlessScore)
             else if (root.squash)
                 root.newHighScore = Stats.recordSquash(match.longestRally)
+            // On the list everybody shares, with a name
+            if (root.endless || root.squash) {
+                const board = root.endless ? "endless" : "squash"
+                const score = root.endless ? root.endlessScore : match.longestRally
+                if (GameSettings.playerName !== "" && score > 0)
+                    HighScores.submit(board, GameSettings.playerName, score)
+                else
+                    HighScores.refresh(board)
+            }
             else
                 Stats.recordMatch(root.againstComputer, root.difficulty, won, match.longestRally)
             if (root.mode === GameScene.Ladder && won)

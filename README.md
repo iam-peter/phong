@@ -294,6 +294,11 @@ Every point starts with a kickoff countdown, one to three seconds, and an
 arrow showing where the ball will go. Like in football the player who was
 scored against kicks off, the ball flies towards the scorer.
 
+With a [server](#server) set under Settings, Online, endless and squash
+also have a list everybody shares: the results show the five best of
+everybody next to your own. A score goes on it with the name set there,
+without a name the game only shows the list.
+
 A match is a single set or best of three or five, optionally won by two
 points. The stats screen keeps the record against every computer level, the
 best ladder run, the endless and squash high scores, the tournaments won,

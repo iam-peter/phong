@@ -25,6 +25,12 @@ Scene {
     readonly property bool champion: ladder && won && ladderStage >= 2
     readonly property bool tournament: mode === GameScene.Tournament
     readonly property bool squash: mode === GameScene.Squash
+    // Endless and squash have a list everybody shares on the server
+    readonly property bool online: (endless || squash) && HighScores.available && !remote
+    readonly property var onlineList: endless ? HighScores.endless : HighScores.squash
+    readonly property int ownScore: endless ? endlessScore : (match?.longestRally ?? 0)
+    readonly property int ownPlace: onlineList.findIndex((entry) => entry.name === GameSettings.playerName
+                                                                   && entry.score === ownScore)
 
     // The last item always leads back to the menu
     readonly property var items: {
@@ -190,19 +196,76 @@ Scene {
             required property var modelData
             required property int index
 
+            // Beside the online list, if there is one
+            x: root.online ? -8.0 : 0.0
             y: -0.5 - index * 1.8
 
             Text3D {
-                x: -9.0
+                x: root.online ? -8.0 : -9.0
                 color: Theme.dimmed
                 text: stat.modelData[0]
             }
 
             Text3D {
-                x: 9.0
+                x: root.online ? 7.5 : 9.0
                 horizontalAlignment: Text.AlignRight
                 text: stat.modelData[1]
             }
+        }
+    }
+
+    // The best of everybody, the own entry lit up
+    Node {
+        visible: root.online
+        x: 4.5
+        y: 2.6
+
+        Text3D {
+            scale: Qt.vector3d(0.7, 0.7, 0.7)
+            color: Theme.title
+            glow: 0.4
+            text: qsTr("Online best")
+        }
+
+        Repeater3D {
+            model: root.onlineList.slice(0, 5)
+
+            delegate: Node {
+                id: entry
+
+                required property var modelData
+                required property int index
+
+                readonly property bool own: index === root.ownPlace
+
+                y: -1.3 - index * 1.1
+                scale: Qt.vector3d(0.7, 0.7, 0.7)
+
+                Text3D {
+                    color: entry.own ? Theme.title : Theme.dimmed
+                    glow: entry.own ? 0.5 : 0.0
+                    text: (entry.index + 1) + ". " + entry.modelData.name
+                }
+
+                Text3D {
+                    x: 17.0
+                    horizontalAlignment: Text.AlignRight
+                    color: entry.own ? Theme.title : Theme.text
+                    text: entry.modelData.score
+                }
+            }
+        }
+
+        Text3D {
+            y: -1.3 - Math.min(root.onlineList.length, 5) * 1.1
+            scale: Qt.vector3d(0.45, 0.45, 0.45)
+            color: Theme.dimmed
+            text: HighScores.busy ? qsTr("Asking the server...")
+                  : HighScores.error !== "" ? HighScores.error
+                  : GameSettings.playerName === "" ? qsTr("A name under Settings, Online puts you on the list")
+                  : root.ownPlace >= 5 ? qsTr("You are number %1").arg(root.ownPlace + 1)
+                  : root.onlineList.length === 0 ? qsTr("Nobody on the list yet")
+                  : ""
         }
     }
 

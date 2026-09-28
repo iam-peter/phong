@@ -517,6 +517,12 @@ Window {
         value: GameSettings.playerName
     }
 
+    Binding {
+        target: HighScores
+        property: "serverUrl"
+        value: GameSettings.serverUrl
+    }
+
     Component.onCompleted: {
         cameraRig.position = cameraPosition(menuScene)
         nextScene(menuScene)
