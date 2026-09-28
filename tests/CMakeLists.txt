@@ -50,6 +50,14 @@ phong_add_test(tst_keysettings
     ${PROJECT_SOURCE_DIR}/src/keysettings.cpp
 )
 
+phong_add_test(tst_gamepads
+    ${PROJECT_SOURCE_DIR}/src/gamepads.cpp
+)
+if(TARGET SDL3::SDL3)
+    target_link_libraries(tst_gamepads PRIVATE SDL3::SDL3)
+    target_compile_definitions(tst_gamepads PRIVATE PHONG_HAVE_SDL3)
+endif()
+
 phong_add_test(tst_graphicssettings
     ${PROJECT_SOURCE_DIR}/src/graphicssettings.cpp
 )

@@ -7,9 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Qt Quick 3D Helpers provide ExtrudedTextGeometry since 6.9
 find_package(Qt6 6.9 REQUIRED COMPONENTS Core Gui Qml Quick Quick3D Quick3DPhysics Quick3DParticles)
-# Sound on the desktop, the browser uses Web Audio
+# Sound and gamepads on the desktop, the browser uses Web Audio and the
+# Gamepad API
 if(NOT EMSCRIPTEN)
     find_package(Qt6 QUIET COMPONENTS Multimedia)
+    find_package(SDL3 CONFIG QUIET COMPONENTS SDL3)
 endif()
 
 qt_standard_project_setup(REQUIRES 6.9)
@@ -64,6 +66,7 @@ qt_add_qml_module(phong
         src/graphicssettings.h src/graphicssettings.cpp
         src/gamesettings.h src/gamesettings.cpp
         src/keysettings.h src/keysettings.cpp
+        src/gamepads.h src/gamepads.cpp
     RESOURCES
         config/modifiers.json
         config/arenas.json
@@ -83,6 +86,14 @@ target_link_libraries(phong PRIVATE
 if(TARGET Qt6::Multimedia)
     target_link_libraries(phong PRIVATE Qt6::Multimedia)
     target_compile_definitions(phong PRIVATE PHONG_HAVE_MULTIMEDIA)
+endif()
+
+if(TARGET SDL3::SDL3)
+    target_link_libraries(phong PRIVATE SDL3::SDL3)
+    target_compile_definitions(phong PRIVATE PHONG_HAVE_SDL3)
+    message(STATUS "Gamepads with SDL3 ${SDL3_VERSION}")
+else()
+    message(STATUS "No SDL3, no gamepads on the desktop")
 endif()
 
 set_target_properties(phong PROPERTIES

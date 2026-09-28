@@ -48,7 +48,8 @@ Scene {
     onKeyPressed: (event) => {
         event.accepted = true
         if (capturing >= 0) {
-            if (event.isAutoRepeat)
+            // A key has to come from the keyboard
+            if (event.isAutoRepeat || (event.gamepad && event.key !== Qt.Key_Escape))
                 return
             // Escape keeps the key, reserved keys are refused
             if (event.key !== Qt.Key_Escape && !rows[capturing].set(event.key)) {

@@ -380,6 +380,13 @@ Window {
         }
     }
 
+    Connections {
+        target: Gamepads
+        function onNavigated(pad, key) {
+            phong.currentScene?.gamepadNavigated(pad, key)
+        }
+    }
+
     Binding {
         target: SoundEffects
         property: "enabled"

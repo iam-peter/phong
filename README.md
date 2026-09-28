@@ -16,6 +16,7 @@ C++, the scenes are QML.
 - Qt 6.9 or newer (`ExtrudedTextGeometry`) with the Qt Quick 3D and
   Qt Quick 3D Physics modules
 - Qt Multimedia for sound on the desktop, optional
+- SDL 3 for gamepads on the desktop, optional, the browser has them anyway
 - CMake 3.21 or newer
 - For WebAssembly: the Qt `wasm_singlethread` kit and the Emscripten version
   it was built with (Qt 6.11: 4.0.7, Qt 6.12: 5.0.5)
@@ -68,6 +69,24 @@ menu. Menus take arrow keys, `Enter` and clicks.
 The keys of both players and the pause key can be changed on the controls
 screen in the settings: pick an action and press the new key. A key that
 another action has swaps with it, `Esc` and `Enter` stay with the menus.
+
+### Gamepads
+
+The first gamepad plays the left paddle, with two players the second one
+the right paddle, next to the keys:
+
+| | |
+|---|---|
+| Stick or d-pad | move, as fast as the stick is tilted |
+| `A` | smash, hold to wind up |
+| `B` | special |
+| `X`, shoulder buttons | dash the way the stick points |
+| `Start` | pause |
+
+In the menus the stick and the d-pad move, `A` confirms and `B` goes back.
+The browser reads gamepads with the Gamepad API, the desktop with SDL 3 when
+CMake finds it, e.g. with `-DSDL3_DIR=<SDL3>/lib/cmake/SDL3`. Without it the
+desktop build has no gamepads.
 
 Moving the paddle while it hits the ball puts spin on it: brushed upwards the
 ball dips on its way over, brushed downwards it rises.

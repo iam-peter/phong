@@ -30,4 +30,13 @@ Node {
     signal pointerReleased(int id)
 
     signal focusLost()
+
+    // Gamepads navigate like the arrow keys, Return and Escape, while the
+    // scene wants that, e.g. not during a game
+    property bool menuNavigation: true
+    signal gamepadNavigated(var pad, int key)
+    onGamepadNavigated: (pad, key) => {
+        if (menuNavigation)
+            keyPressed({ key: key, isAutoRepeat: false, accepted: false, gamepad: true })
+    }
 }

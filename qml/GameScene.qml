@@ -253,6 +253,56 @@ Scene {
     contentHalfWidth: sideLayout ? 22.6 : 18.5
     contentHalfHeight: sideLayout ? 10.9 : 12.9
 
+    // The first gamepad plays the left paddle, with two players the second
+    // one the right paddle
+    readonly property var leftPad: Gamepads.count > 0 ? Gamepads.pads[0] : null
+    readonly property var rightPad: mode === GameScene.TwoPlayers && Gamepads.count > 1 ? Gamepads.pads[1] : null
+    // Gamepads work the pause menu and skip the replay, not the game
+    menuNavigation: match.state === Match.Paused || match.state === Match.Finished
+
+    function gamepadButton(pad, button, pressed) {
+        if (replaying) {
+            if (pressed)
+                endReplay()
+            return
+        }
+        if (button === Gamepad.Start) {
+            if (pressed && (running || match.state === Match.Paused))
+                togglePause()
+            return
+        }
+
+        const side = pad === leftPad ? Match.LeftSide : pad === rightPad ? Match.RightSide : Match.NoSide
+        if (side === Match.NoSide || !running)
+            return
+
+        const player = side === Match.LeftSide ? match.left : match.right
+        switch (button) {
+            case Gamepad.South:
+                setCharging(side, pressed)
+                break
+            case Gamepad.East:
+                if (pressed)
+                    match.useSpecial(side)
+                break
+            case Gamepad.West:
+            case Gamepad.LeftShoulder:
+            case Gamepad.RightShoulder:
+                // A dash the way the stick points
+                if (pressed && !player.frozen && Math.abs(pad.direction.y) > 0.3)
+                    (side === Match.LeftSide ? leftDash : rightDash)
+                        .trigger((pad.direction.y > 0 ? 1 : -1) * (player.reversed ? -1 : 1))
+                break
+        }
+    }
+
+    Connections {
+        target: Gamepads
+        enabled: root.active
+        function onButtonPressed(pad, button) { root.gamepadButton(pad, button, true) }
+        function onButtonReleased(pad, button) { root.gamepadButton(pad, button, false) }
+    }
+
     readonly property var keyNames: KeySettings.keyNames
     function keyHint(...actions) {
         return "[" + actions.map((action) => keyNames[action]).join("/") + "]"
@@ -754,6 +804,10 @@ Scene {
         const leftKeys = leftSign * (onePlayer ? keyInput(leftUp || rightUp, leftDown || rightDown)
                                                : keyInput(leftUp, leftDown))
         let leftInput = humanInput(leftKeys > 0, leftKeys < 0, leftSign * leftPointerY, leftPaddleY)
+        // A stick moves the paddle as far as it is tilted
+        const leftStick = leftKeys === 0 && leftPad ? leftSign * leftPad.direction.y : 0
+        if (leftStick !== 0)
+            leftInput = leftStick
 
         let rightInput
         const rightKeys = onePlayer ? 0 : rightSign * keyInput(rightUp, rightDown)
@@ -780,18 +834,22 @@ Scene {
         }
         else {
             rightInput = humanInput(rightKeys > 0, rightKeys < 0, rightSign * rightPointerY, rightPaddleY)
+            const rightStick = rightKeys === 0 && rightPad ? rightSign * rightPad.direction.y : 0
+            if (rightStick !== 0)
+                rightInput = rightStick
         }
 
         // A paddle holding a ball stands, the input aims the ball
         if (leftHeld) {
-            aimHeld(leftHeld, leftKeys, leftPointerY, leftPaddleY, leftPaddleLength, dt)
+            aimHeld(leftHeld, leftKeys || leftStick, leftPointerY, leftPaddleY, leftPaddleLength, dt)
             leftInput = 0
         }
         if (rightHeld) {
             if (againstComputer)
                 computerHold(rightHeld, dt)
             else
-                aimHeld(rightHeld, rightKeys, rightPointerY, rightPaddleY, rightPaddleLength, dt)
+                aimHeld(rightHeld, rightKeys || (rightPad ? rightSign * rightPad.direction.y : 0), rightPointerY,
+                        rightPaddleY, rightPaddleLength, dt)
             rightInput = 0
         }
 
@@ -2429,14 +2487,15 @@ Scene {
         }
     }
 
-    // Controls
+    // Controls, smaller with the keys of two players
     Node {
+        readonly property real textScale: root.mode === GameScene.TwoPlayers ? 0.4 : 0.5
         visible: !root.sideLayout
         y: -0.5 * root.stageHeight - 2.2
-        scale: Qt.vector3d(0.5, 0.5, 0.5)
+        scale: Qt.vector3d(textScale, textScale, textScale)
 
         Text3D {
-            x: -root.stageWidth
+            x: -0.5 * root.stageWidth / parent.textScale
             color: Theme.dimmed
             // The keys as set in the controls
             readonly property var names: KeySettings.keyNames
@@ -2449,19 +2508,27 @@ Scene {
             readonly property string solo: qsTr("%1 move, twice dashes   [Space] smash   %2 special")
                 .arg(keys(KeySettings.LeftUp, KeySettings.LeftDown)).arg(keys(KeySettings.LeftSpecial))
 
-            text: root.mode === GameScene.TwoPlayers
-                  ? left + "   " + qsTr("%1 move %2 smash %3 special")
-                    .arg(keys(KeySettings.RightUp, KeySettings.RightDown)).arg(keys(KeySettings.RightSmash))
-                    .arg(keys(KeySettings.RightSpecial))
+            text: root.mode === GameScene.TwoPlayers ? left
                   : root.mode === GameScene.Ladder ? qsTr("Ladder %1/3").arg(root.ladderStage + 1) + "   " + solo
                   : root.tournament ? qsTr("Tournament") + "   " + solo
                   : root.squash ? qsTr("Best %1").arg(Math.max(match.longestRally, Stats.squashBest)) + "   " + solo
                   : solo
         }
 
+        // With two players the right one's keys go right, the pause to
+        // the middle
         Text3D {
-            x: root.stageWidth
+            visible: root.mode === GameScene.TwoPlayers
+            x: 0.5 * root.stageWidth / parent.textScale
             horizontalAlignment: Text.AlignRight
+            color: Theme.dimmed
+            text: qsTr("%1 move %2 smash %3 special").arg(root.keyHint(KeySettings.RightUp, KeySettings.RightDown))
+                  .arg(root.keyHint(KeySettings.RightSmash)).arg(root.keyHint(KeySettings.RightSpecial))
+        }
+
+        Text3D {
+            x: root.mode === GameScene.TwoPlayers ? 0.0 : 0.5 * root.stageWidth / parent.textScale
+            horizontalAlignment: root.mode === GameScene.TwoPlayers ? Text.AlignHCenter : Text.AlignRight
             color: Theme.dimmed
             text: qsTr("[Esc] pause")
             clickable: root.running && !root.sideLayout
