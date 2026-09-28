@@ -4,6 +4,13 @@ Pong in a 3D rendered world on a 2D playing field, built with Qt Quick 3D and
 Qt Quick 3D Physics. The rules, the computer opponent and the settings are
 C++, the scenes are QML.
 
+![Multi-ball on the Pinball arena](docs/screenshots/multi-ball.png)
+
+| | |
+|---|---|
+| ![A rally heating up](docs/screenshots/rally.png) | ![Kickoff countdown and direction](docs/screenshots/kickoff.png) |
+| ![Main menu](docs/screenshots/menu.png) | ![Graphics settings](docs/screenshots/graphics.png) |
+
 ## Requirements
 
 - Qt 6.9 or newer (`ExtrudedTextGeometry`) with the Qt Quick 3D and
@@ -177,6 +184,8 @@ and soft shadows, and stars drift behind all screens.
 Five themes set the colors: Neon, Classic in black, grey and white, Paper,
 the four greens of the Game Boy and an amber monitor. The classic ones map
 the colors of the modifiers onto their few shades.
+
+![The classic themes](docs/screenshots/themes.png)
 
 The graphics screen in the settings picks the theme and switches the rest on
 and off: shading
