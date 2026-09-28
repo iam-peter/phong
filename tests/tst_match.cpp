@@ -499,6 +499,96 @@ private slots:
         QVERIFY(qAbs(match.ballVelocity().length() - before.length()) < 1e-3f);
     }
 
+    void smashIsFaster()
+    {
+        Match match;
+        match.setSpeedUp(1.0);
+        match.setMaxSpeed(100.0);
+        QSignalSpy hits(&match, &Match::paddleHitBall);
+        serve(match);
+
+        const Match::Side first = match.ballVelocity().x() < 0.0f ? Match::Side::LeftSide
+                                                                  : Match::Side::RightSide;
+        const float speed = match.ballVelocity().length();
+        match.paddleHit(first, 0.0, 0.0, 1.0);
+        QVERIFY(qAbs(match.ballVelocity().length() - speed * float(1.0 + Match::smashBoost)) < 1e-3f);
+        QCOMPARE(hits.last().at(2).toReal(), 1.0);
+        QCOMPARE(match.player(first)->hits(), 1);
+
+        // Beyond the max speed, but only a little
+        match.setMaxSpeed(20.0);
+        match.paddleHit(Match::opponent(first), 0.0, 0.0, 1.0);
+        QVERIFY(qAbs(match.ballVelocity().length() - 20.0f * float(1.0 + Match::smashOverspeed)) < 1e-3f);
+    }
+
+    void matchPoint()
+    {
+        Match match;
+        match.setPointsToWin(3);
+        match.setSetsToWin(2);
+        QSignalSpy changed(&match, &Match::matchPointChanged);
+        match.start();
+        QVERIFY(!match.isMatchPoint());
+
+        const auto point = [&match](Match::Side side) {
+            serve(match);
+            match.goal(side);
+        };
+
+        // Set point only, the first set doesn't decide the match
+        point(Match::Side::LeftSide);
+        point(Match::Side::LeftSide);
+        QVERIFY(!match.isMatchPoint());
+        point(Match::Side::LeftSide);
+
+        // The right player only has a set point, left one set up
+        point(Match::Side::RightSide);
+        point(Match::Side::RightSide);
+        QVERIFY(!match.isMatchPoint());
+
+        point(Match::Side::LeftSide);
+        point(Match::Side::LeftSide);
+        QVERIFY(match.isMatchPoint());
+        QVERIFY(changed.count() > 0);
+
+        // 2 : 2 isn't enough with win by two
+        match.setWinByTwo(true);
+        QVERIFY(!match.isMatchPoint());
+        match.setWinByTwo(false);
+
+        point(Match::Side::LeftSide);
+        QCOMPARE(match.state(), Match::State::Finished);
+        QVERIFY(!match.isMatchPoint());
+    }
+
+    void endless()
+    {
+        Match match;
+        match.setEndless(true);
+        match.setPointsToWin(3);
+        match.start();
+
+        // The left player scores as much as they can, it never ends
+        for (int i = 0; i < 10; ++i) {
+            serve(match);
+            match.goal(Match::Side::LeftSide);
+        }
+        QCOMPARE(match.left()->score(), 10);
+        QCOMPARE(match.state(), Match::State::Serving);
+        QVERIFY(!match.isMatchPoint());
+
+        // Three lost balls do
+        serve(match);
+        match.goal(Match::Side::RightSide);
+        serve(match);
+        match.goal(Match::Side::RightSide);
+        QVERIFY(match.isMatchPoint());
+        serve(match);
+        match.goal(Match::Side::RightSide);
+        QCOMPARE(match.state(), Match::State::Finished);
+        QCOMPARE(match.winner(), match.right());
+    }
+
     void pauseKeepsState()
     {
         Match match;

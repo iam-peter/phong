@@ -394,6 +394,14 @@ QList<SoundEffects::Tone> SoundEffects::tones(Sound sound)
                      { Square, 0.05, 0.05, 660, 660, 0.16 },
                      { Square, 0.10, 0.05, 880, 880, 0.16 },
                      { Square, 0.15, 0.08, 1100, 1100, 0.16 } };
+        case Sound::Smash:
+            return { { Sawtooth, 0.00, 0.18, 220, 880, 0.26 },
+                     { Square, 0.00, 0.10, 660, 330, 0.20 } };
+        case Sound::RallyMilestone:
+            return { { Square, 0.00, 0.06, 784, 784, 0.16 },
+                     { Square, 0.06, 0.06, 988, 988, 0.16 },
+                     { Square, 0.12, 0.12, 1175, 1175, 0.16 },
+                     { Triangle, 0.12, 0.24, 1568, 1568, 0.2 } };
         case Sound::MenuMove:
             return { { Square, 0.0, 0.03, 740, 740, 0.10 } };
         case Sound::MenuSelect:

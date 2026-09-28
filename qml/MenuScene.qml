@@ -11,11 +11,19 @@ Scene {
     property Scene statsScene
     property int currentItem: 0
 
+    // The game modes are cycled through like a setting, in the order of
+    // GameScene.Mode
+    readonly property var modes: [qsTr("1 Player"), qsTr("2 Players"), qsTr("Ladder"), qsTr("Endless")]
+    readonly property int mode: Math.min(Math.max(GameSettings.mode, 0), modes.length - 1)
+
+    function cycleMode(step) {
+        GameSettings.mode = (mode + step + modes.length) % modes.length
+        SoundEffects.play(SoundEffects.MenuMove)
+    }
+
     readonly property var items: {
         const items = [
-            { text: qsTr("1 Player"), activate: () => phong.startGame(GameScene.OnePlayer) },
-            { text: qsTr("2 Players"), activate: () => phong.startGame(GameScene.TwoPlayers) },
-            { text: qsTr("Ladder"), activate: () => phong.startGame(GameScene.Ladder) },
+            { text: modes[mode], cycles: true, activate: () => phong.startGame(root.mode) },
             { text: qsTr("Settings"), activate: () => phong.nextScene(root.settingsScene) },
             { text: qsTr("Stats"), activate: () => phong.nextScene(root.statsScene) }
         ]
@@ -38,6 +46,14 @@ Scene {
             case Qt.Key_Down:
                 currentItem = Math.min(currentItem + 1, items.length - 1)
                 SoundEffects.play(SoundEffects.MenuMove)
+                break
+            case Qt.Key_Left:
+                if (items[currentItem].cycles)
+                    cycleMode(-1)
+                break
+            case Qt.Key_Right:
+                if (items[currentItem].cycles)
+                    cycleMode(1)
                 break
             case Qt.Key_Enter:
             case Qt.Key_Return:
@@ -86,7 +102,7 @@ Scene {
             required property var modelData
             required property int index
 
-            y: 1.0 - index * 1.8
+            y: 0.5 - index * 2.0
             horizontalAlignment: Text.AlignHCenter
             text: modelData.text
             clickable: true
@@ -96,11 +112,33 @@ Scene {
                 item.modelData.activate()
             }
 
+            // The mode cycles like a setting, the arrows wrap around it
+            readonly property bool arrows: item.index === root.currentItem && (modelData.cycles ?? false)
+
+            Text3D {
+                visible: item.arrows
+                x: -0.5 * item.textWidth - 0.9
+                horizontalAlignment: Text.AlignRight
+                color: Theme.title
+                text: "<"
+                clickable: visible
+                onClicked: root.cycleMode(-1)
+            }
+
+            Text3D {
+                visible: item.arrows
+                x: 0.5 * item.textWidth + 0.9
+                color: Theme.title
+                text: ">"
+                clickable: visible
+                onClicked: root.cycleMode(1)
+            }
+
             // Selection marker
             Disc {
                 visible: item.index === root.currentItem
                 sphere: true
-                position: Qt.vector3d(-0.5 * item.textWidth - 1.0, 0.35, 0)
+                position: Qt.vector3d(-0.5 * item.textWidth - (item.arrows ? 2.8 : 1.0), 0.35, 0)
                 radius: 0.35
             }
         }
@@ -110,7 +148,8 @@ Scene {
         y: -11
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
-        text: qsTr("[Up/Down] select   [Enter] confirm")
+        text: root.currentItem === 0 ? qsTr("[Left/Right] mode   [Enter] play")
+                                : qsTr("[Up/Down] select   [Enter] confirm")
         color: Theme.dimmed
     }
 }

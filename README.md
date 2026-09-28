@@ -45,24 +45,38 @@ browser's local storage.
 
 ## Controls
 
-| | 1 Player | 2 Players |
+| | Against the computer | 2 Players |
 |---|---|---|
 | Left paddle | `W`/`S` or `Up`/`Down` | `W`/`S` |
+| Left smash | hold `Space`, `D` or `Left` | hold `D` |
 | Right paddle | computer | `Up`/`Down` |
+| Right smash | computer | hold `Left` |
 | Mouse / touch | drag anywhere | drag on your half |
 
-`Esc` pauses and resumes, the pause menu also leads back to the main menu.
-`Space` or `P` toggles the pause as well. Menus take arrow keys, `Enter` and
-clicks.
+`Esc` or `P` pauses and resumes, the pause menu also leads back to the main
+menu. Menus take arrow keys, `Enter` and clicks.
 
 Moving the paddle while it hits the ball puts spin on it: brushed upwards the
 ball dips on its way over, brushed downwards it rises.
+
+Holding the smash key winds up the paddle, it glows and slows down. The next
+return is faster, a full wind up takes 0.6 seconds and even goes beyond the
+top speed. The computer smashes too, on Normal now and then, on Hard often.
+
+Rallies heat up: every hit climbs a musical scale, the walls and the grid glow
+hotter, and every fifth hit gets a cheer. When a ball is about to decide the
+match, the game slows down and moves in closer.
 
 ## Game modes
 
 - **1 Player** against the computer, the level is set in the settings.
 - **2 Players** on one keyboard, or with two fingers on a touch screen.
 - **Ladder** against Easy, Normal and Hard in a row, a loss can be retried.
+- **Endless** against a computer getting harder and faster the longer you
+  last, with three balls to lose. Every return scores a point, every ball the
+  computer misses ten, the best score is kept.
+
+The menu cycles through the modes with `Left`/`Right`, `Enter` plays.
 
 On Normal and Hard the computer aims its returns through modifiers it wants,
 Hard also plays the ball away from your paddle.
@@ -73,7 +87,7 @@ scored against kicks off, the ball flies towards the scorer.
 
 A match is a single set or best of three or five, optionally won by two
 points. The stats screen keeps the record against every computer level, the
-best ladder run and the longest rally.
+best ladder run, the endless high score and the longest rally.
 
 ## Modifiers
 
@@ -142,8 +156,16 @@ with `--arenas my-arenas.json`:
   "blocks": [ { "x": 0, "y": -7, "width": 1, "height": 5 } ] }
 ```
 
-Obstacles outside the field or on the serve spot in the middle are skipped
-with a warning.
+Bumpers and blocks may move, `move` swings them back and forth around their
+position, `period` is the time of a swing in seconds and `phase` where it
+starts, from 0 to 1:
+
+```json
+{ "x": -5, "y": 0, "radius": 1.1, "move": { "y": 5, "period": 4, "phase": 0.5 } }
+```
+
+Obstacles outside the field or on the serve spot in the middle, also while
+moving, are skipped with a warning.
 
 ## Graphics
 

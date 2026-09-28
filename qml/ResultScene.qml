@@ -11,10 +11,13 @@ Scene {
     property Scene menuScene
     property int mode: GameScene.OnePlayer
     property int ladderStage: 0
+    property int endlessScore: 0
+    property bool newHighScore: false
     property int currentItem: 0
 
     readonly property bool won: match?.winner === match?.left
     readonly property bool ladder: mode === GameScene.Ladder
+    readonly property bool endless: mode === GameScene.Endless
     readonly property bool champion: ladder && won && ladderStage >= 2
 
     // The last item always leads back to the menu
@@ -24,7 +27,7 @@ Scene {
             return [menu]
         if (ladder && won)
             return [{ text: qsTr("Next level"), activate: () => phong.nextLadderLevel() }, menu]
-        if (ladder)
+        if (ladder || endless)
             return [{ text: qsTr("Retry"), activate: () => phong.rematch() }, menu]
         return [{ text: qsTr("Rematch"), activate: () => phong.rematch() }, menu]
     }
@@ -33,6 +36,8 @@ Scene {
         const winner = match?.winner
         if (!winner)
             return ""
+        if (endless)
+            return newHighScore ? qsTr("New high score") : qsTr("Game over")
         if (champion)
             return qsTr("Champion")
         if (ladder && won)
@@ -95,6 +100,7 @@ Scene {
 
     // Final score, laid out like the scoreboard
     Node {
+        visible: !root.endless
         y: 2.5
         scale: Qt.vector3d(2, 2, 2)
 
@@ -134,6 +140,14 @@ Scene {
 
     Repeater3D {
         model: {
+            if (root.endless)
+                return [
+                    [qsTr("Score"), root.endlessScore],
+                    [qsTr("Best"), Stats.endlessBest],
+                    [qsTr("Time survived"), root.formatTime(root.match?.playTime ?? 0)],
+                    [qsTr("Longest rally"), root.match?.longestRally ?? 0]
+                ]
+
             const rows = [
                 [qsTr("Longest rally"), root.match?.longestRally ?? 0],
                 [qsTr("Best rally ever"), Stats.longestRally],

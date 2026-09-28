@@ -39,6 +39,8 @@ Match::Match(QObject* parent):
     m_pointsToWin(5),
     m_setsToWin(1),
     m_winByTwo(false),
+    m_endless(false),
+    m_matchPoint(false),
     m_serveSpeed(16.0),
     m_maxSpeed(34.0),
     m_speedUp(1.06),
@@ -58,6 +60,7 @@ void Match::start()
     for (Player* player : { m_left, m_right }) {
         player->setScore(0);
         player->setSets(0);
+        player->setHits(0);
     }
     setWinner(nullptr);
 
@@ -76,6 +79,7 @@ void Match::start()
     // A coin toss for the first kickoff
     prepareServe(QRandomGenerator::global()->bounded(2) ? Side::RightSide : Side::LeftSide);
     setState(State::Serving);
+    updateMatchPoint();
 }
 
 void Match::stop()
@@ -129,7 +133,7 @@ void Match::advance(qreal dt)
     }
 }
 
-void Match::paddleHit(Ball* ball, Side side, qreal offset, qreal paddleVelocity)
+void Match::paddleHit(Ball* ball, Side side, qreal offset, qreal paddleVelocity, qreal smash)
 {
     if (m_state != State::Playing || !isActive(ball))
         return;
@@ -140,14 +144,17 @@ void Match::paddleHit(Ball* ball, Side side, qreal offset, qreal paddleVelocity)
     if (ball->velocity().x() * direction > 0.0f)
         return;
 
-    const qreal speed = std::min(qreal(ball->velocity().length()) * m_speedUp, m_maxSpeed);
+    // A smash is faster and may go beyond the max speed
+    smash = std::clamp(smash, 0.0, 1.0);
+    const qreal speed = std::min(qreal(ball->velocity().length()) * m_speedUp * (1.0 + smashBoost * smash),
+                                 m_maxSpeed * (1.0 + smashOverspeed * smash));
     const qreal angle = qDegreesToRadians(std::clamp(offset, -1.0, 1.0) * maxBounceAngle);
 
     // Brushing the ball upwards makes it dip on its way over
     const qreal brush = m_paddleSpeed > 0.0 ? std::clamp(paddleVelocity / m_paddleSpeed, -1.0, 1.0) : 0.0;
     const qreal spin = -direction * brush * maxSpin;
 
-    hit(ball, side, QVector2D(direction * speed * qCos(angle), speed * qSin(angle)), spin);
+    hit(ball, side, QVector2D(direction * speed * qCos(angle), speed * qSin(angle)), spin, smash);
 }
 
 void Match::deflect(Ball* ball, Side side, const QVector2D& normal)
@@ -234,11 +241,14 @@ void Match::goal(Ball* ball, Side scorer)
     player->setScore(player->score() + 1);
 
     const int lead = player->score() - this->player(opponent(scorer))->score();
-    const bool setWon = player->score() >= m_pointsToWin && (!m_winByTwo || lead >= 2);
+    // In endless play the left player's points never end it
+    const bool setWon = player->score() >= m_pointsToWin && (!m_winByTwo || lead >= 2)
+                        && !(m_endless && scorer == Side::LeftSide);
 
     // An extra ball scores and is gone, the rally goes on with the others
     if (ball->isExtra()) {
         m_extraBalls->remove(ball);
+        updateMatchPoint();
         emit pointScored(scorer, ball);
         if (!setWon)
             return;
@@ -263,6 +273,7 @@ void Match::goal(Ball* ball, Side scorer)
         if (player->sets() >= m_setsToWin) {
             setWinner(player);
             setState(State::Finished);
+            updateMatchPoint();
             emit finished();
             return;
         }
@@ -271,6 +282,7 @@ void Match::goal(Ball* ball, Side scorer)
         m_right->setScore(0);
     }
 
+    updateMatchPoint();
     setState(State::Serving);
 }
 
@@ -294,9 +306,9 @@ Ball* Match::addBall(const QVector2D& position, Side towards, qreal lifetime, Si
     return ball;
 }
 
-void Match::paddleHit(Side side, qreal offset, qreal paddleVelocity)
+void Match::paddleHit(Side side, qreal offset, qreal paddleVelocity, qreal smash)
 {
-    paddleHit(m_ball, side, offset, paddleVelocity);
+    paddleHit(m_ball, side, offset, paddleVelocity, smash);
 }
 
 void Match::deflect(Side side, const QVector2D& normal)
@@ -391,6 +403,7 @@ void Match::setPointsToWin(int pointsToWin)
 
     m_pointsToWin = pointsToWin;
     emit pointsToWinChanged(pointsToWin);
+    updateMatchPoint();
 }
 
 int Match::pointsToWin() const
@@ -406,6 +419,7 @@ void Match::setSetsToWin(int setsToWin)
 
     m_setsToWin = setsToWin;
     emit setsToWinChanged(setsToWin);
+    updateMatchPoint();
 }
 
 int Match::setsToWin() const
@@ -420,11 +434,32 @@ void Match::setWinByTwo(bool winByTwo)
 
     m_winByTwo = winByTwo;
     emit winByTwoChanged(winByTwo);
+    updateMatchPoint();
 }
 
 bool Match::winByTwo() const
 {
     return m_winByTwo;
+}
+
+void Match::setEndless(bool endless)
+{
+    if (m_endless == endless)
+        return;
+
+    m_endless = endless;
+    emit endlessChanged(endless);
+    updateMatchPoint();
+}
+
+bool Match::isEndless() const
+{
+    return m_endless;
+}
+
+bool Match::isMatchPoint() const
+{
+    return m_matchPoint;
 }
 
 void Match::setServeSpeed(qreal serveSpeed)
@@ -592,16 +627,42 @@ void Match::setPlayTime(qreal playTime)
     emit playTimeChanged(playTime);
 }
 
-void Match::hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin)
+void Match::hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin, qreal smash)
 {
     ball->setVelocity(velocity);
     ball->setSpin(spin);
     ball->setLastTouch(side);
 
+    Player* player = this->player(side);
+    player->setHits(player->hits() + 1);
+
     setRally(m_rally + 1);
     ++m_totalHits;
     emit totalHitsChanged(m_totalHits);
-    emit paddleHitBall(ball, side);
+    emit paddleHitBall(ball, side, smash);
+}
+
+bool Match::winsWithNextPoint(Side side) const
+{
+    if (m_endless && side == Side::LeftSide)
+        return false;
+
+    const Player* player = this->player(side);
+    const Player* other = this->player(opponent(side));
+    const int score = player->score() + 1;
+    return player->sets() + 1 >= m_setsToWin && score >= m_pointsToWin
+           && (!m_winByTwo || score - other->score() >= 2);
+}
+
+void Match::updateMatchPoint()
+{
+    const bool matchPoint = m_state != State::Finished
+                            && (winsWithNextPoint(Side::LeftSide) || winsWithNextPoint(Side::RightSide));
+    if (m_matchPoint == matchPoint)
+        return;
+
+    m_matchPoint = matchPoint;
+    emit matchPointChanged(matchPoint);
 }
 
 void Match::curve(Ball* ball, qreal dt)

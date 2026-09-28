@@ -5,6 +5,7 @@ Player::Player(QObject* parent):
     m_name(),
     m_score(0),
     m_sets(0),
+    m_hits(0),
     m_computer(false),
     m_paddleScale(1.0),
     m_spinSpeed(0.0),
@@ -51,6 +52,20 @@ void Player::setSets(int sets)
 int Player::sets() const
 {
     return m_sets;
+}
+
+void Player::setHits(int hits)
+{
+    if (m_hits == hits)
+        return;
+
+    m_hits = hits;
+    emit hitsChanged(hits);
+}
+
+int Player::hits() const
+{
+    return m_hits;
 }
 
 void Player::setComputer(bool computer)

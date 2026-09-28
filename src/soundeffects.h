@@ -29,6 +29,8 @@ public:
         Curse,
         ShieldHit,
         MultiBall,
+        Smash,
+        RallyMilestone,
         MenuMove,
         MenuSelect,
         Win,

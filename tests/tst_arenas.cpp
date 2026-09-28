@@ -29,6 +29,34 @@ private slots:
         QCOMPARE(embedded.list().size(), arenas.list().size());
     }
 
+    void movingObstacles()
+    {
+        Arenas arenas;
+        QTest::ignoreMessage(QtWarningMsg, "Skipping bumper of \"moving\" outside the field or on the serve spot");
+        QVERIFY(arenas.loadJson(R"({ "arenas": [
+            { "id": "moving",
+              "bumpers": [ { "x": 5, "y": 0, "radius": 1, "move": { "y": 4, "period": 3, "phase": 0.5 } },
+                           { "x": 3, "y": 1, "radius": 1, "move": { "x": -4 } } ] }
+        ] })"));
+
+        // The second one would sweep over the serve spot
+        const Arenas::Arena& arena = arenas.list().first();
+        QCOMPARE(arena.bumpers.size(), 1);
+        const Arenas::Motion& move = arena.bumpers.first().move;
+        QVERIFY(move.isMoving());
+        QCOMPARE(move.y, 4.0);
+        QCOMPARE(move.period, 3.0);
+        QCOMPARE(move.phase, 0.5);
+
+        // Items keep clear of all the room it takes
+        const QRectF rect = arenas.obstacleRects(QStringLiteral("moving")).first().toRectF();
+        QCOMPARE(rect, QRectF(4.0, -5.0, 2.0, 10.0));
+
+        const QVariantMap map = arenas.arena(QStringLiteral("moving"))
+                                    .value("bumpers").toList().first().toMap().value("move").toMap();
+        QCOMPARE(map.value("period").toDouble(), 3.0);
+    }
+
     void validation()
     {
         Arenas arenas;
@@ -47,7 +75,8 @@ private slots:
         const Arenas::Arena& arena = arenas.list().first();
         QCOMPARE(arena.bumpers.size(), 1);
         QCOMPARE(arena.blocks.size(), 1);
-        QCOMPARE(arena.blocks.first(), QRectF(-0.5, 4.0, 1.0, 2.0));
+        QCOMPARE(arena.blocks.first().rect, QRectF(-0.5, 4.0, 1.0, 2.0));
+        QVERIFY(!arena.blocks.first().move.isMoving());
         QCOMPARE(arenas.obstacleRects(QStringLiteral("test")).size(), 2);
 
         QVERIFY(arenas.arena(QStringLiteral("missing")).isEmpty());

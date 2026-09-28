@@ -5,14 +5,17 @@ import QtQuick3D
 Node {
     id: root
 
-    function show(text, color) {
+    property real size: 1.5
+
+    function show(text, color, size) {
         label.text = text
         label.color = color
+        root.size = size ?? 1.5
         animation.restart()
     }
 
     opacity: 0.0
-    scale: Qt.vector3d(1.5, 1.5, 1.5)
+    scale: Qt.vector3d(size, size, size)
 
     Text3D {
         id: label
@@ -26,7 +29,8 @@ Node {
             NumberAnimation { target: root; property: "opacity"; from: 0.0; to: 1.0; duration: 150 }
             Vector3dAnimation {
                 target: root; property: "scale"
-                from: Qt.vector3d(0.8, 0.8, 0.8); to: Qt.vector3d(1.5, 1.5, 1.5)
+                from: Qt.vector3d(0.5 * root.size, 0.5 * root.size, 0.5 * root.size)
+                to: Qt.vector3d(root.size, root.size, root.size)
                 duration: 250; easing.type: Easing.OutBack
             }
         }

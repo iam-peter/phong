@@ -44,6 +44,16 @@ void Stats::recordLadder(int levelsBeaten)
     emit changed();
 }
 
+bool Stats::recordEndless(int score)
+{
+    if (score <= endlessBest())
+        return false;
+
+    setValue(QStringLiteral("stats/endlessBest"), score);
+    emit changed();
+    return true;
+}
+
 void Stats::reset()
 {
     m_settings.remove(QStringLiteral("stats"));
@@ -81,6 +91,11 @@ int Stats::longestRally() const
 int Stats::ladderBest() const
 {
     return value(QStringLiteral("stats/ladderBest"));
+}
+
+int Stats::endlessBest() const
+{
+    return value(QStringLiteral("stats/endlessBest"));
 }
 
 int Stats::value(const QString& key) const

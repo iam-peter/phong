@@ -163,6 +163,7 @@ Window {
             glowIntensity: glow === GraphicsSettings.HighGlow ? 1.0
                            : glow === GraphicsSettings.MediumGlow ? 0.9 : 0.8
             glowBloom: 0.0
+
             glowHDRMinimumValue: 0.9
             glowLevel: glow === GraphicsSettings.LowGlow
                        ? ExtendedSceneEnvironment.One | ExtendedSceneEnvironment.Two
@@ -253,6 +254,8 @@ Window {
             menuScene: menuScene
             mode: gameScene.mode
             ladderStage: gameScene.ladderStage
+            endlessScore: gameScene.endlessScore
+            newHighScore: gameScene.newHighScore
         }
 
         Keys.onPressed: (event) => {

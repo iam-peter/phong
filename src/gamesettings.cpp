@@ -34,7 +34,8 @@ GameSettings::GameSettings(QObject* parent):
     m_winByTwo(defaultWinByTwo),
     m_arena(defaultArena),
     m_sound(defaultSound),
-    m_kickoffTime(defaultKickoffTime)
+    m_kickoffTime(defaultKickoffTime),
+    m_mode(0)
 {
     m_pointsToWin = std::clamp(m_settings.value("pointsToWin", defaultPointsToWin).toInt(),
                                minPointsToWin, maxPointsToWin);
@@ -49,6 +50,7 @@ GameSettings::GameSettings(QObject* parent):
     m_sound = m_settings.value("sound", defaultSound).toBool();
     m_kickoffTime = std::clamp(m_settings.value("kickoffTime", defaultKickoffTime).toInt(),
                                minKickoffTime, maxKickoffTime);
+    m_mode = std::max(m_settings.value("mode", 0).toInt(), 0);
 }
 
 void GameSettings::restoreDefaults()
@@ -216,6 +218,21 @@ void GameSettings::setKickoffTime(int kickoffTime)
 int GameSettings::kickoffTime() const
 {
     return m_kickoffTime;
+}
+
+void GameSettings::setMode(int mode)
+{
+    if (m_mode == mode)
+        return;
+
+    m_mode = mode;
+    m_settings.setValue("mode", mode);
+    emit modeChanged(mode);
+}
+
+int GameSettings::mode() const
+{
+    return m_mode;
 }
 
 qreal GameSettings::serveSpeed() const

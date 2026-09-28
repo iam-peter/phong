@@ -26,6 +26,8 @@ class GameSettings : public QObject
     Q_PROPERTY(bool sound READ sound WRITE setSound NOTIFY soundChanged)
     // Seconds of countdown before a kickoff
     Q_PROPERTY(int kickoffTime READ kickoffTime WRITE setKickoffTime NOTIFY kickoffTimeChanged)
+    // The game mode last chosen in the menu, see GameScene.Mode
+    Q_PROPERTY(int mode READ mode WRITE setMode NOTIFY modeChanged)
 
     Q_PROPERTY(qreal serveSpeed READ serveSpeed NOTIFY ballSpeedChanged)
     Q_PROPERTY(qreal maxSpeed READ maxSpeed NOTIFY ballSpeedChanged)
@@ -86,6 +88,9 @@ public:
     void setKickoffTime(int kickoffTime);
     int kickoffTime() const;
 
+    void setMode(int mode);
+    int mode() const;
+
     qreal serveSpeed() const;
     qreal maxSpeed() const;
     qreal paddleLength() const;
@@ -101,6 +106,7 @@ signals:
     void arenaChanged(const QString&);
     void soundChanged(bool);
     void kickoffTimeChanged(int);
+    void modeChanged(int);
 
 private:
     QSettings m_settings;
@@ -115,6 +121,7 @@ private:
     QString m_arena;
     bool m_sound;
     int m_kickoffTime;
+    int m_mode;
 };
 
 #endif // GAMESETTINGS_H

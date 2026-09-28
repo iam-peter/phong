@@ -25,6 +25,8 @@ class ComputerPlayer : public QObject
     Q_PROPERTY(qreal opponentY READ opponentY WRITE setOpponentY NOTIFY opponentYChanged)
     Q_PROPERTY(qreal target READ target NOTIFY targetChanged)
     Q_PROPERTY(qreal direction READ direction NOTIFY directionChanged)
+    // Winds up a smash for the next return
+    Q_PROPERTY(bool charging READ isCharging NOTIFY chargingChanged)
 
 public:
     enum Difficulty {
@@ -49,6 +51,10 @@ public:
 
     // Offset that sends the ball to the wall away from the opponent
     static qreal awayOffset(qreal hitY, qreal lineX, qreal opponentY, qreal top, qreal bottom);
+
+    // predictY() within this player's field
+    Q_INVOKABLE qreal predictCrossing(const QVector2D& position, const QVector2D& velocity,
+                                      qreal lineX) const;
 
     // Forget the current plan, e.g. after a point was scored
     Q_INVOKABLE void reset();
@@ -86,6 +92,8 @@ public:
     // Paddle input from -1 (full speed down) to 1 (full speed up)
     qreal direction() const;
 
+    bool isCharging() const;
+
 signals:
     void difficultyChanged(ComputerPlayer::Difficulty);
     void paddleXChanged(qreal);
@@ -96,6 +104,7 @@ signals:
     void opponentYChanged(qreal);
     void targetChanged(qreal);
     void directionChanged(qreal);
+    void chargingChanged(bool);
 
 private:
     struct Profile {
@@ -105,12 +114,17 @@ private:
         bool predicts;      // plans for bounces or just chases the ball
         qreal aimChance;    // share of returns aimed at a target
         bool tactics;       // otherwise plays away from the opponent
+        qreal smashChance;  // share of returns smashed
     };
+
+    // Seconds the wind up of a smash takes
+    static constexpr qreal smashWindUp = 0.9;
 
     Profile profile() const;
     void plan(const QVector2D& ballPosition, const QVector2D& ballVelocity);
     void setTarget(qreal target);
     void setDirection(qreal direction);
+    void setCharging(bool charging);
 
     Difficulty m_difficulty;
     qreal m_paddleX;
@@ -124,6 +138,8 @@ private:
     bool m_approaching;
     qreal m_aimError; // -1 to 1, rolled once per approach
     bool m_aiming;    // rolled once per approach
+    bool m_smashing;  // rolled once per approach
+    bool m_charging;
     QList<QVector2D> m_targets;
     qreal m_opponentY;
     QRandomGenerator m_random;

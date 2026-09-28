@@ -12,7 +12,8 @@ Scene {
     enum Mode {
         OnePlayer,
         TwoPlayers,
-        Ladder
+        Ladder,
+        Endless
     }
 
     property int mode: GameScene.OnePlayer
@@ -21,7 +22,16 @@ Scene {
     property alias match: match
 
     readonly property bool againstComputer: mode !== GameScene.TwoPlayers
-    readonly property int difficulty: mode === GameScene.Ladder ? ladderStage : GameSettings.difficulty
+    readonly property bool endless: mode === GameScene.Endless
+    // Endless gets harder the longer it lasts
+    readonly property int difficulty: mode === GameScene.Ladder ? ladderStage
+                                      : endless ? (match.playTime < 30 ? 0 : match.playTime < 90 ? 1 : 2)
+                                      : GameSettings.difficulty
+    readonly property real endlessSpeedUp: endless ? 1.0 + Math.min(0.5, match.playTime / 240) : 1.0
+    readonly property int lives: 3
+    // Returns count, balls the computer missed count more
+    readonly property int endlessScore: match.left.hits + 10 * match.left.score
+    property bool newHighScore: false
 
     // Playing field, the ball stays in the plane z = 0
     readonly property real stageWidth: 34.0
@@ -94,6 +104,23 @@ Scene {
     // Last whole second of the kickoff countdown, ticks when it changes
     property int kickoffSecond: 0
 
+    // Smash wind up, 0 to 1, grows while the key is held
+    readonly property real chargeTime: 0.6
+    property bool leftCharging: false
+    property bool rightCharging: false
+    property real leftCharge: 0.0
+    property real rightCharge: 0.0
+
+    // The rally heats up the field
+    readonly property real rallyHeat: Math.min(1.0, match.rally / 25)
+
+    // Slow motion when a ball is about to decide the match
+    property real timeScale: 1.0
+    slowMotion: 1.0 - timeScale
+
+    // Moving obstacles follow the game time
+    property real arenaTime: 0.0
+
     readonly property bool running: match.state === Match.Serving || match.state === Match.Playing
 
     property int currentPauseItem: 0
@@ -105,6 +132,10 @@ Scene {
     function startMatch() {
         leftPaddleY = rightPaddleY = 0.0
         leftPaddleAngle = rightPaddleAngle = 0.0
+        leftCharge = rightCharge = 0.0
+        timeScale = 1.0
+        arenaTime = 0.0
+        newHighScore = false
         releaseInput()
         chooseArena()
         resetBall()
@@ -138,6 +169,7 @@ Scene {
 
     function releaseInput() {
         leftUp = leftDown = rightUp = rightDown = false
+        leftCharging = rightCharging = false
         leftPointerY = rightPointerY = NaN
         pointerSides = {}
     }
@@ -160,9 +192,63 @@ Scene {
         return 0
     }
 
-    function movePaddle(y, input, length, dt) {
+    // Winding up a smash slows the paddle down
+    function movePaddle(y, input, length, charge, dt) {
         const limit = 0.5 * (innerHeight - length)
-        return Math.max(-limit, Math.min(limit, y + input * paddleSpeed * dt))
+        return Math.max(-limit, Math.min(limit, y + input * paddleSpeed * (1.0 - 0.4 * charge) * dt))
+    }
+
+    // Charges while held, fades quickly when let go
+    function windUp(charge, charging, dt) {
+        return charging ? Math.min(1.0, charge + dt / chargeTime) : Math.max(0.0, charge - 3.0 * dt)
+    }
+
+    function obstaclePosition(obstacle, time) {
+        const move = obstacle.move
+        if (!move)
+            return Qt.vector3d(obstacle.x, obstacle.y, 0)
+        const swing = Math.sin(2.0 * Math.PI * (time / move.period + move.phase))
+        return Qt.vector3d(obstacle.x + move.x * swing, obstacle.y + move.y * swing, 0)
+    }
+
+    // A ball about to decide the match: the goal it heads for wins it and
+    // the defending paddle can't make it there in time any more
+    function aboutToDecide() {
+        if (!match.matchPoint || match.state !== Match.Playing)
+            return false
+
+        for (const body of ballBodies()) {
+            const velocity = body.ball.velocity
+            if (velocity.x === 0.0)
+                continue
+
+            const towardsRight = velocity.x > 0.0
+            if (!match.winsWithNextPoint(towardsRight ? Match.LeftSide : Match.RightSide))
+                continue
+
+            const paddle = towardsRight ? rightPaddle : leftPaddle
+            const length = towardsRight ? rightPaddleLength : leftPaddleLength
+            const lineX = (towardsRight ? 1.0 : -1.0) * (paddleX - 0.5 * paddleWidth - ballRadius)
+            const time = (lineX - body.x) / velocity.x
+            if (time > 0.8)
+                continue
+            if (time < 0.0)
+                return true
+
+            const crossing = computer.predictCrossing(Qt.vector2d(body.x, body.y), velocity, lineX)
+            const gap = Math.abs(crossing - paddle.y) - (0.5 * length + ballRadius)
+            if (gap > time * paddleSpeed)
+                return true
+        }
+        return false
+    }
+
+    // Each hit of a rally climbs a pentatonic scale, slower in slow motion
+    function rallyPitch(rally) {
+        const scale = [0, 2, 4, 7, 9]
+        const step = Math.max(0, rally - 1)
+        const semitones = Math.min(24, 12 * Math.floor(step / scale.length) + scale[step % scale.length])
+        return Math.pow(2.0, semitones / 12.0) * (0.75 + 0.25 * timeScale)
     }
 
     // Spins while cursed and then finishes the turn until upright again
@@ -208,7 +294,8 @@ Scene {
     // off their surface
     function paddleContact(body, side, paddle, angle, length, velocity, normals) {
         if (angle % 180 === 0 || normals.length === 0) {
-            match.paddleHit(body.ball, side, (body.y - paddle.y) / (0.5 * length + ballRadius), velocity)
+            const smash = side === Match.LeftSide ? leftCharge : rightCharge
+            match.paddleHit(body.ball, side, (body.y - paddle.y) / (0.5 * length + ballRadius), velocity, smash)
             return
         }
 
@@ -279,8 +366,13 @@ Scene {
             modifiers.collect(item.itemId, item.ball)
     }
 
-    // Called after every physics step
-    function step(dt) {
+    // Called after every physics step, dt in real seconds
+    function step(realDt) {
+        // Ease in and out of the slow motion
+        const slow = aboutToDecide() ? 0.3 : 1.0
+        timeScale += (slow - timeScale) * Math.min(1.0, 8.0 * realDt)
+        const dt = realDt * timeScale
+
         match.advance(dt)
         if (!running)
             return
@@ -304,8 +396,12 @@ Scene {
             rightInput = humanInput(rightUp, rightDown, rightPointerY, rightPaddleY)
         }
 
-        const leftY = movePaddle(leftPaddleY, leftInput, leftPaddleLength, dt)
-        const rightY = movePaddle(rightPaddleY, rightInput, rightPaddleLength, dt)
+        leftCharge = windUp(leftCharge, leftCharging, dt)
+        rightCharge = windUp(rightCharge, onePlayer ? computer.charging : rightCharging, dt)
+        arenaTime += dt
+
+        const leftY = movePaddle(leftPaddleY, leftInput, leftPaddleLength, leftCharge, dt)
+        const rightY = movePaddle(rightPaddleY, rightInput, rightPaddleLength, rightCharge, dt)
         leftPaddleVelocity = (leftY - leftPaddleY) / dt
         rightPaddleVelocity = (rightY - rightPaddleY) / dt
         leftPaddleY = leftY
@@ -317,10 +413,11 @@ Scene {
             body.advance(dt)
 
         // The camera shakes on impacts and leans a little towards the ball
-        shakeAmount *= Math.exp(-7.0 * dt)
+        shakeAmount *= Math.exp(-7.0 * realDt)
+        // and moves in closer in slow motion
         viewOffset = Qt.vector3d((Math.random() - 0.5) * shakeAmount,
-                                 (Math.random() - 0.5) * shakeAmount, 0)
-        const follow = Math.min(1.0, 3.0 * dt)
+                                 (Math.random() - 0.5) * shakeAmount, -6.0 * slowMotion)
+        const follow = Math.min(1.0, 3.0 * realDt)
         viewRotation = viewRotation.plus(Qt.vector3d(0.07 * mainBall.y, -0.05 * mainBall.x, 0)
                                          .minus(viewRotation).times(follow))
     }
@@ -331,6 +428,19 @@ Scene {
             case Qt.Key_S: leftDown = pressed; return true
             case Qt.Key_Up: rightUp = pressed; return true
             case Qt.Key_Down: rightDown = pressed; return true
+            // Smash, towards the middle of the keyboard, also space alone
+            case Qt.Key_D: leftCharging = pressed; return true
+            case Qt.Key_Space:
+                if (mode === GameScene.TwoPlayers)
+                    return false
+                leftCharging = pressed
+                return true
+            case Qt.Key_Left:
+                if (mode === GameScene.TwoPlayers)
+                    rightCharging = pressed
+                else
+                    leftCharging = pressed
+                return true
         }
         return false
     }
@@ -439,10 +549,11 @@ Scene {
     Match {
         id: match
 
-        pointsToWin: GameSettings.pointsToWin
-        setsToWin: root.mode === GameScene.Ladder ? 1 : GameSettings.setsToWin
-        winByTwo: GameSettings.winByTwo
-        serveSpeed: GameSettings.serveSpeed
+        endless: root.endless
+        pointsToWin: root.endless ? root.lives : GameSettings.pointsToWin
+        setsToWin: root.mode === GameScene.Ladder || root.endless ? 1 : GameSettings.setsToWin
+        winByTwo: GameSettings.winByTwo && !root.endless
+        serveSpeed: GameSettings.serveSpeed * root.endlessSpeedUp
         maxSpeed: GameSettings.maxSpeed
         paddleSpeed: root.paddleSpeed
         serveDelay: GameSettings.kickoffTime
@@ -460,15 +571,45 @@ Scene {
             root.kickoffSecond = second
         }
 
-        onPaddleHitBall: (ball, side) => {
+        onPaddleHitBall: (ball, side, smash) => {
             const paddle = side === Match.LeftSide ? leftPaddle : rightPaddle
             const speed = ball.velocity.length() / match.serveSpeed
+            const sparkX = paddle.x + (side === Match.LeftSide ? 0.6 : -0.6)
             paddle.flash()
-            SoundEffects.play(SoundEffects.PaddleHit, Math.min(0.9 + 0.35 * (speed - 1.0), 1.6))
-            sparks.burst(Qt.vector3d(paddle.x + (side === Match.LeftSide ? 0.6 : -0.6), paddle.y, 0.5),
-                         Theme.ball, Math.round(6 + 6 * speed))
-            if (speed > 1.5)
-                root.shake(0.08 * speed)
+
+            if (smash > 0.25) {
+                SoundEffects.play(SoundEffects.Smash, 0.8 + 0.4 * smash)
+                sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.text, Math.round(20 + 40 * smash))
+                root.shake(0.3 + 0.5 * smash)
+            }
+            else {
+                SoundEffects.play(SoundEffects.PaddleHit, root.rallyPitch(match.rally))
+                sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.ball, Math.round(6 + 6 * speed))
+                if (speed > 1.5)
+                    root.shake(0.08 * speed)
+            }
+
+            // The smash is spent
+            if (side === Match.LeftSide)
+                root.leftCharge = 0.0
+            else
+                root.rightCharge = 0.0
+        }
+
+        // Every fifth hit of a rally gets a louder cheer
+        onRallyChanged: {
+            const rally = match.rally
+            if (rally < 5 || rally % 5 !== 0)
+                return
+            const level = Math.min(4, rally / 5)
+            SoundEffects.play(SoundEffects.RallyMilestone, 1.0 + 0.12 * (level - 1))
+            banner.show(qsTr("Rally %1").arg(rally) + "!".repeat(level - 1),
+                        level < 2 ? Theme.text : level < 3 ? Theme.ball : Theme.title, 1.0 + 0.25 * level)
+        }
+
+        onMatchPointChanged: {
+            if (match.matchPoint && match.state !== Match.Finished && !root.endless)
+                banner.show(qsTr("Match point"), Theme.accent, 1.3)
         }
 
         onPointScored: (scorer, ball) => {
@@ -487,10 +628,11 @@ Scene {
             }
         }
 
+        // Not for the set that wins the match, the results say that
         onSetFinished: (winner) => {
-            if (match.state !== Match.Finished)
-                banner.show(qsTr("Set %1").arg((winner === Match.LeftSide ? match.left : match.right).name),
-                            Theme.title)
+            const player = winner === Match.LeftSide ? match.left : match.right
+            if (player.sets < match.setsToWin)
+                banner.show(qsTr("Set %1").arg(player.name), Theme.title)
         }
 
         // Every pause starts on resume
@@ -502,7 +644,10 @@ Scene {
         onFinished: {
             const won = match.winner === match.left
             SoundEffects.play(root.againstComputer && !won ? SoundEffects.Lose : SoundEffects.Win)
-            Stats.recordMatch(root.againstComputer, root.difficulty, won, match.longestRally)
+            if (root.endless)
+                root.newHighScore = Stats.recordEndless(root.endlessScore)
+            else
+                Stats.recordMatch(root.againstComputer, root.difficulty, won, match.longestRally)
             if (root.mode === GameScene.Ladder && won)
                 Stats.recordLadder(root.ladderStage + 1)
 
@@ -601,7 +746,7 @@ Scene {
             }
             materials: PhongMaterial {
                 color: Theme.grid
-                glow: 0.6
+                glow: 0.6 + 1.2 * root.rallyHeat
                 lighting: DefaultMaterial.NoLighting
             }
         }
@@ -732,8 +877,8 @@ Scene {
             source: "#Cube"
             scale: Qt.vector3d(root.stageWidth / 100, root.wallThickness / 100, 0.01)
             materials: PhongMaterial {
-                color: Theme.wall
-                glow: 0.35
+                color: Qt.tint(Theme.wall, Qt.rgba(Theme.title.r, Theme.title.g, Theme.title.b, 0.6 * root.rallyHeat))
+                glow: 0.35 + 0.8 * root.rallyHeat
                 shininess: 0.5
             }
         }
@@ -755,8 +900,8 @@ Scene {
             source: "#Cube"
             scale: Qt.vector3d(root.stageWidth / 100, root.wallThickness / 100, 0.01)
             materials: PhongMaterial {
-                color: Theme.wall
-                glow: 0.35
+                color: Qt.tint(Theme.wall, Qt.rgba(Theme.title.r, Theme.title.g, Theme.title.b, 0.6 * root.rallyHeat))
+                glow: 0.35 + 0.8 * root.rallyHeat
                 shininess: 0.5
             }
         }
@@ -766,7 +911,7 @@ Scene {
     Repeater3D {
         model: root.arena.bumpers ?? []
 
-        delegate: StaticRigidBody {
+        delegate: DynamicRigidBody {
             id: bumper
 
             required property var modelData
@@ -777,7 +922,10 @@ Scene {
                 bumperGlow.restart()
             }
 
-            position: Qt.vector3d(modelData.x, modelData.y, 0)
+            // Kinematic, some move on a path
+            isKinematic: true
+            position: kinematicPosition
+            kinematicPosition: root.obstaclePosition(modelData, root.arenaTime)
             physicsMaterial: bouncy
             sendContactReports: true
             collisionShapes: SphereShape {
@@ -807,7 +955,7 @@ Scene {
     Repeater3D {
         model: root.arena.blocks ?? []
 
-        delegate: StaticRigidBody {
+        delegate: DynamicRigidBody {
             id: block
 
             required property var modelData
@@ -818,7 +966,9 @@ Scene {
                 blockGlow.restart()
             }
 
-            position: Qt.vector3d(modelData.x, modelData.y, 0)
+            isKinematic: true
+            position: kinematicPosition
+            kinematicPosition: root.obstaclePosition(modelData, root.arenaTime)
             physicsMaterial: bouncy
             sendContactReports: true
             collisionShapes: BoxShape {
@@ -850,6 +1000,7 @@ Scene {
     PaddleBody {
         id: leftPaddle
         color: Theme.leftPlayer
+        charge: root.leftCharge
         paddleX: -root.paddleX
         paddleY: root.leftPaddleY
         angle: root.leftPaddleAngle
@@ -860,6 +1011,7 @@ Scene {
     PaddleBody {
         id: rightPaddle
         color: Theme.rightPlayer
+        charge: root.rightCharge
         paddleX: root.paddleX
         paddleY: root.rightPaddleY
         angle: root.rightPaddleAngle
@@ -956,6 +1108,7 @@ Scene {
     BallBody {
         id: mainBall
         ball: match.ball
+        timeScale: root.timeScale
         radius: root.ballRadius
         trailSpeed: match.serveSpeed
         onContact: (body, normals) => root.ballContact(mainBall, body, normals)
@@ -967,6 +1120,7 @@ Scene {
 
         delegate: BallBody {
             id: extraBall
+            timeScale: root.timeScale
             radius: root.ballRadius
             trailSpeed: match.serveSpeed
             onContact: (body, normals) => root.ballContact(extraBall, body, normals)
@@ -1141,20 +1295,45 @@ Scene {
             }
         }
 
-        Text3D {
-            x: -2.0
-            horizontalAlignment: Text.AlignRight
-            text: match.left.score
+        Node {
+            visible: !root.endless
+
+            Text3D {
+                x: -2.0
+                horizontalAlignment: Text.AlignRight
+                text: match.left.score
+            }
+
+            Text3D {
+                horizontalAlignment: Text.AlignHCenter
+                text: ":"
+            }
+
+            Text3D {
+                x: 2.0
+                text: match.right.score
+            }
         }
 
+        // Endless: the score and the balls left
         Text3D {
+            visible: root.endless
             horizontalAlignment: Text.AlignHCenter
-            text: ":"
+            text: root.endlessScore
         }
 
-        Text3D {
-            x: 2.0
-            text: match.right.score
+        Repeater3D {
+            model: root.endless ? root.lives : 0
+
+            delegate: Disc {
+                required property int index
+                x: 3.0 + index * 1.0
+                y: 0.35
+                radius: 0.3
+                sphere: true
+                color: index < root.lives - match.right.score ? Theme.leftPlayer : Theme.goal
+                glow: 0.4
+            }
         }
 
         Text3D {
@@ -1203,10 +1382,10 @@ Scene {
             x: -root.stageWidth
             color: Theme.dimmed
             text: root.mode === GameScene.TwoPlayers
-                  ? qsTr("[W/S] left   [Up/Down] right")
+                  ? qsTr("[W/S] move [D] smash   [Up/Down] move [Left] smash")
                   : root.mode === GameScene.Ladder
-                  ? qsTr("Ladder %1/3   [W/S] or [Up/Down] move").arg(root.ladderStage + 1)
-                  : qsTr("[W/S] or [Up/Down] move")
+                  ? qsTr("Ladder %1/3   [W/S] or [Up/Down] move   [Space] smash").arg(root.ladderStage + 1)
+                  : qsTr("[W/S] or [Up/Down] move   [Space] smash")
         }
 
         Text3D {

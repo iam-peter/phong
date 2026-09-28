@@ -12,6 +12,8 @@ DynamicRigidBody {
 
     required property Ball ball
     property real radius: 0.8
+    // Slow motion, the rules keep the real velocity
+    property real timeScale: 1.0
     // Speed from which the trail shows
     property real trailSpeed: 16.0
 
@@ -58,12 +60,17 @@ DynamicRigidBody {
 
     onBodyContact: (body, positions, impulses, normals) => root.contact(body, normals)
 
-    Component.onCompleted: setLinearVelocity(Qt.vector3d(ball.velocity.x, ball.velocity.y, 0))
+    function applyVelocity() {
+        setLinearVelocity(Qt.vector3d(ball.velocity.x, ball.velocity.y, 0).times(timeScale))
+    }
+
+    Component.onCompleted: applyVelocity()
+    onTimeScaleChanged: applyVelocity()
 
     Connections {
         target: root.ball
         function onVelocityChanged() {
-            root.setLinearVelocity(Qt.vector3d(root.ball.velocity.x, root.ball.velocity.y, 0))
+            root.applyVelocity()
         }
     }
 

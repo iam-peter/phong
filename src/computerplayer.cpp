@@ -19,6 +19,8 @@ ComputerPlayer::ComputerPlayer(QObject* parent):
     m_approaching(false),
     m_aimError(0.0),
     m_aiming(false),
+    m_smashing(false),
+    m_charging(false),
     m_targets(),
     m_opponentY(0.0),
     m_random(QRandomGenerator::global()->generate())
@@ -77,6 +79,12 @@ qreal ComputerPlayer::awayOffset(qreal hitY, qreal lineX, qreal opponentY, qreal
     return std::clamp(angle, -40.0, 40.0) / Match::maxBounceAngle;
 }
 
+qreal ComputerPlayer::predictCrossing(const QVector2D& position, const QVector2D& velocity,
+                                      qreal lineX) const
+{
+    return predictY(position, velocity, lineX, m_fieldTop, m_fieldBottom);
+}
+
 void ComputerPlayer::reset()
 {
     m_sincePlan = 0.0;
@@ -84,6 +92,7 @@ void ComputerPlayer::reset()
     m_aimError = 0.0;
     setTarget(0.5 * (m_fieldTop + m_fieldBottom));
     setDirection(0.0);
+    setCharging(false);
 }
 
 void ComputerPlayer::update(qreal dt, const QVector2D& ballPosition,
@@ -102,6 +111,7 @@ void ComputerPlayer::update(qreal dt, const QVector2D& ballPosition,
         m_sincePlan = 0.0;
         m_aimError = m_random.bounded(2.0) - 1.0;
         m_aiming = m_random.bounded(1.0) < profile.aimChance;
+        m_smashing = m_random.bounded(1.0) < profile.smashChance;
     }
     else {
         m_sincePlan += dt;
@@ -111,6 +121,10 @@ void ComputerPlayer::update(qreal dt, const QVector2D& ballPosition,
         plan(ballPosition, ballVelocity);
         m_sincePlan = 0.0;
     }
+
+    // Wind up the smash just before the ball arrives
+    const qreal arrival = approaching ? towardsPaddle / ballVelocity.x() : qInf();
+    setCharging(m_smashing && approaching && arrival < smashWindUp);
 
     // Slow down close to the target instead of jittering around it
     const qreal distance = m_target - paddleY;
@@ -242,16 +256,30 @@ qreal ComputerPlayer::direction() const
     return m_direction;
 }
 
+bool ComputerPlayer::isCharging() const
+{
+    return m_charging;
+}
+
+void ComputerPlayer::setCharging(bool charging)
+{
+    if (m_charging == charging)
+        return;
+
+    m_charging = charging;
+    emit chargingChanged(charging);
+}
+
 ComputerPlayer::Profile ComputerPlayer::profile() const
 {
     switch (m_difficulty) {
         case Difficulty::Easy:
-            return { 0.35, 1.6, 0.5, false, 0.0, false };
+            return { 0.35, 1.6, 0.5, false, 0.0, false, 0.0 };
         case Difficulty::Hard:
-            return { 0.08, 0.6, 1.0, true, 1.0, true };
+            return { 0.08, 0.6, 1.0, true, 1.0, true, 0.5 };
         case Difficulty::Normal:
         default:
-            return { 0.2, 1.15, 0.75, true, 0.5, false };
+            return { 0.2, 1.15, 0.75, true, 0.5, false, 0.25 };
     }
 }
 

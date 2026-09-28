@@ -13,6 +13,8 @@ class Player : public QObject
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
     Q_PROPERTY(int score READ score NOTIFY scoreChanged)
     Q_PROPERTY(int sets READ sets NOTIFY setsChanged)
+    // Paddle hits in the match
+    Q_PROPERTY(int hits READ hits NOTIFY hitsChanged)
     Q_PROPERTY(bool computer READ isComputer WRITE setComputer NOTIFY computerChanged)
 
     // Modifier effects, set by Modifiers
@@ -33,6 +35,9 @@ public:
     void setSets(int sets);
     int sets() const;
 
+    void setHits(int hits);
+    int hits() const;
+
     void setComputer(bool computer);
     bool isComputer() const;
 
@@ -49,6 +54,7 @@ signals:
     void nameChanged(const QString&);
     void scoreChanged(int);
     void setsChanged(int);
+    void hitsChanged(int);
     void computerChanged(bool);
     void paddleScaleChanged(qreal);
     void spinSpeedChanged(qreal);
@@ -58,6 +64,7 @@ private:
     QString m_name;
     int m_score;
     int m_sets;
+    int m_hits;
     bool m_computer;
     qreal m_paddleScale;
     qreal m_spinSpeed;

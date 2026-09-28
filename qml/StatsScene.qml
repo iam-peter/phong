@@ -15,6 +15,7 @@ Scene {
         [qsTr("Vs easy"), record(0)],
         [qsTr("Vs normal"), record(1)],
         [qsTr("Vs hard"), record(2)],
+        [qsTr("Endless best"), Stats.endlessBest],
         [qsTr("2 player matches"), Stats.twoPlayerMatches],
         [qsTr("Longest rally"), Stats.longestRally]
     ]
@@ -69,7 +70,7 @@ Scene {
             required property var modelData
             required property int index
 
-            y: 3.5 - index * 1.8
+            y: 4.0 - index * 1.7
 
             Text3D {
                 x: -11.0

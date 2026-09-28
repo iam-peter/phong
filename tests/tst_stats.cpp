@@ -48,6 +48,16 @@ private slots:
         QCOMPARE(again.longestRally(), 12);
     }
 
+    void endlessHighScore()
+    {
+        Stats stats;
+        QVERIFY(stats.recordEndless(40));
+        QVERIFY(!stats.recordEndless(30));
+        QVERIFY(!stats.recordEndless(40));
+        QVERIFY(stats.recordEndless(41));
+        QCOMPARE(stats.endlessBest(), 41);
+    }
+
     void ladderKeepsTheBest()
     {
         Stats stats;

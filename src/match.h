@@ -27,6 +27,11 @@ class Match : public QObject
     Q_PROPERTY(int pointsToWin READ pointsToWin WRITE setPointsToWin NOTIFY pointsToWinChanged)
     Q_PROPERTY(int setsToWin READ setsToWin WRITE setSetsToWin NOTIFY setsToWinChanged)
     Q_PROPERTY(bool winByTwo READ winByTwo WRITE setWinByTwo NOTIFY winByTwoChanged)
+    // Only the right player can win, reaching pointsToWin, the left one
+    // plays for points
+    Q_PROPERTY(bool endless READ isEndless WRITE setEndless NOTIFY endlessChanged)
+    // The next point can decide the match
+    Q_PROPERTY(bool matchPoint READ isMatchPoint NOTIFY matchPointChanged)
     Q_PROPERTY(qreal serveSpeed READ serveSpeed WRITE setServeSpeed NOTIFY serveSpeedChanged)
     Q_PROPERTY(qreal maxSpeed READ maxSpeed WRITE setMaxSpeed NOTIFY maxSpeedChanged)
     Q_PROPERTY(qreal speedUp READ speedUp WRITE setSpeedUp NOTIFY speedUpChanged)
@@ -68,6 +73,9 @@ public:
     // and how fast the spin wears off
     static constexpr qreal maxSpin = 1.2;
     static constexpr qreal spinDecay = 0.6;
+    // A fully charged smash is this much faster, also beyond the max speed
+    static constexpr qreal smashBoost = 0.6;
+    static constexpr qreal smashOverspeed = 0.25;
 
     explicit Match(QObject* parent = nullptr);
 
@@ -81,8 +89,10 @@ public:
     Q_INVOKABLE void advance(qreal dt);
 
     // offset: where the ball hit the paddle, -1 (bottom edge) to 1 (top
-    // edge). A moving paddle puts spin on the ball.
-    Q_INVOKABLE void paddleHit(Ball* ball, Match::Side side, qreal offset, qreal paddleVelocity = 0.0);
+    // edge). A moving paddle puts spin on the ball, smash from 0 to 1 is
+    // how far the player wound up.
+    Q_INVOKABLE void paddleHit(Ball* ball, Match::Side side, qreal offset, qreal paddleVelocity = 0.0,
+                               qreal smash = 0.0);
     // A paddle that isn't upright reflects the ball off its surface, but
     // always away from its own goal. normal points from the paddle to the ball.
     Q_INVOKABLE void deflect(Ball* ball, Match::Side side, const QVector2D& normal);
@@ -102,12 +112,15 @@ public:
                               Match::Side lastTouch);
 
     // The same for the main ball
-    void paddleHit(Side side, qreal offset, qreal paddleVelocity = 0.0);
+    void paddleHit(Side side, qreal offset, qreal paddleVelocity = 0.0, qreal smash = 0.0);
     void deflect(Side side, const QVector2D& normal);
     bool shieldHit(Side side);
     void scaleBallSpeed(qreal factor);
     void wallHit(bool top);
     void goal(Side scorer);
+
+    // Whether side wins the match with its next point
+    Q_INVOKABLE bool winsWithNextPoint(Match::Side side) const;
 
     Player* left() const;
     Player* right() const;
@@ -131,6 +144,11 @@ public:
     // A set needs a lead of two points
     void setWinByTwo(bool winByTwo);
     bool winByTwo() const;
+
+    void setEndless(bool endless);
+    bool isEndless() const;
+
+    bool isMatchPoint() const;
 
     void setServeSpeed(qreal serveSpeed);
     qreal serveSpeed() const;
@@ -165,6 +183,8 @@ signals:
     void pointsToWinChanged(int);
     void setsToWinChanged(int);
     void winByTwoChanged(bool);
+    void endlessChanged(bool);
+    void matchPointChanged(bool);
     void serveSpeedChanged(qreal);
     void maxSpeedChanged(qreal);
     void speedUpChanged(qreal);
@@ -179,7 +199,7 @@ signals:
     void playTimeChanged(qreal);
 
     void served();
-    void paddleHitBall(Ball* ball, Match::Side side);
+    void paddleHitBall(Ball* ball, Match::Side side, qreal smash);
     void pointScored(Match::Side scorer, Ball* ball);
     void setFinished(Match::Side winner);
     void finished();
@@ -190,7 +210,8 @@ private:
     void setServeCountdown(qreal serveCountdown);
     void setRally(int rally);
     void setPlayTime(qreal playTime);
-    void hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin);
+    void hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin, qreal smash = 0.0);
+    void updateMatchPoint();
     void curve(Ball* ball, qreal dt);
     void removeExtraBalls();
     bool isActive(Ball* ball) const;
@@ -212,6 +233,8 @@ private:
     int m_pointsToWin;
     int m_setsToWin;
     bool m_winByTwo;
+    bool m_endless;
+    bool m_matchPoint;
     qreal m_serveSpeed;
     qreal m_maxSpeed;
     qreal m_speedUp;

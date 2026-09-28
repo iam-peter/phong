@@ -12,6 +12,8 @@ DynamicRigidBody {
     property real length: 4.0
     property real width: 1.0
     property color color: Theme.paddle
+    // Smash wind up, 0 to 1, the paddle glows and trembles
+    property real charge: 0.0
     // Squashes on a hit
     property real squash: 1.0
 
@@ -37,12 +39,25 @@ DynamicRigidBody {
 
     Model {
         source: "#Cube"
-        scale: Qt.vector3d(root.width * root.squash / 100, root.length / 100, 0.01)
+        x: root.charge > 0.05 ? 0.06 * root.charge * Math.sin(tremble.phase) : 0.0
+        scale: Qt.vector3d(root.width * root.squash * (1.0 + 0.25 * root.charge) / 100, root.length / 100, 0.01)
         materials: PhongMaterial {
             id: material
             color: root.color
-            glow: 0.6
+            glow: 0.6 + 1.4 * root.charge
             shininess: 0.7
+        }
+    }
+
+    QtObject {
+        id: tremble
+        property real phase: 0.0
+        NumberAnimation on phase {
+            running: root.charge > 0.05
+            from: 0
+            to: 2 * Math.PI
+            duration: 90
+            loops: Animation.Infinite
         }
     }
 

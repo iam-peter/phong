@@ -25,6 +25,11 @@ bool blocksServe(const QRectF& rect)
 }
 }
 
+QRectF Arenas::Motion::sweep(const QRectF& rect) const
+{
+    return rect.translated(-x, -y).united(rect.translated(x, y));
+}
+
 QString Arenas::defaultSource()
 {
     return s_defaultSource;
@@ -97,9 +102,10 @@ bool Arenas::loadJson(const QByteArray& json, QString* error)
         for (const QJsonValue& bumperValue : entry.value("bumpers").toArray()) {
             const QJsonObject object = bumperValue.toObject();
             const Bumper bumper = { object.value("x").toDouble(), object.value("y").toDouble(),
-                                    std::clamp(object.value("radius").toDouble(1.0), 0.3, 3.0) };
-            const QRectF rect(bumper.x - bumper.radius, bumper.y - bumper.radius,
-                              2.0 * bumper.radius, 2.0 * bumper.radius);
+                                    std::clamp(object.value("radius").toDouble(1.0), 0.3, 3.0),
+                                    readMotion(object.value("move")) };
+            const QRectF rect = bumper.move.sweep(QRectF(bumper.x - bumper.radius, bumper.y - bumper.radius,
+                                                         2.0 * bumper.radius, 2.0 * bumper.radius));
             if (!field.contains(rect) || blocksServe(rect)) {
                 qCWarning(lcArenas) << "Skipping bumper of" << arena.id << "outside the field or on the serve spot";
                 continue;
@@ -111,13 +117,15 @@ bool Arenas::loadJson(const QByteArray& json, QString* error)
             const QJsonObject object = blockValue.toObject();
             const qreal width = std::clamp(object.value("width").toDouble(1.0), 0.2, 10.0);
             const qreal height = std::clamp(object.value("height").toDouble(1.0), 0.2, 10.0);
-            const QRectF rect(object.value("x").toDouble() - 0.5 * width,
-                              object.value("y").toDouble() - 0.5 * height, width, height);
+            const Block block = { QRectF(object.value("x").toDouble() - 0.5 * width,
+                                         object.value("y").toDouble() - 0.5 * height, width, height),
+                                  readMotion(object.value("move")) };
+            const QRectF rect = block.move.sweep(block.rect);
             if (!field.contains(rect) || blocksServe(rect)) {
                 qCWarning(lcArenas) << "Skipping block of" << arena.id << "outside the field or on the serve spot";
                 continue;
             }
-            arena.blocks.append(rect);
+            arena.blocks.append(block);
         }
 
         arenas.append(arena);
@@ -161,10 +169,10 @@ QVariantList Arenas::obstacleRects(const QString& id) const
 
     const Arena& arena = m_arenas.at(index);
     for (const Bumper& bumper : arena.bumpers)
-        rects.append(QRectF(bumper.x - bumper.radius, bumper.y - bumper.radius,
-                            2.0 * bumper.radius, 2.0 * bumper.radius));
-    for (const QRectF& block : arena.blocks)
-        rects.append(block);
+        rects.append(bumper.move.sweep(QRectF(bumper.x - bumper.radius, bumper.y - bumper.radius,
+                                              2.0 * bumper.radius, 2.0 * bumper.radius)));
+    for (const Block& block : arena.blocks)
+        rects.append(block.move.sweep(block.rect));
     return rects;
 }
 
@@ -179,12 +187,14 @@ QVariantMap Arenas::toMap(const Arena& arena)
 {
     QVariantList bumpers;
     for (const Bumper& bumper : arena.bumpers)
-        bumpers.append(QVariantMap{ { "x", bumper.x }, { "y", bumper.y }, { "radius", bumper.radius } });
+        bumpers.append(QVariantMap{ { "x", bumper.x }, { "y", bumper.y }, { "radius", bumper.radius },
+                                    { "move", toVariant(bumper.move) } });
 
     QVariantList blocks;
-    for (const QRectF& block : arena.blocks)
-        blocks.append(QVariantMap{ { "x", block.center().x() }, { "y", block.center().y() },
-                                   { "width", block.width() }, { "height", block.height() } });
+    for (const Block& block : arena.blocks)
+        blocks.append(QVariantMap{ { "x", block.rect.center().x() }, { "y", block.rect.center().y() },
+                                   { "width", block.rect.width() }, { "height", block.rect.height() },
+                                   { "move", toVariant(block.move) } });
 
     return {
         { "id", arena.id },
@@ -192,4 +202,24 @@ QVariantMap Arenas::toMap(const Arena& arena)
         { "bumpers", bumpers },
         { "blocks", blocks }
     };
+}
+
+Arenas::Motion Arenas::readMotion(const QJsonValue& value)
+{
+    Motion motion;
+    const QJsonObject object = value.toObject();
+    motion.x = std::clamp(object.value("x").toDouble(), -12.0, 12.0);
+    motion.y = std::clamp(object.value("y").toDouble(), -8.0, 8.0);
+    motion.period = std::clamp(object.value("period").toDouble(4.0), 0.5, 60.0);
+    motion.phase = object.value("phase").toDouble(0.0);
+    return motion;
+}
+
+QVariant Arenas::toVariant(const Motion& motion)
+{
+    if (!motion.isMoving())
+        return QVariant();
+
+    return QVariantMap{ { "x", motion.x }, { "y", motion.y },
+                        { "period", motion.period }, { "phase", motion.phase } };
 }

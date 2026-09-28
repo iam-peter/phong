@@ -147,6 +147,41 @@ private slots:
         QVERIFY(qAbs(sum / 40.0 + offset * 2.8) < 0.5);
     }
 
+    void chargesBeforeTheBallArrives()
+    {
+        int charged = 0;
+        for (quint32 seed = 1; seed <= 40; ++seed) {
+            ComputerPlayer player;
+            player.setSeed(seed);
+            player.setDifficulty(ComputerPlayer::Difficulty::Hard);
+            player.setPaddleX(12.0);
+            player.setPaddleReach(2.8);
+            player.setFieldTop(8.0);
+            player.setFieldBottom(-8.0);
+
+            // Far away no wind up yet
+            player.update(0.1, QVector2D(-12, 0), QVector2D(10, 0), 0.0);
+            QVERIFY(!player.isCharging());
+
+            // Half a second before it arrives
+            player.update(0.1, QVector2D(7, 0), QVector2D(10, 0), 0.0);
+            charged += player.isCharging() ? 1 : 0;
+
+            player.reset();
+            QVERIFY(!player.isCharging());
+        }
+
+        // Hard smashes about every second return
+        QVERIFY(charged > 8 && charged < 32);
+
+        // Easy never
+        ComputerPlayer easy;
+        easy.setDifficulty(ComputerPlayer::Difficulty::Easy);
+        easy.setPaddleX(12.0);
+        easy.update(0.1, QVector2D(7, 0), QVector2D(10, 0), 0.0);
+        QVERIFY(!easy.isCharging());
+    }
+
     void reactsWithDelay()
     {
         ComputerPlayer player;

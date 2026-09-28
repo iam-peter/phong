@@ -89,6 +89,57 @@
                     "radius": 0.8
                 }
             ]
+        },
+        {
+            "id": "elevators",
+            "name": "Elevators",
+            "bumpers": [
+                {
+                    "x": -5,
+                    "y": 0,
+                    "radius": 1.1,
+                    "move": {
+                        "y": 5,
+                        "period": 4
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": 0,
+                    "radius": 1.1,
+                    "move": {
+                        "y": 5,
+                        "period": 4,
+                        "phase": 0.5
+                    }
+                }
+            ]
+        },
+        {
+            "id": "breathing",
+            "name": "Breathing gates",
+            "blocks": [
+                {
+                    "x": 0,
+                    "y": 6.5,
+                    "width": 1,
+                    "height": 3,
+                    "move": {
+                        "y": 1.5,
+                        "period": 5
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": -6.5,
+                    "width": 1,
+                    "height": 3,
+                    "move": {
+                        "y": -1.5,
+                        "period": 5
+                    }
+                }
+            ]
         }
     ]
 }
