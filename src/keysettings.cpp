@@ -3,10 +3,30 @@
 #include <QKeySequence>
 #include <QMetaEnum>
 
+namespace {
+// Gamepad::Button, the header of the gamepads needn't be here
+enum Button {
+    South = 0,
+    East,
+    West,
+    North,
+    Back,
+    Start,
+    LeftShoulder,
+    RightShoulder,
+    DpadUp,
+    DpadDown,
+    DpadLeft,
+    DpadRight,
+    ButtonCount
+};
+}
+
 KeySettings::KeySettings(QObject* parent):
     QObject(parent),
     m_settings(),
-    m_keys()
+    m_keys(),
+    m_padButtons()
 {
     m_settings.beginGroup(QStringLiteral("keys"));
     const QMetaEnum actions = QMetaEnum::fromType<Action>();
@@ -14,6 +34,19 @@ KeySettings::KeySettings(QObject* parent):
         const int key = m_settings.value(QString::fromLatin1(actions.valueToKey(action)),
                                          defaultKey(Action(action))).toInt();
         m_keys.append(key);
+    }
+
+    const QMetaEnum padActions = QMetaEnum::fromType<PadAction>();
+    for (int action = 0; action < PadActionCount; ++action) {
+        m_padButtons.append(m_settings.value(QString::fromLatin1(padActions.valueToKey(action)),
+                                             defaultPadButton(PadAction(action))).toInt());
+    }
+    for (int action = 0; action < PadActionCount; ++action) {
+        if (isReservedButton(m_padButtons.at(action)) || m_padButtons.count(m_padButtons.at(action)) > 1) {
+            for (int other = 0; other < PadActionCount; ++other)
+                m_padButtons[other] = defaultPadButton(PadAction(other));
+            break;
+        }
     }
 
     // An edited file with doubled or reserved keys starts over
@@ -117,12 +150,88 @@ QStringList KeySettings::keyNames() const
     return names;
 }
 
+int KeySettings::defaultPadButton(PadAction action)
+{
+    switch (action) {
+        case PadAction::PadSmash:
+            return South;
+        case PadAction::PadSpecial:
+            return East;
+        case PadAction::PadDash:
+            return West;
+        case PadAction::PadPause:
+            return Start;
+        default:
+            return -1;
+    }
+}
+
+bool KeySettings::isReservedButton(int button)
+{
+    return button < 0 || button >= ButtonCount || button == Back || button >= DpadUp;
+}
+
+int KeySettings::padButton(PadAction action) const
+{
+    return action >= 0 && action < PadActionCount ? m_padButtons.at(action) : -1;
+}
+
+bool KeySettings::setPadButton(PadAction action, int button)
+{
+    if (action < 0 || action >= PadActionCount || isReservedButton(button))
+        return false;
+
+    const int previous = m_padButtons.at(action);
+    if (previous == button)
+        return true;
+
+    const int other = padAction(button);
+    if (other >= 0)
+        m_padButtons[other] = previous;
+    m_padButtons[action] = button;
+    store();
+    emit changed();
+    return true;
+}
+
+int KeySettings::padAction(int button) const
+{
+    return int(m_padButtons.indexOf(button));
+}
+
+QString KeySettings::buttonName(int button) const
+{
+    switch (button) {
+        case South: return QStringLiteral("A");
+        case East: return QStringLiteral("B");
+        case West: return QStringLiteral("X");
+        case North: return QStringLiteral("Y");
+        case Back: return tr("Back");
+        case Start: return tr("Start");
+        case LeftShoulder: return QStringLiteral("LB");
+        case RightShoulder: return QStringLiteral("RB");
+        default: return QStringLiteral("?");
+    }
+}
+
+QStringList KeySettings::padButtonNames() const
+{
+    QStringList names;
+    for (int action = 0; action < PadActionCount; ++action)
+        names.append(buttonName(m_padButtons.at(action)));
+    return names;
+}
+
 void KeySettings::restoreDefaults()
 {
     bool changed = false;
     for (int action = 0; action < ActionCount; ++action) {
         changed = changed || m_keys.at(action) != defaultKey(Action(action));
         m_keys[action] = defaultKey(Action(action));
+    }
+    for (int action = 0; action < PadActionCount; ++action) {
+        changed = changed || m_padButtons.at(action) != defaultPadButton(PadAction(action));
+        m_padButtons[action] = defaultPadButton(PadAction(action));
     }
     if (!changed)
         return;
@@ -136,4 +245,7 @@ void KeySettings::store()
     const QMetaEnum actions = QMetaEnum::fromType<Action>();
     for (int action = 0; action < ActionCount; ++action)
         m_settings.setValue(QString::fromLatin1(actions.valueToKey(action)), m_keys.at(action));
+    const QMetaEnum padActions = QMetaEnum::fromType<PadAction>();
+    for (int action = 0; action < PadActionCount; ++action)
+        m_settings.setValue(QString::fromLatin1(padActions.valueToKey(action)), m_padButtons.at(action));
 }

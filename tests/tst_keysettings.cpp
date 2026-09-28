@@ -61,6 +61,28 @@ private slots:
         other.restoreDefaults();
         QCOMPARE(other.key(KeySettings::LeftSmash), int(Qt::Key_D));
     }
+
+    void padButtons()
+    {
+        KeySettings keys;
+        QCOMPARE(keys.padButton(KeySettings::PadSmash), 0);
+        QCOMPARE(keys.padButtonNames().at(KeySettings::PadSpecial), QStringLiteral("B"));
+        QCOMPARE(keys.padAction(5), int(KeySettings::PadPause));
+
+        // A shoulder button for the special, the smash takes over B
+        QVERIFY(keys.setPadButton(KeySettings::PadSpecial, 6));
+        QCOMPARE(keys.padButtonNames().at(KeySettings::PadSpecial), QStringLiteral("LB"));
+        QVERIFY(keys.setPadButton(KeySettings::PadSmash, 6));
+        QCOMPARE(keys.padButton(KeySettings::PadSpecial), 0);
+
+        // The d-pad and Back belong to moving and the menus
+        QVERIFY(!keys.setPadButton(KeySettings::PadDash, 8));
+        QVERIFY(!keys.setPadButton(KeySettings::PadDash, 4));
+        QCOMPARE(KeySettings().padButton(KeySettings::PadSmash), 6);
+
+        keys.restoreDefaults();
+        QCOMPARE(keys.padButton(KeySettings::PadSmash), 0);
+    }
 };
 
 QTEST_GUILESS_MAIN(tst_KeySettings)

@@ -12,11 +12,30 @@ Scene {
     property string title
     // { label, values, names, get, set } or { label, values: [], set, hint },
     // or { label, values: [], capture: true, get, set } for a key: set gets
-    // the next key pressed
+    // the next key pressed, with padCapture: true the next gamepad button
     property var rows: []
     property int currentItem: 0
     // The row waiting for its key, -1 for none
     property int capturing: -1
+    readonly property bool padCapturing: capturing >= 0 && (rows[capturing]?.padCapture ?? false)
+    // The button that was just taken doesn't navigate the menu as well
+    property bool swallowNavigation: false
+    menuNavigation: !padCapturing && !swallowNavigation
+
+    Connections {
+        target: Gamepads
+        enabled: root.active && root.padCapturing
+        function onButtonPressed(pad, button) {
+            root.swallowNavigation = true
+            Qt.callLater(() => root.swallowNavigation = false)
+            if (!root.rows[root.capturing].set(button)) {
+                SoundEffects.play(SoundEffects.Curse)
+                return
+            }
+            SoundEffects.play(SoundEffects.MenuSelect)
+            root.capturing = -1
+        }
+    }
 
     // The rows fit between the title and the hint
     readonly property real rowSpacing: Math.min(2.0, 15.0 / Math.max(rows.length, 1))
@@ -48,9 +67,17 @@ Scene {
     onKeyPressed: (event) => {
         event.accepted = true
         if (capturing >= 0) {
-            // A key has to come from the keyboard
+            // A key has to come from the keyboard, a button from a pad,
+            // Escape cancels either
             if (event.isAutoRepeat || (event.gamepad && event.key !== Qt.Key_Escape))
                 return
+            if (padCapturing) {
+                if (event.key === Qt.Key_Escape) {
+                    SoundEffects.play(SoundEffects.MenuSelect)
+                    capturing = -1
+                }
+                return
+            }
             // Escape keeps the key, reserved keys are refused
             if (event.key !== Qt.Key_Escape && !rows[capturing].set(event.key)) {
                 SoundEffects.play(SoundEffects.Curse)
@@ -177,7 +204,8 @@ Scene {
                 visible: row.modelData.capture ?? false
                 horizontalAlignment: Text.AlignRight
                 color: root.capturing === row.index ? Theme.title : row.selected ? Theme.text : Theme.dimmed
-                text: root.capturing === row.index ? qsTr("Press a key") : row.modelData.get?.() ?? ""
+                text: root.capturing === row.index ? (row.modelData.padCapture ? qsTr("Press a button") : qsTr("Press a key"))
+                                                   : row.modelData.get?.() ?? ""
                 clickable: visible
                 onClicked: {
                     root.currentItem = row.index

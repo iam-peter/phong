@@ -139,6 +139,10 @@ the right paddle, next to the keys:
 | `Start` | pause |
 
 In the menus the stick and the d-pad move, `A` confirms and `B` goes back.
+The controls screen maps smash, special, dash and pause to other buttons
+too, for every pad at once: pick one and press the button. The d-pad and
+`Back` stay fixed, the shoulder buttons dash as long as nothing else is
+mapped to them.
 Pads that can rumble do on hits, harder on smashes and specials, and most
 on a goal against their player, also on the LAN. `Rumble` in the settings
 switches it off.

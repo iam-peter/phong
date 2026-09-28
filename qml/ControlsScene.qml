@@ -23,13 +23,27 @@ OptionsScene {
         [KeySettings.Pause, qsTr("Pause")]
     ]
 
+    readonly property var padActions: [
+        [KeySettings.PadSmash, qsTr("Pad smash")],
+        [KeySettings.PadSpecial, qsTr("Pad special")],
+        [KeySettings.PadDash, qsTr("Pad dash")],
+        [KeySettings.PadPause, qsTr("Pad pause")]
+    ]
+
     rows: actions.map((action) => ({
         label: action[1],
         values: [],
         capture: true,
         get: () => KeySettings.keyNames[action[0]],
         set: (key) => KeySettings.setKey(action[0], key)
-    })).concat([{
+    })).concat(padActions.map((action) => ({
+        label: action[1],
+        values: [],
+        capture: true,
+        padCapture: true,
+        get: () => KeySettings.padButtonNames[action[0]],
+        set: (button) => KeySettings.setPadButton(action[0], button)
+    }))).concat([{
         label: qsTr("Restore defaults"),
         values: [],
         set: () => KeySettings.restoreDefaults()
@@ -40,6 +54,6 @@ OptionsScene {
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.dimmed
-        text: qsTr("Against the computer both sets move your paddle, [Space] also smashes")
+        text: qsTr("Against the computer both sets move your paddle, [Space] also smashes, the shoulders dash")
     }
 }

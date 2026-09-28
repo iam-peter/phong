@@ -7,9 +7,10 @@
 #include <QString>
 #include <QtQml/qqmlregistration.h>
 
-// The keys of the players, persisted with QSettings. Every action has a
-// key and every key at most one action. Escape and Enter belong to the
-// menus.
+// The keys of the players and the buttons of the gamepads, persisted with
+// QSettings. Every action has a key and every key at most one action.
+// Escape and Enter belong to the menus, so do the d-pad and Back of a pad.
+// Buttons are Gamepad::Button values.
 class KeySettings : public QObject
 {
     Q_OBJECT
@@ -17,6 +18,8 @@ class KeySettings : public QObject
     QML_SINGLETON
     // Names of the keys of all actions, in the order of Action
     Q_PROPERTY(QStringList keyNames READ keyNames NOTIFY changed)
+    // Names of the buttons of all pad actions, in the order of PadAction
+    Q_PROPERTY(QStringList padButtonNames READ padButtonNames NOTIFY changed)
 
 public:
     enum Action {
@@ -32,6 +35,15 @@ public:
         ActionCount
     };
     Q_ENUM(Action)
+
+    enum PadAction {
+        PadSmash = 0,
+        PadSpecial,
+        PadDash,
+        PadPause,
+        PadActionCount
+    };
+    Q_ENUM(PadAction)
 
     explicit KeySettings(QObject* parent = nullptr);
 
@@ -49,7 +61,17 @@ public:
     Q_INVOKABLE QString actionKeyName(KeySettings::Action action) const;
     Q_INVOKABLE void restoreDefaults();
 
+    static int defaultPadButton(PadAction action);
+    static bool isReservedButton(int button);
+    Q_INVOKABLE int padButton(KeySettings::PadAction action) const;
+    // Swaps like setKey()
+    Q_INVOKABLE bool setPadButton(KeySettings::PadAction action, int button);
+    // The pad action of a button, -1 for none
+    Q_INVOKABLE int padAction(int button) const;
+    Q_INVOKABLE QString buttonName(int button) const;
+
     QStringList keyNames() const;
+    QStringList padButtonNames() const;
 
 signals:
     void changed();
@@ -59,6 +81,7 @@ private:
 
     QSettings m_settings;
     QList<int> m_keys;
+    QList<int> m_padButtons;
 };
 
 #endif // KEYSETTINGS_H

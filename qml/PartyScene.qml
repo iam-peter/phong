@@ -224,7 +224,7 @@ Scene {
         target: Gamepads
         enabled: root.active
         function onButtonPressed(pad, button) {
-            if (button === Gamepad.Start && root.place === 0) {
+            if (KeySettings.padAction(button) === KeySettings.PadPause && root.place === 0) {
                 if (match.state === PartyMatch.Paused)
                     match.resume()
                 else if (root.running)

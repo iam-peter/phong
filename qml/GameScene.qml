@@ -500,7 +500,7 @@ Scene {
             if (pad) {
                 if (move === 0)
                     move = pad.direction.y
-                charging = charging || pad.isPressed(Gamepad.South)
+                charging = charging || pad.isPressed(KeySettings.padButton(KeySettings.PadSmash))
             }
             root.sinceSent += dt
             if (move !== root.sentMove || charging !== root.sentCharging || root.sinceSent > 0.2) {
@@ -607,16 +607,25 @@ Scene {
     // Gamepads work the pause menu and skip the replay, not the game
     menuNavigation: match.state === Match.Paused || match.state === Match.Finished || askLeave
 
+    // What a pad button does, as set in the controls. Shoulders nothing is
+    // set to dash as well.
+    function padAction(button) {
+        const action = KeySettings.padAction(button)
+        if (action < 0 && (button === Gamepad.LeftShoulder || button === Gamepad.RightShoulder))
+            return KeySettings.PadDash
+        return action
+    }
+
     function gamepadButton(pad, button, pressed) {
+        const action = padAction(button)
         if (remote) {
             if (!pressed || pad !== Gamepads.pads[0])
                 return
-            if (button === Gamepad.Start)
+            if (action === KeySettings.PadPause)
                 askLeave = !askLeave
-            else if (button === Gamepad.East && running)
+            else if (action === KeySettings.PadSpecial && running)
                 Lan.sendToHost({ t: "action", a: "special" })
-            else if ((button === Gamepad.West || button === Gamepad.LeftShoulder || button === Gamepad.RightShoulder)
-                     && running && Math.abs(pad.direction.y) > 0.3)
+            else if (action === KeySettings.PadDash && running && Math.abs(pad.direction.y) > 0.3)
                 Lan.sendToHost({ t: "action", a: "tap", d: pad.direction.y > 0 ? 1 : -1 })
             return
         }
@@ -625,7 +634,7 @@ Scene {
                 endReplay()
             return
         }
-        if (button === Gamepad.Start) {
+        if (action === KeySettings.PadPause) {
             if (pressed && (running || match.state === Match.Paused))
                 togglePause()
             return
@@ -636,17 +645,15 @@ Scene {
             return
 
         const player = side === Match.LeftSide ? match.left : match.right
-        switch (button) {
-            case Gamepad.South:
+        switch (action) {
+            case KeySettings.PadSmash:
                 setCharging(side, pressed)
                 break
-            case Gamepad.East:
+            case KeySettings.PadSpecial:
                 if (pressed)
                     match.useSpecial(side)
                 break
-            case Gamepad.West:
-            case Gamepad.LeftShoulder:
-            case Gamepad.RightShoulder:
+            case KeySettings.PadDash:
                 // A dash the way the stick points
                 if (pressed && !player.frozen && Math.abs(pad.direction.y) > 0.3)
                     (side === Match.LeftSide ? leftDash : rightDash)
