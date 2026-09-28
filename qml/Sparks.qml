@@ -8,11 +8,15 @@ Node {
 
     function burst(position, color, count) {
         particle.color = color
-        emitter.burst(count, 0, position)
+        emitter.burst(count, 0, position.minus(system.position))
     }
 
     ParticleSystem3D {
         id: system
+        // Far behind the camera: Qt sometimes draws the particle model once
+        // at the origin of the system, a white dot in the middle of the
+        // field. The bursts are placed relative to it.
+        z: 2000
 
         ModelParticle3D {
             id: particle
