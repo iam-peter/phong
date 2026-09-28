@@ -35,6 +35,7 @@ Match::Match(QObject* parent):
     m_pausedState(State::Idle),
     m_winner(nullptr),
     m_serveTo(Side::LeftSide),
+    m_serveDirection(),
     m_pointsToWin(5),
     m_setsToWin(1),
     m_winByTwo(false),
@@ -72,8 +73,8 @@ void Match::start()
     m_totalHits = 0;
     emit totalHitsChanged(m_totalHits);
 
-    m_serveTo = QRandomGenerator::global()->bounded(2) ? Side::RightSide : Side::LeftSide;
-    setServeCountdown(m_serveDelay);
+    // A coin toss for the first kickoff
+    prepareServe(QRandomGenerator::global()->bounded(2) ? Side::RightSide : Side::LeftSide);
     setState(State::Serving);
 }
 
@@ -251,8 +252,9 @@ void Match::goal(Ball* ball, Side scorer)
     removeExtraBalls();
     setRally(0);
 
-    // Serve towards the player who conceded the point or lost the set
-    m_serveTo = opponent(scorer);
+    // Like in football the player who conceded kicks off, the ball flies
+    // towards the scorer. After a set the loser of it kicks off.
+    prepareServe(scorer);
 
     if (setWon) {
         player->setSets(player->sets() + 1);
@@ -269,7 +271,6 @@ void Match::goal(Ball* ball, Side scorer)
         m_right->setScore(0);
     }
 
-    setServeCountdown(m_serveDelay);
     setState(State::Serving);
 }
 
@@ -501,6 +502,16 @@ qreal Match::serveCountdown() const
     return m_serveCountdown;
 }
 
+Match::Side Match::serveTo() const
+{
+    return m_serveTo;
+}
+
+QVector2D Match::serveDirection() const
+{
+    return m_serveDirection;
+}
+
 QVector2D Match::ballVelocity() const
 {
     return m_ball->velocity();
@@ -626,17 +637,24 @@ bool Match::isActive(Ball* ball) const
     return ball && (ball == m_ball || m_extraBalls->balls().contains(ball));
 }
 
-void Match::serve()
+void Match::prepareServe(Side towards)
 {
     QRandomGenerator* random = QRandomGenerator::global();
 
-    const qreal direction = m_serveTo == Side::LeftSide ? -1.0 : 1.0;
+    const qreal direction = towards == Side::LeftSide ? -1.0 : 1.0;
     const qreal vertical = random->bounded(2) ? 1.0 : -1.0;
     const qreal angle = qDegreesToRadians(minServeAngle
                                           + random->bounded(maxServeAngle - minServeAngle));
 
-    m_ball->setVelocity(QVector2D(direction * m_serveSpeed * qCos(angle),
-                                  vertical * m_serveSpeed * qSin(angle)));
+    m_serveTo = towards;
+    m_serveDirection = QVector2D(direction * qCos(angle), vertical * qSin(angle));
+    emit serveDirectionChanged();
+    setServeCountdown(m_serveDelay);
+}
+
+void Match::serve()
+{
+    m_ball->setVelocity(m_serveDirection * float(m_serveSpeed));
     m_ball->setSpin(0.0);
     m_ball->setLastTouch(Side::NoSide);
     setState(State::Playing);

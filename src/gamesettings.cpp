@@ -12,6 +12,7 @@ constexpr int defaultSetsToWin = 1;
 constexpr bool defaultWinByTwo = false;
 const QString defaultArena = QStringLiteral("random");
 constexpr bool defaultSound = true;
+constexpr int defaultKickoffTime = 2;
 
 template<typename Enum>
 Enum readEnum(const QSettings& settings, const char* key, Enum fallback, Enum last)
@@ -32,7 +33,8 @@ GameSettings::GameSettings(QObject* parent):
     m_setsToWin(defaultSetsToWin),
     m_winByTwo(defaultWinByTwo),
     m_arena(defaultArena),
-    m_sound(defaultSound)
+    m_sound(defaultSound),
+    m_kickoffTime(defaultKickoffTime)
 {
     m_pointsToWin = std::clamp(m_settings.value("pointsToWin", defaultPointsToWin).toInt(),
                                minPointsToWin, maxPointsToWin);
@@ -45,6 +47,8 @@ GameSettings::GameSettings(QObject* parent):
     m_winByTwo = m_settings.value("winByTwo", defaultWinByTwo).toBool();
     m_arena = m_settings.value("arena", defaultArena).toString();
     m_sound = m_settings.value("sound", defaultSound).toBool();
+    m_kickoffTime = std::clamp(m_settings.value("kickoffTime", defaultKickoffTime).toInt(),
+                               minKickoffTime, maxKickoffTime);
 }
 
 void GameSettings::restoreDefaults()
@@ -58,6 +62,7 @@ void GameSettings::restoreDefaults()
     setWinByTwo(defaultWinByTwo);
     setArena(defaultArena);
     setSound(defaultSound);
+    setKickoffTime(defaultKickoffTime);
 }
 
 void GameSettings::setPointsToWin(int pointsToWin)
@@ -195,6 +200,22 @@ void GameSettings::setSound(bool sound)
 bool GameSettings::sound() const
 {
     return m_sound;
+}
+
+void GameSettings::setKickoffTime(int kickoffTime)
+{
+    kickoffTime = std::clamp(kickoffTime, minKickoffTime, maxKickoffTime);
+    if (m_kickoffTime == kickoffTime)
+        return;
+
+    m_kickoffTime = kickoffTime;
+    m_settings.setValue("kickoffTime", kickoffTime);
+    emit kickoffTimeChanged(kickoffTime);
+}
+
+int GameSettings::kickoffTime() const
+{
+    return m_kickoffTime;
 }
 
 qreal GameSettings::serveSpeed() const

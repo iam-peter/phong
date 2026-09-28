@@ -90,6 +90,9 @@ Scene {
     // Camera shake, applied through viewOffset
     property real shakeAmount: 0.0
 
+    // Last whole second of the kickoff countdown, ticks when it changes
+    property int kickoffSecond: 0
+
     readonly property bool running: match.state === Match.Serving || match.state === Match.Playing
 
     property int currentPauseItem: 0
@@ -436,12 +439,20 @@ Scene {
         serveSpeed: GameSettings.serveSpeed
         maxSpeed: GameSettings.maxSpeed
         paddleSpeed: root.paddleSpeed
+        serveDelay: GameSettings.kickoffTime
 
         left.name: root.againstComputer ? qsTr("You") : qsTr("Ping")
         right.name: root.againstComputer ? qsTr("CPU") : qsTr("Pong")
         right.computer: root.againstComputer
 
         onServed: SoundEffects.play(SoundEffects.Serve)
+
+        onServeCountdownChanged: {
+            const second = Math.ceil(match.serveCountdown)
+            if (second > 0 && second !== root.kickoffSecond)
+                SoundEffects.play(SoundEffects.CountdownTick)
+            root.kickoffSecond = second
+        }
 
         onPaddleHitBall: (ball, side) => {
             const paddle = side === Match.LeftSide ? leftPaddle : rightPaddle
@@ -873,6 +884,81 @@ Scene {
 
     Sparks {
         id: sparks
+    }
+
+    // Kickoff countdown around the ball and where the ball will go
+    Node {
+        id: kickoff
+
+        readonly property real fraction: match.serveDelay > 0.0 ? match.serveCountdown / match.serveDelay : 0.0
+        readonly property int dots: 16
+
+        visible: match.state === Match.Serving
+        z: 0.6
+
+        // A clock of dots going out one after another
+        Repeater3D {
+            model: kickoff.dots
+
+            delegate: Disc {
+                required property int index
+                readonly property real angle: 0.5 * Math.PI - index * 2.0 * Math.PI / kickoff.dots
+
+                visible: index < Math.ceil(kickoff.fraction * kickoff.dots)
+                position: Qt.vector3d(1.7 * Math.cos(angle), 1.7 * Math.sin(angle), 0)
+                radius: 0.15
+                thickness: 0.2
+                color: Theme.text
+            }
+        }
+
+        // Arrow in the direction of the kickoff
+        Node {
+            eulerRotation.z: Math.atan2(match.serveDirection.y, match.serveDirection.x) * 180.0 / Math.PI
+
+            Node {
+                id: arrow
+                property real pulse: 0.0
+                x: 3.4 + 0.5 * pulse
+
+                SequentialAnimation on pulse {
+                    running: kickoff.visible
+                    loops: Animation.Infinite
+                    NumberAnimation { from: 0.0; to: 1.0; duration: 350; easing.type: Easing.OutQuad }
+                    NumberAnimation { from: 1.0; to: 0.0; duration: 350; easing.type: Easing.InQuad }
+                }
+
+                Repeater3D {
+                    // Shaft and the two strokes of the head, tip at the origin
+                    model: [
+                        { x: -0.75, y: 0.0, length: 1.3, angle: 0 },
+                        { x: -0.38, y: 0.32, length: 1.0, angle: 140 },
+                        { x: -0.38, y: -0.32, length: 1.0, angle: -140 }
+                    ]
+
+                    delegate: Model {
+                        required property var modelData
+                        position: Qt.vector3d(modelData.x, modelData.y, 0)
+                        eulerRotation.z: modelData.angle
+                        scale: Qt.vector3d(modelData.length / 100, 0.0024, 0.003)
+                        source: "#Cube"
+                        materials: DefaultMaterial {
+                            diffuseColor: Theme.title
+                            specularAmount: 0.0
+                        }
+                    }
+                }
+            }
+        }
+
+        // Seconds left
+        Text3D {
+            y: -4.2
+            scale: Qt.vector3d(1.6, 1.6, 1.6)
+            horizontalAlignment: Text.AlignHCenter
+            color: Theme.title
+            text: Math.max(1, Math.ceil(match.serveCountdown))
+        }
     }
 
     // Name of the collected modifier, rising and fading

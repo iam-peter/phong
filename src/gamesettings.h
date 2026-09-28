@@ -24,6 +24,8 @@ class GameSettings : public QObject
     // Id of an arena, see Arenas, or "random" for a new one every match
     Q_PROPERTY(QString arena READ arena WRITE setArena NOTIFY arenaChanged)
     Q_PROPERTY(bool sound READ sound WRITE setSound NOTIFY soundChanged)
+    // Seconds of countdown before a kickoff
+    Q_PROPERTY(int kickoffTime READ kickoffTime WRITE setKickoffTime NOTIFY kickoffTimeChanged)
 
     Q_PROPERTY(qreal serveSpeed READ serveSpeed NOTIFY ballSpeedChanged)
     Q_PROPERTY(qreal maxSpeed READ maxSpeed NOTIFY ballSpeedChanged)
@@ -47,6 +49,8 @@ public:
     static constexpr int minPointsToWin = 1;
     static constexpr int maxPointsToWin = 21;
     static constexpr int maxSetsToWin = 3;
+    static constexpr int minKickoffTime = 1;
+    static constexpr int maxKickoffTime = 5;
 
     explicit GameSettings(QObject* parent = nullptr);
 
@@ -79,6 +83,9 @@ public:
     void setSound(bool sound);
     bool sound() const;
 
+    void setKickoffTime(int kickoffTime);
+    int kickoffTime() const;
+
     qreal serveSpeed() const;
     qreal maxSpeed() const;
     qreal paddleLength() const;
@@ -93,6 +100,7 @@ signals:
     void winByTwoChanged(bool);
     void arenaChanged(const QString&);
     void soundChanged(bool);
+    void kickoffTimeChanged(int);
 
 private:
     QSettings m_settings;
@@ -106,6 +114,7 @@ private:
     bool m_winByTwo;
     QString m_arena;
     bool m_sound;
+    int m_kickoffTime;
 };
 
 #endif // GAMESETTINGS_H

@@ -66,6 +66,10 @@ ball dips on its way over, brushed downwards it rises.
 On Normal and Hard the computer aims its returns through modifiers it wants,
 Hard also plays the ball away from your paddle.
 
+Every point starts with a kickoff countdown, one to three seconds, and an
+arrow showing where the ball will go. Like in football the player who was
+scored against kicks off, the ball flies towards the scorer.
+
 A match is a single set or best of three or five, optionally won by two
 points. The stats screen keeps the record against every computer level, the
 best ladder run and the longest rally.

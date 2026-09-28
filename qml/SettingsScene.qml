@@ -33,6 +33,13 @@ Scene {
             set: (value) => GameSettings.winByTwo = value
         },
         {
+            label: qsTr("Kickoff"),
+            values: [1, 2, 3],
+            names: [qsTr("1 s"), qsTr("2 s"), qsTr("3 s")],
+            get: () => GameSettings.kickoffTime,
+            set: (value) => GameSettings.kickoffTime = value
+        },
+        {
             label: qsTr("Ball speed"),
             values: [GameSettings.Slow, GameSettings.Medium, GameSettings.Fast],
             names: [qsTr("Slow"), qsTr("Medium"), qsTr("Fast")],
@@ -150,7 +157,7 @@ Scene {
                 GameSettings.pointsToWin; GameSettings.ballSpeed
                 GameSettings.paddleSize; GameSettings.difficulty
                 GameSettings.modifiers; GameSettings.setsToWin; GameSettings.winByTwo
-                GameSettings.arena; GameSettings.sound
+                GameSettings.arena; GameSettings.sound; GameSettings.kickoffTime
                 return modelData.get()
             }
             readonly property string valueName: {
@@ -158,7 +165,7 @@ Scene {
                 return index < 0 ? String(value ?? "") : modelData.names[index]
             }
 
-            y: 5.6 - index * 1.55
+            y: 5.8 - index * 1.45
 
             Disc {
                 visible: row.selected

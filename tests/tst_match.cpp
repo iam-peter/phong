@@ -136,7 +136,7 @@ private slots:
         QVERIFY(match.ballVelocity().y() > 0.0f);
     }
 
-    void goalScoresAndServesToLoser()
+    void goalKicksOffTowardsScorer()
     {
         Match match;
         QSignalSpy scored(&match, &Match::pointScored);
@@ -154,13 +154,56 @@ private slots:
         QCOMPARE(match.rally(), 0);
         QCOMPARE(match.longestRally(), 1);
 
+        // Like in football the right player, who conceded, kicks off: the
+        // ball flies towards the scorer, in the announced direction
+        QCOMPARE(match.serveTo(), Match::Side::LeftSide);
+        const QVector2D announced = match.serveDirection();
+        QVERIFY(announced.x() < 0.0f);
         match.advance(match.serveDelay());
-        QVERIFY(match.ballVelocity().x() > 0.0f); // towards the right player
+        QVERIFY(match.ballVelocity().distanceToPoint(announced * float(match.serveSpeed())) < 1e-4f);
+
+        // And the other way round
+        match.goal(Match::Side::RightSide);
+        QCOMPARE(match.serveTo(), Match::Side::RightSide);
+        QVERIFY(match.serveDirection().x() > 0.0f);
 
         // A goal while nobody plays doesn't count
+        match.advance(match.serveDelay());
         match.pause();
         match.goal(Match::Side::LeftSide);
         QCOMPARE(match.left()->score(), 1);
+    }
+
+    void announcedServe()
+    {
+        Match match;
+        match.setServeDelay(2.0);
+        match.start();
+
+        // Known during the whole countdown, within the serve angles
+        const QVector2D direction = match.serveDirection();
+        QVERIFY(qAbs(direction.length() - 1.0f) < 1e-5f);
+        QCOMPARE(direction.x() < 0.0f, match.serveTo() == Match::Side::LeftSide);
+        const qreal angle = qRadiansToDegrees(qAtan2(std::abs(direction.y()), std::abs(direction.x())));
+        QVERIFY(angle >= Match::minServeAngle - 0.01 && angle <= Match::maxServeAngle + 0.01);
+
+        match.advance(1.5);
+        QCOMPARE(match.serveDirection(), direction);
+        QCOMPARE(match.serveCountdown(), 0.5);
+        match.advance(0.5);
+        QCOMPARE(match.state(), Match::State::Playing);
+        QVERIFY(match.ballVelocity().distanceToPoint(direction * float(match.serveSpeed())) < 1e-4f);
+    }
+
+    void setLoserKicksOff()
+    {
+        Match match;
+        match.setPointsToWin(1);
+        match.setSetsToWin(2);
+        serve(match);
+        match.goal(Match::Side::RightSide);
+        QCOMPARE(match.right()->sets(), 1);
+        QCOMPARE(match.serveTo(), Match::Side::RightSide);
     }
 
     void winnerFinishesMatch()

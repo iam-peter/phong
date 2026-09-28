@@ -24,6 +24,7 @@ public:
         Bounce,
         Goal,
         Serve,
+        CountdownTick,
         Pickup,
         Curse,
         ShieldHit,

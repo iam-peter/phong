@@ -377,7 +377,9 @@ QList<SoundEffects::Tone> SoundEffects::tones(Sound sound)
             return { { Sawtooth, 0.0, 0.45, 440, 110, 0.30 },
                      { Square, 0.0, 0.30, 220, 70, 0.15 } };
         case Sound::Serve:
-            return { { Square, 0.0, 0.03, 880, 880, 0.12 } };
+            return { { Square, 0.0, 0.08, 880, 1320, 0.16 } };
+        case Sound::CountdownTick:
+            return { { Square, 0.0, 0.04, 587, 587, 0.12 } };
         case Sound::Pickup:
             return { { Square, 0.00, 0.06, 660, 660, 0.18 },
                      { Square, 0.06, 0.06, 990, 990, 0.18 },

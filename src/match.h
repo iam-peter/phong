@@ -33,6 +33,9 @@ class Match : public QObject
     Q_PROPERTY(qreal paddleSpeed READ paddleSpeed WRITE setPaddleSpeed NOTIFY paddleSpeedChanged)
     Q_PROPERTY(qreal serveDelay READ serveDelay WRITE setServeDelay NOTIFY serveDelayChanged)
     Q_PROPERTY(qreal serveCountdown READ serveCountdown NOTIFY serveCountdownChanged)
+    // Where the next kickoff goes, known from the start of the countdown
+    Q_PROPERTY(Side serveTo READ serveTo NOTIFY serveDirectionChanged)
+    Q_PROPERTY(QVector2D serveDirection READ serveDirection NOTIFY serveDirectionChanged)
     Q_PROPERTY(QVector2D ballVelocity READ ballVelocity NOTIFY ballVelocityChanged)
     Q_PROPERTY(int rally READ rally NOTIFY rallyChanged)
     Q_PROPERTY(int longestRally READ longestRally NOTIFY longestRallyChanged)
@@ -146,6 +149,8 @@ public:
     qreal serveDelay() const;
 
     qreal serveCountdown() const;
+    Side serveTo() const;
+    QVector2D serveDirection() const;
     QVector2D ballVelocity() const;
     Side lastTouch() const;
 
@@ -166,6 +171,7 @@ signals:
     void paddleSpeedChanged(qreal);
     void serveDelayChanged(qreal);
     void serveCountdownChanged(qreal);
+    void serveDirectionChanged();
     void ballVelocityChanged(const QVector2D&);
     void rallyChanged(int);
     void longestRallyChanged(int);
@@ -188,6 +194,8 @@ private:
     void curve(Ball* ball, qreal dt);
     void removeExtraBalls();
     bool isActive(Ball* ball) const;
+    // The countdown to the kickoff towards side
+    void prepareServe(Side towards);
     void serve();
 
     Player* m_left;
@@ -199,6 +207,7 @@ private:
     State m_pausedState;
     Player* m_winner;
     Side m_serveTo;
+    QVector2D m_serveDirection;
 
     int m_pointsToWin;
     int m_setsToWin;
