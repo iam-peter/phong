@@ -77,6 +77,7 @@ qt_add_qml_module(phong
         qml/PhongMaterial.qml
         qml/Instances.qml
         qml/Discs.qml
+        qml/Glow.qml
         qml/Starfield.qml
         qml/MenuScene.qml
         qml/GameScene.qml
@@ -107,6 +108,8 @@ qt_add_qml_module(phong
         qml/phong.vert
         qml/phong_instanced.vert
         qml/phong.frag
+        qml/glow_blur.frag
+        qml/glow_combine.frag
 )
 
 # The generated QML type registration includes the headers by name

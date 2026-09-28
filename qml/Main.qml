@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick3D
-import QtQuick3D.Helpers
 import Phong
 
 Window {
@@ -263,7 +262,7 @@ Window {
 
         // Glow and anti-aliasing follow the graphics settings, the glow
         // picks up what is brighter than white, the self-lit surfaces
-        environment: ExtendedSceneEnvironment {
+        environment: SceneEnvironment {
             readonly property int glow: GraphicsSettings.glow
             readonly property int antialiasing: GraphicsSettings.antialiasing
 
@@ -274,21 +273,19 @@ Window {
                                                                              : SceneEnvironment.NoAA
             antialiasingQuality: antialiasing === GraphicsSettings.Multisample4x ? SceneEnvironment.High
                                                                                 : SceneEnvironment.Medium
-            fxaaEnabled: antialiasing === GraphicsSettings.FastAntialiasing
+            // The glow tonemaps, it always runs
+            tonemapMode: SceneEnvironment.TonemapModeNone
+            effects: [glowEffect]
+        }
 
-            // Higher glow spreads wider, only high blurs at full quality
-            glowEnabled: glow !== GraphicsSettings.NoGlow && Theme.bloom
-            glowQualityHigh: glow === GraphicsSettings.HighGlow
-            glowBlendMode: ExtendedSceneEnvironment.Additive
-            glowStrength: 1.0
-            glowIntensity: glow === GraphicsSettings.HighGlow ? 1.0
-                           : glow === GraphicsSettings.MediumGlow ? 0.9 : 0.8
-            glowBloom: 0.0
-
-            glowHDRMinimumValue: 0.9
-            glowLevel: glow === GraphicsSettings.LowGlow
-                       ? ExtendedSceneEnvironment.One | ExtendedSceneEnvironment.Two
-                       : ExtendedSceneEnvironment.One | ExtendedSceneEnvironment.Two | ExtendedSceneEnvironment.Three
+        // Higher glow spreads wider
+        Glow {
+            id: glowEffect
+            readonly property bool on: GraphicsSettings.glow !== GraphicsSettings.NoGlow && Theme.bloom
+            intensity: !on ? 0.0 : GraphicsSettings.glow === GraphicsSettings.HighGlow ? 1.0
+                       : GraphicsSettings.glow === GraphicsSettings.MediumGlow ? 0.9 : 0.8
+            wide: GraphicsSettings.glow === GraphicsSettings.LowGlow ? 0.0 : 1.0
+            fxaa: GraphicsSettings.antialiasing === GraphicsSettings.FastAntialiasing ? 1.0 : 0.0
         }
 
         // Key light from above in front, gives the Phong highlights and
