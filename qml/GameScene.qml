@@ -372,6 +372,10 @@ Scene {
                 else if (message.a === "tap" && !player.frozen)
                     (side === Match.LeftSide ? leftDash : rightDash).tap((message.d > 0 ? 1 : -1)
                                                                           * (player.reversed ? -1 : 1))
+                // The dash button of a pad, right away
+                else if (message.a === "dash" && !player.frozen)
+                    (side === Match.LeftSide ? leftDash : rightDash).trigger((message.d > 0 ? 1 : -1)
+                                                                              * (player.reversed ? -1 : 1))
             }
         }
         function onPeerLeft(peer) {
@@ -626,7 +630,7 @@ Scene {
             else if (action === KeySettings.PadSpecial && running)
                 Lan.sendToHost({ t: "action", a: "special" })
             else if (action === KeySettings.PadDash && running && Math.abs(pad.direction.y) > 0.3)
-                Lan.sendToHost({ t: "action", a: "tap", d: pad.direction.y > 0 ? 1 : -1 })
+                Lan.sendToHost({ t: "action", a: "dash", d: pad.direction.y > 0 ? 1 : -1 })
             return
         }
         if (replaying) {
