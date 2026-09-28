@@ -136,17 +136,36 @@ Scene {
                 }
             }
 
+            // The value stays in place, the arrows wrap around it
             Text3D {
-                x: 11.0
+                id: valueText
+                x: 10.0
                 visible: row.modelData.values.length > 0
                 horizontalAlignment: Text.AlignRight
                 color: row.selected ? Theme.text : Theme.dimmed
-                text: row.selected ? "< " + row.valueName + " >" : row.valueName
+                text: row.valueName
                 clickable: visible
                 onClicked: {
                     root.currentItem = row.index
                     root.change(row.modelData, 1)
                 }
+            }
+
+            Text3D {
+                x: valueText.x - valueText.textWidth - 0.7
+                visible: valueText.visible && row.selected
+                horizontalAlignment: Text.AlignRight
+                text: "<"
+                clickable: visible
+                onClicked: root.change(row.modelData, -1)
+            }
+
+            Text3D {
+                x: valueText.x + 0.7
+                visible: valueText.visible && row.selected
+                text: ">"
+                clickable: visible
+                onClicked: root.change(row.modelData, 1)
             }
         }
     }
