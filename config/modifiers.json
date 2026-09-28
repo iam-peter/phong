@@ -1,0 +1,66 @@
+{
+    "spawn": {
+        "minDelay": 5,
+        "maxDelay": 9,
+        "maxItems": 2,
+        "lifetime": 15,
+        "minDistance": 3
+    },
+    "modifiers": [
+        {
+            "id": "fastBall",
+            "name": "Fast ball",
+            "glyph": ">>",
+            "color": "#ff8c00",
+            "effect": "ballSpeed",
+            "value": 1.4
+        },
+        {
+            "id": "bigPaddle",
+            "name": "Big paddle",
+            "glyph": "+",
+            "color": "#66ff66",
+            "effect": "paddleSize",
+            "target": "collector",
+            "value": 1.5,
+            "duration": 12
+        },
+        {
+            "id": "shield",
+            "name": "Shield",
+            "glyph": "||",
+            "color": "#3399ff",
+            "effect": "shield",
+            "target": "collector"
+        },
+        {
+            "id": "smallPaddle",
+            "name": "Small paddle",
+            "glyph": "-",
+            "color": "#a64dff",
+            "effect": "paddleSize",
+            "target": "opponent",
+            "value": 0.6,
+            "duration": 12
+        },
+        {
+            "id": "spin",
+            "name": "Spin curse",
+            "glyph": "@",
+            "color": "#ff4080",
+            "effect": "spin",
+            "target": "opponent",
+            "value": 150,
+            "duration": 7
+        },
+        {
+            "id": "narrowField",
+            "name": "Narrow field",
+            "glyph": "=",
+            "color": "#00e6e6",
+            "effect": "narrowField",
+            "value": 3,
+            "duration": 12
+        }
+    ]
+}

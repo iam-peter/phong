@@ -71,6 +71,41 @@ after a serve the ball flies through without collecting anything.
 Active effects show next to the player names. Modifiers can be switched off
 in the settings.
 
+### Configuration
+
+The modifiers are defined in [config/modifiers.json](config/modifiers.json),
+which is compiled into the game. On the desktop another file can be tried
+without rebuilding:
+
+```
+./build/desktop/phong --modifiers my-modifiers.json
+```
+
+The effects are built in, the file decides which modifiers exist and how they
+use them:
+
+| Key | Meaning |
+|---|---|
+| `spawn.minDelay`, `spawn.maxDelay` | seconds between two spawns |
+| `spawn.maxItems` | items on the field at the same time |
+| `spawn.lifetime` | seconds until an item that nobody collected disappears |
+| `spawn.minDistance` | minimum distance between two items |
+| `id`, `name`, `glyph`, `color` | identity and look |
+| `effect` | `ballSpeed`, `paddleSize`, `shield`, `spin` or `narrowField` |
+| `target` | `collector` (default), `opponent` for curses, or `both` |
+| `value` | speed or length factor, spin in degrees per second, inset of the walls |
+| `duration` | seconds the effect lasts, for `paddleSize`, `spin` and `narrowField` |
+| `weight` | relative spawn chance, `0` never spawns |
+| `enabled` | `false` skips the entry |
+
+Values are clamped to a playable range, invalid entries are skipped with a
+warning. A slow ball, for example, is the ball speed effect below 1:
+
+```json
+{ "id": "slowBall", "name": "Slow ball", "glyph": "<<", "color": "#ffff66",
+  "effect": "ballSpeed", "value": 0.6 }
+```
+
 ## Physics
 
 Qt 3D, which the first version was built on, is not available for

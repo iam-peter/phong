@@ -5,7 +5,8 @@ import QtQuick3D
 Node {
     id: root
 
-    property int kind: 0
+    property color color: Theme.text
+    property string glyph
     property real radius: 0.9
     property bool wobbling: true
 
@@ -22,7 +23,7 @@ Node {
         Disc {
             radius: root.radius
             thickness: 0.3
-            color: Theme.modifierColors[root.kind]
+            color: root.color
         }
 
         Text3D {
@@ -32,7 +33,7 @@ Node {
             verticalAlignment: Text.AlignVCenter
             depth: 0.2
             color: "black"
-            text: Theme.modifierGlyphs[root.kind]
+            text: root.glyph
         }
     }
 }

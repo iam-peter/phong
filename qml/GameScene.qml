@@ -25,7 +25,7 @@ Scene {
     readonly property real paddleWidth: 1.0
     readonly property real paddleSpeed: 24.0
     readonly property real paddleX: 0.5 * stageWidth - goalDepth
-    readonly property real spinSpeed: 150.0 // degrees per second
+    readonly property real uprightSpeed: 150.0 // degrees per second, after a spin
 
     // Shields sit a bit behind the paddles, the goal line behind them
     readonly property real shieldWidth: 0.4
@@ -33,8 +33,7 @@ Scene {
     readonly property real goalLine: shieldX + 0.5 * shieldWidth + ballRadius
 
     // The walls move in while the field is narrowed
-    readonly property real narrowInset: 3.0
-    property real fieldInset: modifiers.fieldNarrowed ? narrowInset : 0.0
+    property real fieldInset: modifiers.fieldInset
     Behavior on fieldInset {
         NumberAnimation { duration: 700; easing.type: Easing.InOutQuad }
     }
@@ -71,6 +70,10 @@ Scene {
 
     // Items the ball flew through, collected after the physics step
     property var pendingItems: []
+
+    // Definitions of the active effects, for the icons next to the names
+    property var leftEffects: []
+    property var rightEffects: []
 
     property int currentPauseItem: 0
     readonly property var pauseItems: [
@@ -128,13 +131,13 @@ Scene {
     }
 
     // Spins while cursed and then finishes the turn until upright again
-    function turnPaddle(angle, spinning, dt) {
-        if (spinning)
+    function turnPaddle(angle, spinSpeed, dt) {
+        if (spinSpeed > 0.0)
             return (angle + spinSpeed * dt) % 360
         if (angle % 180 === 0)
             return angle
 
-        const next = angle + spinSpeed * dt
+        const next = angle + uprightSpeed * dt
         const upright = Math.floor(next / 180)
         return upright > Math.floor(angle / 180) ? (upright * 180) % 360 : next
     }
@@ -167,18 +170,6 @@ Scene {
             modifiers.collect(itemId)
     }
 
-    function effectsOf(player) {
-        const kinds = []
-        if (player.paddleScale > 1.0)
-            kinds.push(Modifiers.BigPaddle)
-        else if (player.paddleScale < 1.0)
-            kinds.push(Modifiers.SmallPaddle)
-        if (player.shielded)
-            kinds.push(Modifiers.Shield)
-        if (player.spinning)
-            kinds.push(Modifiers.SpinPaddle)
-        return kinds
-    }
 
     // Called after every physics step
     function step(dt) {
@@ -204,8 +195,8 @@ Scene {
 
         leftPaddleY = movePaddle(leftPaddleY, leftInput, leftPaddleLength, dt)
         rightPaddleY = movePaddle(rightPaddleY, rightInput, rightPaddleLength, dt)
-        leftPaddleAngle = turnPaddle(leftPaddleAngle, match.left.spinning, dt)
-        rightPaddleAngle = turnPaddle(rightPaddleAngle, match.right.spinning, dt)
+        leftPaddleAngle = turnPaddle(leftPaddleAngle, match.left.spinSpeed, dt)
+        rightPaddleAngle = turnPaddle(rightPaddleAngle, match.right.spinSpeed, dt)
     }
 
     function setKey(key, pressed) {
@@ -356,10 +347,16 @@ Scene {
 
         match: match
         enabled: GameSettings.modifiers
-        // Inside the narrowed field, clear of the paddles
-        spawnArea: Qt.rect(-8.0, -5.0, 16.0, 10.0)
+        // Inside the narrowest field, clear of the paddles
+        readonly property real spawnHeight: root.innerHeight + 2.0 * root.fieldInset
+                                            - 2.0 * maxFieldInset - 3.0
+        spawnArea: Qt.rect(-8.0, -0.5 * spawnHeight, 16.0, spawnHeight)
 
-        onCollected: (kind, side, position) => pickupPopup.show(kind, position)
+        onCollected: (definition, side, position) => pickupPopup.show(modifiers.definition(definition), position)
+        onEffectsChanged: {
+            root.leftEffects = activeEffects(Match.LeftSide)
+            root.rightEffects = activeEffects(Match.RightSide)
+        }
     }
 
     Timer {
@@ -596,8 +593,9 @@ Scene {
         delegate: TriggerBody {
             id: item
 
-            required property int kind
             required property int itemId
+            required property color itemColor
+            required property string itemGlyph
             required property real itemX
             required property real itemY
 
@@ -611,7 +609,8 @@ Scene {
             }
 
             ModifierItem {
-                kind: item.kind
+                color: item.itemColor
+                glyph: item.itemGlyph
 
                 Vector3dAnimation on scale {
                     from: Qt.vector3d(0, 0, 0)
@@ -627,11 +626,11 @@ Scene {
     Node {
         id: pickupPopup
 
-        property int kind: 0
+        property var definition: ({})
         property real startY: 0.0
 
-        function show(kind, position) {
-            pickupPopup.kind = kind
+        function show(definition, position) {
+            pickupPopup.definition = definition
             x = position.x
             startY = position.y + 1.2
             popupAnimation.restart()
@@ -643,8 +642,8 @@ Scene {
         Text3D {
             scale: Qt.vector3d(0.6, 0.6, 0.6)
             horizontalAlignment: Text.AlignHCenter
-            color: Theme.modifierColors[pickupPopup.kind]
-            text: Theme.modifierNames[pickupPopup.kind]
+            color: pickupPopup.definition.color ?? Theme.text
+            text: pickupPopup.definition.name ?? ""
         }
 
         ParallelAnimation {
@@ -709,32 +708,34 @@ Scene {
 
         // Active effects next to the names
         Repeater3D {
-            model: root.effectsOf(match.left)
+            model: root.leftEffects
 
             delegate: ModifierItem {
-                required property int modelData
+                required property var modelData
                 required property int index
 
                 x: leftName.x + leftName.textWidth + 1.0 + index * 1.2
                 y: 0.35
                 radius: 0.5
                 wobbling: false
-                kind: modelData
+                color: modelData.color
+                glyph: modelData.glyph
             }
         }
 
         Repeater3D {
-            model: root.effectsOf(match.right)
+            model: root.rightEffects
 
             delegate: ModifierItem {
-                required property int modelData
+                required property var modelData
                 required property int index
 
                 x: rightName.x - rightName.textWidth - 1.0 - index * 1.2
                 y: 0.35
                 radius: 0.5
                 wobbling: false
-                kind: modelData
+                color: modelData.color
+                glyph: modelData.glyph
             }
         }
 

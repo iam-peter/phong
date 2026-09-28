@@ -4,15 +4,20 @@
 #include "match.h"
 
 #include <QAbstractListModel>
+#include <QColor>
 #include <QPointer>
 #include <QRandomGenerator>
 #include <QRectF>
+#include <QVariantList>
+#include <QVariantMap>
 #include <QVector2D>
 #include <QtQml/qqmlregistration.h>
 
 // Collectible modifiers on the playing field. The ball collects them by
-// flying through, the player who touched the ball last gets the effect:
-// boosts help that player, curses hit the opponent.
+// flying through, the player who touched the ball last is the collector.
+//
+// The effects are built in, which modifiers exist and how they use the
+// effects is defined in JSON, see config/modifiers.json.
 class Modifiers : public QAbstractListModel
 {
     Q_OBJECT
@@ -20,44 +25,79 @@ class Modifiers : public QAbstractListModel
     Q_PROPERTY(Match* match READ match WRITE setMatch NOTIFY matchChanged)
     Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY enabledChanged)
     Q_PROPERTY(QRectF spawnArea READ spawnArea WRITE setSpawnArea NOTIFY spawnAreaChanged)
-    Q_PROPERTY(bool fieldNarrowed READ isFieldNarrowed NOTIFY fieldNarrowedChanged)
+    Q_PROPERTY(qreal fieldInset READ fieldInset NOTIFY fieldInsetChanged)
+    Q_PROPERTY(qreal maxFieldInset READ maxFieldInset NOTIFY definitionsChanged)
 
 public:
-    enum Kind {
-        FastBall = 0,   // boost, the ball speeds up towards the opponent
-        BigPaddle,      // boost, longer paddle for a while
-        Shield,         // boost, a barrier behind the paddle stops one goal
-        SmallPaddle,    // curse, the opponent's paddle shrinks for a while
-        SpinPaddle,     // curse, the opponent's paddle rotates for a while
-        NarrowField     // both, the walls move in for a while
+    enum Effect {
+        BallSpeed = 0,  // value: speed factor
+        PaddleSize,     // value: length factor, for duration seconds
+        Shield,         // a barrier behind the paddle stops one goal
+        Spin,           // value: degrees per second, for duration seconds
+        NarrowField     // value: how far the walls move in, for duration seconds
     };
-    Q_ENUM(Kind)
+    Q_ENUM(Effect)
+
+    enum Target {
+        Collector = 0,
+        Opponent,       // a curse
+        Both
+    };
+    Q_ENUM(Target)
 
     enum Role {
-        KindRole = Qt::UserRole + 1,
+        DefinitionRole = Qt::UserRole + 1,
         ItemIdRole,
         ItemXRole,
-        ItemYRole
+        ItemYRole,
+        ItemNameRole,
+        ItemGlyphRole,
+        ItemColorRole
     };
 
-    static constexpr int maxItems = 2;
-    static constexpr qreal minSpawnDelay = 5.0;
-    static constexpr qreal maxSpawnDelay = 9.0;
-    static constexpr qreal itemLifetime = 15.0;
-    static constexpr qreal minItemDistance = 3.0;
+    struct Definition {
+        QString id;
+        QString name;
+        QString glyph;
+        QColor color;
+        Effect effect;
+        Target target;
+        qreal value;
+        qreal duration;
+        qreal weight;       // relative spawn chance
+    };
 
-    static constexpr qreal fastBallFactor = 1.4;
-    static constexpr qreal bigPaddleScale = 1.5;
-    static constexpr qreal smallPaddleScale = 0.6;
-    static constexpr qreal paddleDuration = 12.0;
-    static constexpr qreal spinDuration = 7.0;
-    static constexpr qreal narrowDuration = 12.0;
+    struct SpawnSettings {
+        qreal minDelay;
+        qreal maxDelay;
+        int maxItems;
+        qreal lifetime;
+        qreal minDistance;
+    };
+
+    // The embedded configuration unless overridden, e.g. from the command line
+    static QString defaultSource();
+    static void setDefaultSource(const QString& fileName);
 
     explicit Modifiers(QObject* parent = nullptr);
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
+
+    // Replaces the definitions, invalid entries are skipped with a warning.
+    // Returns false and keeps the old definitions if the JSON is unusable.
+    bool load(const QString& fileName);
+    bool loadJson(const QByteArray& json, QString* error = nullptr);
+
+    const QList<Definition>& definitions() const;
+    const SpawnSettings& spawnSettings() const;
+    Q_INVOKABLE int findDefinition(const QString& id) const;
+    // name, glyph, color, effect and target of a definition
+    Q_INVOKABLE QVariantMap definition(int index) const;
+
+    // Definitions of the effects active on the player of side
+    Q_INVOKABLE QVariantList activeEffects(Match::Side side) const;
 
     // Removes all items and effects, call when a match starts
     Q_INVOKABLE void reset();
@@ -73,10 +113,8 @@ public:
     // The ball hit the shield in front of the goal of side
     Q_INVOKABLE bool shieldHit(Match::Side side);
 
-    Q_INVOKABLE static bool isCurse(Modifiers::Kind kind);
-
     // Places an item, for tests and debugging
-    Q_INVOKABLE int spawn(Modifiers::Kind kind, const QVector2D& position);
+    Q_INVOKABLE int spawn(int definition, const QVector2D& position);
 
     void setSeed(quint32 seed);
 
@@ -89,41 +127,53 @@ public:
     void setSpawnArea(const QRectF& spawnArea);
     QRectF spawnArea() const;
 
-    bool isFieldNarrowed() const;
+    qreal fieldInset() const;
+    qreal maxFieldInset() const;
 
 signals:
     void matchChanged(Match*);
     void enabledChanged(bool);
     void spawnAreaChanged(const QRectF&);
-    void fieldNarrowedChanged(bool);
+    void fieldInsetChanged(qreal);
+    void definitionsChanged();
+    void effectsChanged();
 
-    // side is the player affected by the effect
-    void collected(Modifiers::Kind kind, Match::Side side, const QVector2D& position);
+    // side is the player affected by the effect, NoSide for both
+    void collected(int definition, Match::Side side, const QVector2D& position);
 
 private:
     struct Item {
         int id;
-        Kind kind;
+        int definition;
         QVector2D position;
         qreal age;
     };
 
-    // Effect timers of one player
+    // Effects on one player and the definitions that caused them
     struct Effects {
         qreal paddleTime;
+        int paddleDefinition;
         qreal spinTime;
+        int spinDefinition;
+        int shieldDefinition;
     };
 
+    static Effects noEffects();
+
     void spawnRandom();
-    void apply(Kind kind, Match::Side side);
+    void apply(int definition, Match::Side collector);
     void removeItem(int row);
     void resetSpawnCountdown();
-    void setFieldNarrowed(bool fieldNarrowed);
+    void setFieldInset(qreal fieldInset);
     Effects& effects(Match::Side side);
+    const Effects& effects(Match::Side side) const;
 
     QPointer<Match> m_match;
     bool m_enabled;
     QRectF m_spawnArea;
+
+    QList<Definition> m_definitions;
+    SpawnSettings m_spawn;
 
     QList<Item> m_items;
     int m_nextId;
@@ -132,7 +182,7 @@ private:
     Effects m_left;
     Effects m_right;
     qreal m_narrowTime;
-    bool m_fieldNarrowed;
+    qreal m_fieldInset;
 
     QRandomGenerator m_random;
 };

@@ -1,21 +1,94 @@
 #include "modifiers.h"
 
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLoggingCategory>
+
 #include <algorithm>
+
+Q_LOGGING_CATEGORY(lcModifiers, "phong.modifiers")
+
+namespace {
+const QString builtInSource = QStringLiteral(":/qt/qml/Phong/config/modifiers.json");
+QString s_defaultSource = builtInSource;
+
+const QHash<QString, Modifiers::Effect> effectNames = {
+    { QStringLiteral("ballSpeed"), Modifiers::Effect::BallSpeed },
+    { QStringLiteral("paddleSize"), Modifiers::Effect::PaddleSize },
+    { QStringLiteral("shield"), Modifiers::Effect::Shield },
+    { QStringLiteral("spin"), Modifiers::Effect::Spin },
+    { QStringLiteral("narrowField"), Modifiers::Effect::NarrowField }
+};
+
+const QHash<QString, Modifiers::Target> targetNames = {
+    { QStringLiteral("collector"), Modifiers::Target::Collector },
+    { QStringLiteral("opponent"), Modifiers::Target::Opponent },
+    { QStringLiteral("both"), Modifiers::Target::Both }
+};
+
+// Default value and the range that keeps the game playable
+struct ValueRange {
+    qreal fallback;
+    qreal min;
+    qreal max;
+};
+
+ValueRange valueRange(Modifiers::Effect effect)
+{
+    switch (effect) {
+        case Modifiers::Effect::BallSpeed:
+            return { 1.4, 0.3, 3.0 };
+        case Modifiers::Effect::PaddleSize:
+            return { 1.5, 0.3, 2.0 };
+        case Modifiers::Effect::Spin:
+            return { 150.0, 10.0, 720.0 };
+        case Modifiers::Effect::NarrowField:
+            return { 3.0, 0.5, 5.0 };
+        case Modifiers::Effect::Shield:
+        default:
+            return { 0.0, 0.0, 0.0 };
+    }
+}
+
+Modifiers::SpawnSettings defaultSpawnSettings()
+{
+    return { 5.0, 9.0, 2, 15.0, 3.0 };
+}
+}
+
+QString Modifiers::defaultSource()
+{
+    return s_defaultSource;
+}
+
+void Modifiers::setDefaultSource(const QString& fileName)
+{
+    s_defaultSource = fileName;
+}
 
 Modifiers::Modifiers(QObject* parent):
     QAbstractListModel(parent),
     m_match(nullptr),
     m_enabled(true),
     m_spawnArea(-8.0, -4.5, 16.0, 9.0),
+    m_definitions(),
+    m_spawn(defaultSpawnSettings()),
     m_items(),
     m_nextId(1),
     m_spawnCountdown(0.0),
-    m_left({ 0.0, 0.0 }),
-    m_right({ 0.0, 0.0 }),
+    m_left(noEffects()),
+    m_right(noEffects()),
     m_narrowTime(0.0),
-    m_fieldNarrowed(false),
+    m_fieldInset(0.0),
     m_random(QRandomGenerator::global()->generate())
 {
+    // A broken custom configuration shouldn't take the modifiers away
+    if (!load(s_defaultSource) && s_defaultSource != builtInSource) {
+        qCWarning(lcModifiers) << "Using the built-in modifiers instead";
+        load(builtInSource);
+    }
     resetSpawnCountdown();
 }
 
@@ -30,15 +103,22 @@ QVariant Modifiers::data(const QModelIndex& index, int role) const
         return QVariant();
 
     const Item& item = m_items.at(index.row());
+    const Definition& definition = m_definitions.at(item.definition);
     switch (role) {
-        case Role::KindRole:
-            return int(item.kind);
+        case Role::DefinitionRole:
+            return item.definition;
         case Role::ItemIdRole:
             return item.id;
         case Role::ItemXRole:
             return item.position.x();
         case Role::ItemYRole:
             return item.position.y();
+        case Role::ItemNameRole:
+            return definition.name;
+        case Role::ItemGlyphRole:
+            return definition.glyph;
+        case Role::ItemColorRole:
+            return definition.color;
         default:
             return QVariant();
     }
@@ -47,11 +127,162 @@ QVariant Modifiers::data(const QModelIndex& index, int role) const
 QHash<int, QByteArray> Modifiers::roleNames() const
 {
     return {
-        { Role::KindRole, "kind" },
+        { Role::DefinitionRole, "definition" },
         { Role::ItemIdRole, "itemId" },
         { Role::ItemXRole, "itemX" },
-        { Role::ItemYRole, "itemY" }
+        { Role::ItemYRole, "itemY" },
+        { Role::ItemNameRole, "itemName" },
+        { Role::ItemGlyphRole, "itemGlyph" },
+        { Role::ItemColorRole, "itemColor" }
     };
+}
+
+bool Modifiers::load(const QString& fileName)
+{
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qCWarning(lcModifiers) << "Cannot read" << fileName << file.errorString();
+        return false;
+    }
+
+    QString error;
+    if (!loadJson(file.readAll(), &error)) {
+        qCWarning(lcModifiers).noquote() << fileName << error;
+        return false;
+    }
+
+    return true;
+}
+
+bool Modifiers::loadJson(const QByteArray& json, QString* error)
+{
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(json, &parseError);
+    if (parseError.error != QJsonParseError::NoError) {
+        if (error)
+            *error = QStringLiteral("offset %1: %2").arg(parseError.offset).arg(parseError.errorString());
+        return false;
+    }
+
+    if (!document.isObject() || !document.object().value("modifiers").isArray()) {
+        if (error)
+            *error = QStringLiteral("expected an object with a \"modifiers\" array");
+        return false;
+    }
+
+    const QJsonObject root = document.object();
+
+    SpawnSettings spawn = defaultSpawnSettings();
+    const QJsonObject spawnObject = root.value("spawn").toObject();
+    spawn.minDelay = std::max(spawnObject.value("minDelay").toDouble(spawn.minDelay), 0.5);
+    spawn.maxDelay = std::max(spawnObject.value("maxDelay").toDouble(spawn.maxDelay), spawn.minDelay);
+    spawn.maxItems = std::clamp(spawnObject.value("maxItems").toInt(spawn.maxItems), 0, 8);
+    spawn.lifetime = std::max(spawnObject.value("lifetime").toDouble(spawn.lifetime), 1.0);
+    spawn.minDistance = std::max(spawnObject.value("minDistance").toDouble(spawn.minDistance), 0.0);
+
+    QList<Definition> definitions;
+    const QJsonArray entries = root.value("modifiers").toArray();
+    for (qsizetype i = 0; i < entries.size(); ++i) {
+        const QJsonObject entry = entries.at(i).toObject();
+        const QString id = entry.value("id").toString(QStringLiteral("#%1").arg(i));
+
+        if (!entry.value("enabled").toBool(true))
+            continue;
+
+        const QString effectName = entry.value("effect").toString();
+        if (!effectNames.contains(effectName)) {
+            qCWarning(lcModifiers) << "Skipping modifier" << id << "with unknown effect" << effectName;
+            continue;
+        }
+
+        const QString targetName = entry.value("target").toString(QStringLiteral("collector"));
+        if (!targetNames.contains(targetName)) {
+            qCWarning(lcModifiers) << "Skipping modifier" << id << "with unknown target" << targetName;
+            continue;
+        }
+
+        const QColor color = QColor::fromString(entry.value("color").toString(QStringLiteral("white")));
+        if (!color.isValid()) {
+            qCWarning(lcModifiers) << "Skipping modifier" << id << "with invalid color";
+            continue;
+        }
+
+        const Effect effect = effectNames.value(effectName);
+        const ValueRange range = valueRange(effect);
+
+        Definition definition;
+        definition.id = id;
+        definition.name = entry.value("name").toString(id);
+        definition.glyph = entry.value("glyph").toString(QStringLiteral("?"));
+        definition.color = color;
+        definition.effect = effect;
+        definition.target = targetNames.value(targetName);
+        definition.value = std::clamp(entry.value("value").toDouble(range.fallback), range.min, range.max);
+        definition.duration = std::max(entry.value("duration").toDouble(10.0), 0.5);
+        definition.weight = std::max(entry.value("weight").toDouble(1.0), 0.0);
+        definitions.append(definition);
+    }
+
+    // Items refer to definitions by index
+    beginResetModel();
+    m_items.clear();
+    m_definitions = definitions;
+    m_spawn = spawn;
+    endResetModel();
+
+    resetSpawnCountdown();
+    emit definitionsChanged();
+    return true;
+}
+
+const QList<Modifiers::Definition>& Modifiers::definitions() const
+{
+    return m_definitions;
+}
+
+const Modifiers::SpawnSettings& Modifiers::spawnSettings() const
+{
+    return m_spawn;
+}
+
+int Modifiers::findDefinition(const QString& id) const
+{
+    const auto it = std::find_if(m_definitions.cbegin(), m_definitions.cend(),
+                                 [&id](const Definition& definition) { return definition.id == id; });
+    return it == m_definitions.cend() ? -1 : int(it - m_definitions.cbegin());
+}
+
+QVariantMap Modifiers::definition(int index) const
+{
+    if (index < 0 || index >= m_definitions.size())
+        return QVariantMap();
+
+    const Definition& definition = m_definitions.at(index);
+    return {
+        { QStringLiteral("id"), definition.id },
+        { QStringLiteral("name"), definition.name },
+        { QStringLiteral("glyph"), definition.glyph },
+        { QStringLiteral("color"), definition.color },
+        { QStringLiteral("effect"), int(definition.effect) },
+        { QStringLiteral("target"), int(definition.target) }
+    };
+}
+
+QVariantList Modifiers::activeEffects(Match::Side side) const
+{
+    Player* player = m_match ? m_match->player(side) : nullptr;
+    if (!player)
+        return QVariantList();
+
+    const Effects& effects = this->effects(side);
+    QVariantList active;
+    if (effects.paddleTime > 0.0)
+        active.append(definition(effects.paddleDefinition));
+    if (player->isShielded())
+        active.append(definition(effects.shieldDefinition));
+    if (effects.spinTime > 0.0)
+        active.append(definition(effects.spinDefinition));
+    return active;
 }
 
 void Modifiers::reset()
@@ -60,20 +291,21 @@ void Modifiers::reset()
     m_items.clear();
     endResetModel();
 
-    m_left = { 0.0, 0.0 };
-    m_right = { 0.0, 0.0 };
+    m_left = noEffects();
+    m_right = noEffects();
     m_narrowTime = 0.0;
-    setFieldNarrowed(false);
+    setFieldInset(0.0);
 
     if (m_match) {
         for (Player* player : { m_match->left(), m_match->right() }) {
             player->setPaddleScale(1.0);
-            player->setSpinning(false);
+            player->setSpinSpeed(0.0);
             player->setShielded(false);
         }
     }
 
     resetSpawnCountdown();
+    emit effectsChanged();
 }
 
 void Modifiers::advance(qreal dt)
@@ -82,27 +314,35 @@ void Modifiers::advance(qreal dt)
         return;
 
     // Effects run out
+    bool changed = false;
     for (Match::Side side : { Match::Side::LeftSide, Match::Side::RightSide }) {
         Effects& effects = this->effects(side);
         Player* player = m_match->player(side);
 
         if (effects.paddleTime > 0.0) {
             effects.paddleTime -= dt;
-            if (effects.paddleTime <= 0.0)
+            if (effects.paddleTime <= 0.0) {
                 player->setPaddleScale(1.0);
+                changed = true;
+            }
         }
 
         if (effects.spinTime > 0.0) {
             effects.spinTime -= dt;
-            if (effects.spinTime <= 0.0)
-                player->setSpinning(false);
+            if (effects.spinTime <= 0.0) {
+                player->setSpinSpeed(0.0);
+                changed = true;
+            }
         }
     }
+
+    if (changed)
+        emit effectsChanged();
 
     if (m_narrowTime > 0.0) {
         m_narrowTime -= dt;
         if (m_narrowTime <= 0.0)
-            setFieldNarrowed(false);
+            setFieldInset(0.0);
     }
 
     // Items only come and go while the ball is in play
@@ -111,7 +351,7 @@ void Modifiers::advance(qreal dt)
 
     for (int row = int(m_items.size()) - 1; row >= 0; --row) {
         m_items[row].age += dt;
-        if (m_items[row].age >= itemLifetime)
+        if (m_items[row].age >= m_spawn.lifetime)
             removeItem(row);
     }
 
@@ -120,7 +360,7 @@ void Modifiers::advance(qreal dt)
 
     m_spawnCountdown -= dt;
     if (m_spawnCountdown <= 0.0) {
-        if (m_items.size() < maxItems)
+        if (m_items.size() < m_spawn.maxItems)
             spawnRandom();
         resetSpawnCountdown();
     }
@@ -140,10 +380,21 @@ bool Modifiers::collect(int itemId)
     removeItem(int(it - m_items.cbegin()));
 
     const Match::Side collector = m_match->lastTouch();
-    apply(item.kind, collector);
+    apply(item.definition, collector);
 
-    const Match::Side affected = isCurse(item.kind) ? Match::opponent(collector) : collector;
-    emit collected(item.kind, affected, item.position);
+    Match::Side affected = collector;
+    switch (m_definitions.at(item.definition).target) {
+        case Target::Opponent:
+            affected = Match::opponent(collector);
+            break;
+        case Target::Both:
+            affected = Match::Side::NoSide;
+            break;
+        case Target::Collector:
+            break;
+    }
+
+    emit collected(item.definition, affected, item.position);
     return true;
 }
 
@@ -157,19 +408,18 @@ bool Modifiers::shieldHit(Match::Side side)
         return false;
 
     player->setShielded(false);
+    emit effectsChanged();
     return true;
 }
 
-bool Modifiers::isCurse(Kind kind)
+int Modifiers::spawn(int definition, const QVector2D& position)
 {
-    return kind == Kind::SmallPaddle || kind == Kind::SpinPaddle;
-}
+    if (definition < 0 || definition >= m_definitions.size())
+        return -1;
 
-int Modifiers::spawn(Kind kind, const QVector2D& position)
-{
     const int row = int(m_items.size());
     beginInsertRows(QModelIndex(), row, row);
-    m_items.append({ m_nextId++, kind, position, 0.0 });
+    m_items.append({ m_nextId++, definition, position, 0.0 });
     endInsertRows();
 
     return m_items.last().id;
@@ -222,14 +472,41 @@ QRectF Modifiers::spawnArea() const
     return m_spawnArea;
 }
 
-bool Modifiers::isFieldNarrowed() const
+qreal Modifiers::fieldInset() const
 {
-    return m_fieldNarrowed;
+    return m_fieldInset;
+}
+
+qreal Modifiers::maxFieldInset() const
+{
+    qreal inset = 0.0;
+    for (const Definition& definition : m_definitions) {
+        if (definition.effect == Effect::NarrowField)
+            inset = std::max(inset, definition.value);
+    }
+    return inset;
+}
+
+Modifiers::Effects Modifiers::noEffects()
+{
+    return { 0.0, -1, 0.0, -1, -1 };
 }
 
 void Modifiers::spawnRandom()
 {
-    const Kind kind = Kind(m_random.bounded(int(Kind::NarrowField) + 1));
+    // Pick a definition by weight
+    qreal total = 0.0;
+    for (const Definition& definition : m_definitions)
+        total += definition.weight;
+    if (total <= 0.0)
+        return;
+
+    qreal pick = m_random.bounded(total);
+    int definition = 0;
+    while (definition < m_definitions.size() - 1 && pick >= m_definitions.at(definition).weight) {
+        pick -= m_definitions.at(definition).weight;
+        ++definition;
+    }
 
     // Keep items apart so a single pass doesn't collect two
     for (int attempt = 0; attempt < 10; ++attempt) {
@@ -237,44 +514,71 @@ void Modifiers::spawnRandom()
                                  m_spawnArea.top() + m_random.bounded(m_spawnArea.height()));
 
         const bool free = std::all_of(m_items.cbegin(), m_items.cend(), [&](const Item& item) {
-            return item.position.distanceToPoint(position) >= minItemDistance;
+            return item.position.distanceToPoint(position) >= m_spawn.minDistance;
         });
 
         if (free) {
-            spawn(kind, position);
+            spawn(definition, position);
             return;
         }
     }
 }
 
-void Modifiers::apply(Kind kind, Match::Side side)
+void Modifiers::apply(int index, Match::Side collector)
 {
-    const Match::Side opponent = Match::opponent(side);
+    const Definition& definition = m_definitions.at(index);
 
-    switch (kind) {
-        case Kind::FastBall:
-            m_match->scaleBallSpeed(fastBallFactor);
+    QList<Match::Side> sides;
+    switch (definition.target) {
+        case Target::Collector:
+            sides = { collector };
             break;
-        case Kind::BigPaddle:
-            m_match->player(side)->setPaddleScale(bigPaddleScale);
-            effects(side).paddleTime = paddleDuration;
+        case Target::Opponent:
+            sides = { Match::opponent(collector) };
             break;
-        case Kind::Shield:
-            m_match->player(side)->setShielded(true);
-            break;
-        case Kind::SmallPaddle:
-            m_match->player(opponent)->setPaddleScale(smallPaddleScale);
-            effects(opponent).paddleTime = paddleDuration;
-            break;
-        case Kind::SpinPaddle:
-            m_match->player(opponent)->setSpinning(true);
-            effects(opponent).spinTime = spinDuration;
-            break;
-        case Kind::NarrowField:
-            m_narrowTime = narrowDuration;
-            setFieldNarrowed(true);
+        case Target::Both:
+            sides = { Match::Side::LeftSide, Match::Side::RightSide };
             break;
     }
+
+    // Effects on the ball and the field don't care about the target
+    switch (definition.effect) {
+        case Effect::BallSpeed:
+            m_match->scaleBallSpeed(definition.value);
+            return;
+        case Effect::NarrowField:
+            m_narrowTime = definition.duration;
+            setFieldInset(definition.value);
+            return;
+        default:
+            break;
+    }
+
+    for (Match::Side side : sides) {
+        Player* player = m_match->player(side);
+        Effects& effects = this->effects(side);
+
+        switch (definition.effect) {
+            case Effect::PaddleSize:
+                player->setPaddleScale(definition.value);
+                effects.paddleTime = definition.duration;
+                effects.paddleDefinition = index;
+                break;
+            case Effect::Shield:
+                player->setShielded(true);
+                effects.shieldDefinition = index;
+                break;
+            case Effect::Spin:
+                player->setSpinSpeed(definition.value);
+                effects.spinTime = definition.duration;
+                effects.spinDefinition = index;
+                break;
+            default:
+                break;
+        }
+    }
+
+    emit effectsChanged();
 }
 
 void Modifiers::removeItem(int row)
@@ -286,19 +590,24 @@ void Modifiers::removeItem(int row)
 
 void Modifiers::resetSpawnCountdown()
 {
-    m_spawnCountdown = minSpawnDelay + m_random.bounded(maxSpawnDelay - minSpawnDelay);
+    m_spawnCountdown = m_spawn.minDelay + m_random.bounded(m_spawn.maxDelay - m_spawn.minDelay);
 }
 
-void Modifiers::setFieldNarrowed(bool fieldNarrowed)
+void Modifiers::setFieldInset(qreal fieldInset)
 {
-    if (m_fieldNarrowed == fieldNarrowed)
+    if (m_fieldInset == fieldInset)
         return;
 
-    m_fieldNarrowed = fieldNarrowed;
-    emit fieldNarrowedChanged(fieldNarrowed);
+    m_fieldInset = fieldInset;
+    emit fieldInsetChanged(fieldInset);
 }
 
 Modifiers::Effects& Modifiers::effects(Match::Side side)
+{
+    return side == Match::Side::LeftSide ? m_left : m_right;
+}
+
+const Modifiers::Effects& Modifiers::effects(Match::Side side) const
 {
     return side == Match::Side::LeftSide ? m_left : m_right;
 }

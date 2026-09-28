@@ -16,7 +16,8 @@ class Player : public QObject
 
     // Modifier effects, set by Modifiers
     Q_PROPERTY(qreal paddleScale READ paddleScale WRITE setPaddleScale NOTIFY paddleScaleChanged)
-    Q_PROPERTY(bool spinning READ isSpinning WRITE setSpinning NOTIFY spinningChanged)
+    // Degrees per second the paddle rotates with, 0 is upright
+    Q_PROPERTY(qreal spinSpeed READ spinSpeed WRITE setSpinSpeed NOTIFY spinSpeedChanged)
     Q_PROPERTY(bool shielded READ isShielded WRITE setShielded NOTIFY shieldedChanged)
 
 public:
@@ -34,8 +35,8 @@ public:
     void setPaddleScale(qreal paddleScale);
     qreal paddleScale() const;
 
-    void setSpinning(bool spinning);
-    bool isSpinning() const;
+    void setSpinSpeed(qreal spinSpeed);
+    qreal spinSpeed() const;
 
     void setShielded(bool shielded);
     bool isShielded() const;
@@ -45,7 +46,7 @@ signals:
     void scoreChanged(int);
     void computerChanged(bool);
     void paddleScaleChanged(qreal);
-    void spinningChanged(bool);
+    void spinSpeedChanged(qreal);
     void shieldedChanged(bool);
 
 private:
@@ -53,7 +54,7 @@ private:
     int m_score;
     bool m_computer;
     qreal m_paddleScale;
-    bool m_spinning;
+    qreal m_spinSpeed;
     bool m_shielded;
 };
 

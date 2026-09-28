@@ -6,7 +6,7 @@ Player::Player(QObject* parent):
     m_score(0),
     m_computer(false),
     m_paddleScale(1.0),
-    m_spinning(false),
+    m_spinSpeed(0.0),
     m_shielded(false)
 {}
 
@@ -66,18 +66,18 @@ qreal Player::paddleScale() const
     return m_paddleScale;
 }
 
-void Player::setSpinning(bool spinning)
+void Player::setSpinSpeed(qreal spinSpeed)
 {
-    if (m_spinning == spinning)
+    if (m_spinSpeed == spinSpeed)
         return;
 
-    m_spinning = spinning;
-    emit spinningChanged(spinning);
+    m_spinSpeed = spinSpeed;
+    emit spinSpeedChanged(spinSpeed);
 }
 
-bool Player::isSpinning() const
+qreal Player::spinSpeed() const
 {
-    return m_spinning;
+    return m_spinSpeed;
 }
 
 void Player::setShielded(bool shielded)

@@ -3,6 +3,7 @@ find_package(Qt6 REQUIRED COMPONENTS Test)
 function(phong_add_test name)
     qt_add_executable(${name} ${name}.cpp ${ARGN})
     target_include_directories(${name} PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_compile_definitions(${name} PRIVATE PHONG_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     target_link_libraries(${name} PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Test)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
@@ -20,4 +21,11 @@ phong_add_test(tst_modifiers
 
 phong_add_test(tst_computerplayer
     ${PROJECT_SOURCE_DIR}/src/computerplayer.cpp
+)
+
+# The built-in configuration, at the path the app has it
+qt_add_resources(tst_modifiers "modifiers_config"
+    PREFIX "/qt/qml/Phong"
+    BASE ${PROJECT_SOURCE_DIR}
+    FILES ${PROJECT_SOURCE_DIR}/config/modifiers.json
 )
