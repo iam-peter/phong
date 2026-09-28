@@ -20,6 +20,7 @@ Scene {
     readonly property bool endless: mode === GameScene.Endless
     readonly property bool champion: ladder && won && ladderStage >= 2
     readonly property bool tournament: mode === GameScene.Tournament
+    readonly property bool squash: mode === GameScene.Squash
 
     // The last item always leads back to the menu
     readonly property var items: {
@@ -35,7 +36,7 @@ Scene {
             return [menu]
         if (ladder && won)
             return [{ text: qsTr("Next level"), activate: () => phong.nextLadderLevel() }, menu]
-        if (ladder || endless)
+        if (ladder || endless || squash)
             return [{ text: qsTr("Retry"), activate: () => phong.rematch() }, menu]
         return [{ text: qsTr("Rematch"), activate: () => phong.rematch() }, menu]
     }
@@ -44,7 +45,7 @@ Scene {
         const winner = match?.winner
         if (!winner)
             return ""
-        if (endless)
+        if (endless || squash)
             return newHighScore ? qsTr("New high score") : qsTr("Game over")
         if (champion || (tournament && Tournament.champion))
             return qsTr("Champion")
@@ -110,7 +111,7 @@ Scene {
 
     // Final score, laid out like the scoreboard
     Node {
-        visible: !root.endless
+        visible: !root.endless && !root.squash
         y: 2.5
         scale: Qt.vector3d(2, 2, 2)
 
@@ -156,6 +157,13 @@ Scene {
                     [qsTr("Best"), Stats.endlessBest],
                     [qsTr("Time survived"), root.formatTime(root.match?.playTime ?? 0)],
                     [qsTr("Longest rally"), root.match?.longestRally ?? 0]
+                ]
+
+            if (root.squash)
+                return [
+                    [qsTr("Longest rally"), root.match?.longestRally ?? 0],
+                    [qsTr("Best"), Stats.squashBest],
+                    [qsTr("Time"), root.formatTime(root.match?.playTime ?? 0)]
                 ]
 
             const rows = [

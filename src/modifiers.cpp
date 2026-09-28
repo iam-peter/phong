@@ -639,14 +639,13 @@ Modifiers::Effects Modifiers::noEffects()
     return { 0.0, -1, 0.0, -1, -1, 0.0, -1, 0.0, -1, 0.0, -1 };
 }
 
-void Modifiers::spawnRandom()
+int Modifiers::pickDefinition()
 {
-    // Pick a definition by weight
     qreal total = 0.0;
     for (const Definition& definition : m_definitions)
         total += definition.weight;
     if (total <= 0.0)
-        return;
+        return -1;
 
     qreal pick = m_random.bounded(total);
     int definition = 0;
@@ -654,6 +653,19 @@ void Modifiers::spawnRandom()
         pick -= m_definitions.at(definition).weight;
         ++definition;
     }
+    return definition;
+}
+
+int Modifiers::spawnAt(const QVector2D& position)
+{
+    return spawn(pickDefinition(), position);
+}
+
+void Modifiers::spawnRandom()
+{
+    const int definition = pickDefinition();
+    if (definition < 0)
+        return;
 
     // Keep items apart so a single pass doesn't collect two, and leave
     // room for the item itself

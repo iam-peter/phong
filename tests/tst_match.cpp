@@ -650,6 +650,39 @@ private slots:
         QCOMPARE(match.ballVelocity(), velocity);
     }
 
+    void awardedPoints()
+    {
+        Match match;
+        match.setPointsToWin(3);
+        QSignalSpy awarded(&match, &Match::pointAwarded);
+        QSignalSpy scored(&match, &Match::pointScored);
+
+        // Nothing while the ball isn't in play
+        match.start();
+        match.awardPoint(Match::Side::LeftSide);
+        QCOMPARE(match.left()->score(), 0);
+
+        // The rally goes on after a point
+        serve(match);
+        match.paddleHit(match.ballVelocity().x() < 0.0f ? Match::Side::LeftSide : Match::Side::RightSide, 0.5);
+        const QVector2D velocity = match.ballVelocity();
+        match.awardPoint(Match::Side::LeftSide);
+        match.awardPoint(Match::Side::LeftSide);
+        QCOMPARE(match.left()->score(), 2);
+        QCOMPARE(awarded.count(), 2);
+        QCOMPARE(scored.count(), 0);
+        QCOMPARE(match.state(), Match::State::Playing);
+        QCOMPARE(match.ballVelocity(), velocity);
+        QCOMPARE(match.rally(), 1);
+        QVERIFY(match.isMatchPoint());
+
+        // Unless it wins
+        match.awardPoint(Match::Side::LeftSide);
+        QCOMPARE(match.state(), Match::State::Finished);
+        QCOMPARE(match.winner(), match.left());
+        QCOMPARE(match.ballVelocity(), QVector2D());
+    }
+
     void matchPoint()
     {
         Match match;

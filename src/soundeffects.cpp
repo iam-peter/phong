@@ -427,6 +427,9 @@ QList<SoundEffects::Tone> SoundEffects::tones(Sound sound)
         case Sound::Portal:
             return { { Sine, 0.00, 0.22, 200, 1600, 0.35 },
                      { Triangle, 0.10, 0.20, 1600, 400, 0.20 } };
+        case Sound::BrickBreak:
+            return { { Square, 0.00, 0.06, 900, 500, 0.22 },
+                     { Sawtooth, 0.03, 0.14, 300, 120, 0.20 } };
         case Sound::Freeze:
             return { { Triangle, 0.00, 0.08, 2400, 2000, 0.18 },
                      { Triangle, 0.06, 0.08, 3000, 2600, 0.14 },

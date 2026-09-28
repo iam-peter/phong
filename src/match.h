@@ -118,6 +118,9 @@ public:
     Q_INVOKABLE void scaleBallSpeed(Ball* ball, qreal factor);
     Q_INVOKABLE void wallHit(Ball* ball, bool top);
     Q_INVOKABLE void goal(Ball* ball, Match::Side scorer);
+    // A point without a goal, e.g. for breaking a brick. The rally goes on
+    // unless the point wins the set.
+    Q_INVOKABLE void awardPoint(Match::Side scorer);
 
     // A magnetic paddle catches a ball running into it at offset (see
     // paddleHit), returns whether it did. The paddle holds it until
@@ -230,6 +233,7 @@ signals:
     void paddleHitBall(Ball* ball, Match::Side side, qreal smash, bool perfect);
     void ballCaught(Ball* ball, Match::Side side);
     void pointScored(Match::Side scorer, Ball* ball);
+    void pointAwarded(Match::Side scorer);
     void setFinished(Match::Side winner);
     void finished();
 

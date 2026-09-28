@@ -60,6 +60,16 @@ void Stats::recordTournamentWin()
     emit changed();
 }
 
+bool Stats::recordSquash(int rally)
+{
+    if (rally <= squashBest())
+        return false;
+
+    setValue(QStringLiteral("stats/squashBest"), rally);
+    emit changed();
+    return true;
+}
+
 void Stats::reset()
 {
     m_settings.remove(QStringLiteral("stats"));
@@ -107,6 +117,11 @@ int Stats::endlessBest() const
 int Stats::tournamentsWon() const
 {
     return value(QStringLiteral("stats/tournamentsWon"));
+}
+
+int Stats::squashBest() const
+{
+    return value(QStringLiteral("stats/squashBest"));
 }
 
 int Stats::value(const QString& key) const

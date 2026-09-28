@@ -96,6 +96,12 @@ match, the game slows down and moves in closer.
   brushes every ball to curve it, the Smasher winds up almost every return
   and the Collector sends the ball through the modifiers. The other matches
   of a round are decided by the strength of the two.
+- **Bricks** against the computer, with a wall of bricks in the middle and a
+  gap for the kickoff. A brick breaks when hit and gives the player who sent
+  the ball a point, every third one drops a modifier instead. Once the wall
+  is down a new one is built for the next kickoff.
+- **Squash** alone against a closed wall with three balls to lose, the
+  longest rally is the score.
 
 The menu cycles through the modes with `Left`/`Right`, `Enter` plays.
 
@@ -108,8 +114,8 @@ scored against kicks off, the ball flies towards the scorer.
 
 A match is a single set or best of three or five, optionally won by two
 points. The stats screen keeps the record against every computer level, the
-best ladder run, the endless high score, the tournaments won and the longest
-rally.
+best ladder run, the endless and squash high scores, the tournaments won and
+the longest rally.
 
 ## Modifiers
 

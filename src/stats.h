@@ -20,6 +20,7 @@ class Stats : public QObject
     Q_PROPERTY(int ladderBest READ ladderBest NOTIFY changed)
     Q_PROPERTY(int endlessBest READ endlessBest NOTIFY changed)
     Q_PROPERTY(int tournamentsWon READ tournamentsWon NOTIFY changed)
+    Q_PROPERTY(int squashBest READ squashBest NOTIFY changed)
 
 public:
     static constexpr int difficulties = 3;
@@ -31,6 +32,8 @@ public:
     // Returns whether score is a new high score
     Q_INVOKABLE bool recordEndless(int score);
     Q_INVOKABLE void recordTournamentWin();
+    // Returns whether rally is a new best
+    Q_INVOKABLE bool recordSquash(int rally);
     Q_INVOKABLE void reset();
 
     int wins(int difficulty) const;
@@ -41,6 +44,7 @@ public:
     int ladderBest() const;
     int endlessBest() const;
     int tournamentsWon() const;
+    int squashBest() const;
 
 signals:
     void changed();

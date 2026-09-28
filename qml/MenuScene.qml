@@ -14,7 +14,7 @@ Scene {
     // The game modes are cycled through like a setting, in the order of
     // GameScene.Mode
     readonly property var modes: [qsTr("1 Player"), qsTr("2 Players"), qsTr("Ladder"), qsTr("Endless"),
-                                  qsTr("Tournament")]
+                                  qsTr("Tournament"), qsTr("Bricks"), qsTr("Squash")]
     readonly property int mode: Math.min(Math.max(GameSettings.mode, 0), modes.length - 1)
 
     function cycleMode(step) {

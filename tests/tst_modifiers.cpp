@@ -432,6 +432,21 @@ private slots:
         QCOMPARE(modifiers.gravityStrength(), 0.0);
     }
 
+    void spawnAtAPlace()
+    {
+        Modifiers modifiers;
+        const int id = modifiers.spawnAt(QVector2D(1, 2));
+        QVERIFY(id > 0);
+        QCOMPARE(modifiers.rowCount(), 1);
+        const QModelIndex index = modifiers.index(0);
+        QCOMPARE(modifiers.data(index, Modifiers::ItemXRole).toReal(), 1.0);
+        QCOMPARE(modifiers.data(index, Modifiers::ItemYRole).toReal(), 2.0);
+
+        // Only what may spawn
+        QVERIFY(modifiers.loadJson(R"({ "modifiers": [ { "id": "a", "effect": "shield", "weight": 0 } ] })"));
+        QCOMPARE(modifiers.spawnAt(QVector2D(0, 0)), -1);
+    }
+
     void multiBallFromTheItem()
     {
         Match match;

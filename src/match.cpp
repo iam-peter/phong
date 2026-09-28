@@ -269,6 +269,19 @@ void Match::goal(Ball* ball, Side scorer)
     endRally(scorer, setWon);
 }
 
+void Match::awardPoint(Side scorer)
+{
+    if (m_state != State::Playing || !player(scorer))
+        return;
+
+    const bool setWon = addPoint(scorer);
+    if (setWon)
+        endRally(scorer, true);
+    else
+        updateMatchPoint();
+    emit pointAwarded(scorer);
+}
+
 bool Match::catchBall(Ball* ball, Side side, qreal offset)
 {
     Player* player = this->player(side);

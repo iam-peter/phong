@@ -39,7 +39,8 @@ public:
         Perfect,
         Catch,
         Portal,
-        Freeze
+        Freeze,
+        BrickBreak
     };
     Q_ENUM(Sound)
 

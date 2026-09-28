@@ -69,6 +69,16 @@ private slots:
         QCOMPARE(stats.tournamentsWon(), 0);
     }
 
+    void squashBest()
+    {
+        Stats stats;
+        QVERIFY(stats.recordSquash(12));
+        QVERIFY(!stats.recordSquash(12));
+        QVERIFY(!stats.recordSquash(3));
+        QVERIFY(stats.recordSquash(20));
+        QCOMPARE(Stats().squashBest(), 20);
+    }
+
     void ladderKeepsTheBest()
     {
         Stats stats;

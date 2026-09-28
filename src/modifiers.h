@@ -137,6 +137,8 @@ public:
 
     // Places an item, for tests and debugging
     Q_INVOKABLE int spawn(int definition, const QVector2D& position);
+    // Places a random item, picked by weight, returns its id or -1
+    Q_INVOKABLE int spawnAt(const QVector2D& position);
 
     void setSeed(quint32 seed);
 
@@ -201,6 +203,8 @@ private:
     static Effects noEffects();
 
     void spawnRandom();
+    // A definition picked by weight, -1 if none can spawn
+    int pickDefinition();
     void apply(int definition, Match::Side collector, Ball* ball, const QVector2D& position);
     void removeItem(int row);
     void resetSpawnCountdown();

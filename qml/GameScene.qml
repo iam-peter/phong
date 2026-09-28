@@ -14,7 +14,9 @@ Scene {
         TwoPlayers,
         Ladder,
         Endless,
-        Tournament
+        Tournament,
+        Bricks,
+        Squash
     }
 
     property int mode: GameScene.OnePlayer
@@ -22,9 +24,13 @@ Scene {
     property int ladderStage: 0
     property alias match: match
 
-    readonly property bool againstComputer: mode !== GameScene.TwoPlayers
+    readonly property bool squash: mode === GameScene.Squash
+    readonly property bool againstComputer: mode !== GameScene.TwoPlayers && !squash
     readonly property bool endless: mode === GameScene.Endless
     readonly property bool tournament: mode === GameScene.Tournament
+    readonly property bool bricks: mode === GameScene.Bricks
+    // Alone against the computer or the wall, with a few balls to lose
+    readonly property bool solo: endless || squash
     // The tournament opponent of this match, the tournament moves on
     // while the results show
     property var opponent: ({})
@@ -109,6 +115,12 @@ Scene {
     property string arenaId: "classic"
     property var arena: ({})
 
+    // Bricks in the middle of the field, they break when hit
+    readonly property real brickWidth: 1.0
+    readonly property real brickHeight: 1.8
+    property int nextBrickId: 1
+    property var pendingBricks: []
+
     // Camera shake, applied through viewOffset
     property real shakeAmount: 0.0
 
@@ -157,20 +169,88 @@ Scene {
         newHighScore = false
         releaseInput()
         chooseArena()
+        buildBricks()
         resetBall()
         computer.reset()
         modifiers.reset()
         match.start()
-        banner.show(arena.name ?? "", Theme.title)
+        banner.show(bricks ? qsTr("Bricks") : squash ? qsTr("Squash") : arena.name ?? "", Theme.title)
     }
 
+    // Bricks and squash play on the empty field
     function chooseArena() {
         let id = GameSettings.arena
-        if (id === "random" || Arenas.arena(id).id === undefined)
+        if (bricks || squash)
+            id = "classic"
+        else if (id === "random" || Arenas.arena(id).id === undefined)
             id = Arenas.randomId()
         arenaId = id
         arena = Arenas.arena(id)
-        modifiers.obstacles = Arenas.obstacleRects(id)
+        modifiers.obstacles = bricks ? [Qt.rect(-0.5 * brickWidth, -0.5 * stageHeight, brickWidth, stageHeight)]
+                                     : Arenas.obstacleRects(id)
+    }
+
+    // A wall of bricks with a gap for the kickoff, every third brick drops
+    // a modifier instead of giving a point
+    function buildBricks() {
+        brickModel.clear()
+        if (!bricks)
+            return
+
+        for (const side of [1, -1]) {
+            for (let i = 0; i < 4; ++i) {
+                const item = GameSettings.modifiers && Math.random() < 1 / 3
+                brickModel.append({ brickId: nextBrickId++, brickY: side * (2.6 + 2.0 * i), item: item })
+            }
+        }
+    }
+
+    function brickPositions() {
+        const positions = []
+        for (let i = 0; i < brickModel.count; ++i)
+            positions.push(Qt.vector2d(0, brickModel.get(i).brickY))
+        return positions
+    }
+
+    // Removing a brick destroys its body, not while it reports
+    function queueBrick(brickId, ball) {
+        pendingBricks.push({ brickId: brickId, ball: ball })
+        Qt.callLater(breakPending)
+    }
+
+    function breakPending() {
+        const broken = pendingBricks
+        pendingBricks = []
+        for (const brick of broken) {
+            let index = -1
+            for (let i = 0; i < brickModel.count; ++i) {
+                if (brickModel.get(i).brickId === brick.brickId)
+                    index = i
+            }
+            if (index < 0)
+                continue
+
+            const entry = brickModel.get(index)
+            const position = Qt.vector3d(0, entry.brickY, 0)
+            const item = entry.item
+            brickModel.remove(index)
+            SoundEffects.play(SoundEffects.BrickBreak)
+            sparks.burst(position.plus(Qt.vector3d(0, 0, 0.5)), item ? Theme.tint("#ffd24d") : Theme.block, 28)
+            shake(0.25)
+
+            // A point for the player who sent the ball, or a modifier
+            const scorer = brick.ball.lastTouch
+            if (item) {
+                modifiers.spawnAt(Qt.vector2d(position.x, position.y))
+            }
+            else if (scorer !== Match.NoSide) {
+                brickPopup.show("+1", scorer === Match.LeftSide ? Theme.leftPlayer : Theme.rightPlayer, position)
+                match.awardPoint(scorer)
+            }
+
+            if (brickModel.count === 0)
+                banner.show(qsTr("Wall down"), Theme.title)
+        }
     }
 
     function leave() {
@@ -399,6 +479,17 @@ Scene {
                 shake(0.35)
             }
         }
+        else if (other === squashWall) {
+            if (match.bounce(body.ball, normal)) {
+                squashWall.flash()
+                SoundEffects.play(SoundEffects.WallHit, 0.8)
+                sparks.burst(Qt.vector3d(body.x, body.y, 0.5), Theme.wall, 10)
+            }
+        }
+        else if (other.brick === true) {
+            if (match.bounce(body.ball, normal))
+                queueBrick(other.brickId, body.ball)
+        }
         else if (other.obstacle === true) {
             if (match.bounce(body.ball, normal)) {
                 other.flash()
@@ -498,9 +589,10 @@ Scene {
         const rightKeys = onePlayer ? 0 : rightSign * keyInput(rightUp, rightDown)
         const leftHeld = heldBody(Match.LeftSide)
         const rightHeld = heldBody(Match.RightSide)
-        if (onePlayer) {
+        if (againstComputer) {
             const urgent = urgentBall()
-            computer.targets = modifiers.itemPositions()
+            // Bricks give points, worth aiming at
+            computer.targets = bricks ? modifiers.itemPositions().concat(brickPositions()) : modifiers.itemPositions()
             computer.opponentY = leftPaddleY
             // Curses get to the computer too
             computer.confusion = match.right.reversed ? 1.0 : 0.0
@@ -509,6 +601,9 @@ Scene {
             rightInput = computer.direction
             if (computer.wantsDash && !rightHeld && !match.right.frozen)
                 rightDash.trigger(computer.direction >= 0 ? 1 : -1)
+        }
+        else if (squash) {
+            rightInput = 0
         }
         else {
             rightInput = humanInput(rightKeys > 0, rightKeys < 0, rightSign * rightPointerY, rightPaddleY)
@@ -520,7 +615,7 @@ Scene {
             leftInput = 0
         }
         if (rightHeld) {
-            if (onePlayer)
+            if (againstComputer)
                 computerHold(rightHeld, dt)
             else
                 aimHeld(rightHeld, rightKeys, rightPointerY, rightPaddleY, rightPaddleLength, dt)
@@ -547,7 +642,7 @@ Scene {
         }
 
         leftCharge = windUp(leftCharge, leftCharging, dt)
-        rightCharge = windUp(rightCharge, onePlayer ? computer.charging : rightCharging, dt)
+        rightCharge = windUp(rightCharge, againstComputer ? computer.charging : rightCharging, dt)
         arenaTime += dt
 
         const leftY = movePaddle(leftPaddleY, leftInput, leftPaddleLength, leftCharge, dt)
@@ -731,17 +826,19 @@ Scene {
     Match {
         id: match
 
-        endless: root.endless
-        pointsToWin: root.endless ? root.lives : GameSettings.pointsToWin
-        setsToWin: root.mode === GameScene.Ladder || root.endless ? 1 : GameSettings.setsToWin
-        winByTwo: GameSettings.winByTwo && !root.endless
+        endless: root.solo
+        pointsToWin: root.solo ? root.lives : GameSettings.pointsToWin
+        setsToWin: root.mode === GameScene.Ladder || root.solo ? 1 : GameSettings.setsToWin
+        winByTwo: GameSettings.winByTwo && !root.solo
         serveSpeed: GameSettings.serveSpeed * root.endlessSpeedUp
         maxSpeed: GameSettings.maxSpeed
         paddleSpeed: root.paddleSpeed
         serveDelay: GameSettings.kickoffTime
 
-        left.name: root.againstComputer ? qsTr("You") : qsTr("Ping")
-        right.name: root.tournament ? root.opponent.name ?? "" : root.againstComputer ? qsTr("CPU") : qsTr("Pong")
+        left.name: root.mode !== GameScene.TwoPlayers ? qsTr("You") : qsTr("Ping")
+        right.name: root.tournament ? root.opponent.name ?? ""
+                    : root.squash ? qsTr("Wall")
+                    : root.againstComputer ? qsTr("CPU") : qsTr("Pong")
         right.computer: root.againstComputer
 
         onServed: SoundEffects.play(SoundEffects.Serve)
@@ -806,7 +903,7 @@ Scene {
         }
 
         onMatchPointChanged: {
-            if (match.matchPoint && match.state !== Match.Finished && !root.endless)
+            if (match.matchPoint && match.state !== Match.Finished && !root.solo)
                 banner.show(qsTr("Match point"), Theme.accent, 1.3)
         }
 
@@ -833,10 +930,21 @@ Scene {
                 banner.show(qsTr("Set %1").arg(player.name), Theme.title)
         }
 
-        // Every pause starts on resume
+        // Every pause starts on resume, a wall down is built anew for
+        // the next kickoff
         onStateChanged: {
             if (match.state === Match.Paused)
                 root.currentPauseItem = 0
+            if (match.state === Match.Serving && root.bricks && brickModel.count === 0)
+                root.buildBricks()
+        }
+
+        // A point for a brick can end the set, the ball goes back then
+        onPointAwarded: (scorer) => {
+            if (match.state !== Match.Playing) {
+                root.resetBall()
+                computer.reset()
+            }
         }
 
         onFinished: {
@@ -844,6 +952,8 @@ Scene {
             SoundEffects.play(root.againstComputer && !won ? SoundEffects.Lose : SoundEffects.Win)
             if (root.endless)
                 root.newHighScore = Stats.recordEndless(root.endlessScore)
+            else if (root.squash)
+                root.newHighScore = Stats.recordSquash(match.longestRally)
             else
                 Stats.recordMatch(root.againstComputer, root.difficulty, won, match.longestRally)
             if (root.mode === GameScene.Ladder && won)
@@ -890,7 +1000,7 @@ Scene {
         id: modifiers
 
         match: match
-        enabled: GameSettings.modifiers
+        enabled: GameSettings.modifiers && !root.squash
         // Inside the narrowest field, clear of the paddles
         readonly property real spawnHeight: root.innerHeight + 2.0 * root.fieldInset
                                             - 2.0 * maxFieldInset - 3.0
@@ -1240,17 +1350,117 @@ Scene {
 
     PaddleBody {
         id: rightPaddle
+        // Squash has a wall instead
+        visible: !root.squash
         color: Theme.rightPlayer
         charge: root.rightCharge
         dash: rightDash.direction
         magnet: match.right.catches > 0
         frozen: match.right.frozen
         reversed: match.right.reversed
-        paddleX: root.paddleX
+        paddleX: root.squash ? 1000 : root.paddleX
         paddleY: root.rightPaddleY
         angle: root.rightPaddleAngle
         length: root.rightPaddleLength
         width: root.paddleWidth
+    }
+
+    // The front wall of squash, parked far away otherwise
+    DynamicRigidBody {
+        id: squashWall
+
+        property real glow: 0.0
+        function flash() {
+            squashWallGlow.restart()
+        }
+
+        isKinematic: true
+        position: kinematicPosition
+        kinematicPosition: Qt.vector3d(root.paddleX, root.squash ? 0 : 1000, 0)
+        physicsMaterial: bouncy
+        sendContactReports: true
+        collisionShapes: BoxShape {
+            extents: Qt.vector3d(root.paddleWidth, root.innerHeight, 1.0)
+        }
+
+        Model {
+            visible: root.squash
+            source: "#Cube"
+            scale: Qt.vector3d(root.paddleWidth / 100, root.innerHeight / 100, 0.01)
+            materials: PhongMaterial {
+                color: Qt.tint(Theme.wall, Qt.rgba(1, 1, 1, 0.6 * squashWall.glow))
+                glow: 0.35 + 0.8 * root.rallyHeat + squashWall.glow
+                shininess: 0.5
+            }
+        }
+
+        NumberAnimation {
+            id: squashWallGlow
+            target: squashWall
+            property: "glow"
+            from: 1.0
+            to: 0.0
+            duration: 250
+            easing.type: Easing.OutQuad
+        }
+    }
+
+    ListModel {
+        id: brickModel
+    }
+
+    Repeater3D {
+        model: brickModel
+
+        delegate: DynamicRigidBody {
+            id: brickBody
+
+            required property int brickId
+            required property real brickY
+            required property bool item
+            readonly property bool brick: true
+            readonly property color color: item ? Theme.tint("#ffd24d") : Theme.block
+
+            // A narrowed field hides the outer ones behind the walls
+            visible: Math.abs(brickY) < root.wallY - 0.5
+            isKinematic: true
+            position: kinematicPosition
+            kinematicPosition: Qt.vector3d(0, brickY, 0)
+            physicsMaterial: bouncy
+            sendContactReports: true
+            collisionShapes: BoxShape {
+                extents: Qt.vector3d(root.brickWidth, root.brickHeight, 1.0)
+            }
+
+            Model {
+                source: "#Cube"
+                scale: Qt.vector3d(root.brickWidth / 100, (root.brickHeight - 0.1) / 100, 0.01)
+                materials: PhongMaterial {
+                    color: brickBody.color
+                    glow: brickBody.item ? 0.6 : 0.15
+                    shininess: 0.5
+                }
+            }
+
+            // Bricks with a modifier inside say so
+            Text3D {
+                visible: brickBody.item
+                z: 0.5
+                scale: Qt.vector3d(0.7, 0.7, 0.7)
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                depth: 0.2
+                color: Theme.background
+                text: "?"
+            }
+
+            Vector3dAnimation on scale {
+                from: Qt.vector3d(0, 0, 0)
+                to: Qt.vector3d(1, 1, 1)
+                duration: 300
+                easing.type: Easing.OutBack
+            }
+        }
     }
 
     // Shields, parked far away while the player has none
@@ -1604,6 +1814,11 @@ Scene {
         textScale: 0.5
     }
 
+    FloatingText {
+        id: brickPopup
+        textScale: 0.8
+    }
+
     // Arena name at the start, set winners
     Banner {
         id: banner
@@ -1657,7 +1872,7 @@ Scene {
         }
 
         Node {
-            visible: !root.endless
+            visible: !root.solo
 
             Text3D {
                 x: -2.0
@@ -1676,15 +1891,15 @@ Scene {
             }
         }
 
-        // Endless: the score and the balls left
+        // Endless and squash: the score or the rally, and the balls left
         Text3D {
-            visible: root.endless
+            visible: root.solo
             horizontalAlignment: Text.AlignHCenter
-            text: root.endlessScore
+            text: root.endless ? root.endlessScore : match.rally
         }
 
         Repeater3D {
-            model: root.endless ? root.lives : 0
+            model: root.solo ? root.lives : 0
 
             delegate: Disc {
                 required property int index
@@ -1748,6 +1963,9 @@ Scene {
                   ? qsTr("Ladder %1/3   [W/S] or [Up/Down] move, twice dashes   [Space] smash").arg(root.ladderStage + 1)
                   : root.tournament
                   ? qsTr("Tournament   [W/S] or [Up/Down] move, twice dashes   [Space] smash")
+                  : root.squash
+                  ? qsTr("Best %1   [W/S] or [Up/Down] move, twice dashes   [Space] smash")
+                    .arg(Math.max(match.longestRally, Stats.squashBest))
                   : qsTr("[W/S] or [Up/Down] move, twice dashes   [Space] smash")
         }
 
