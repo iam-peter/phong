@@ -145,7 +145,8 @@ with a warning.
 The sound effects are synthesized from a few tones, there are no audio files.
 The desktop plays them with Qt Multimedia, the browser with the Web Audio API,
 which starts after the first key press or click. Sound can be switched off in
-the settings.
+the settings. `QT_LOGGING_RULES="phong.sound.debug=true"` logs what the audio
+output does.
 
 ## Physics
 

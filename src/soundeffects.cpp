@@ -1,5 +1,6 @@
 #include "soundeffects.h"
 
+#include <QLoggingCategory>
 #include <QtMath>
 
 #include <algorithm>
@@ -15,7 +16,13 @@
 #include <QMediaDevices>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QSpan>
+#include <QTimer>
+
+#include <type_traits>
 #endif
+
+Q_LOGGING_CATEGORY(lcSound, "phong.sound", QtWarningMsg)
 
 namespace {
 // Everything a bit quieter, square waves are loud
@@ -44,18 +51,36 @@ qreal waveform(SoundEffects::Waveform waveform, qreal phase)
 
 #if defined(Q_OS_WASM)
 
+// Browsers only let audio start from a user gesture. The context is created
+// and resumed on every key press, click and touch, and when the tab shows
+// again, a sound itself may follow a timer instead of a gesture.
+EM_JS(void, phong_setup_audio, (), {
+    const Context = globalThis.AudioContext || globalThis.webkitAudioContext;
+    if (!Context || globalThis.phongAudioSetUp)
+        return;
+    globalThis.phongAudioSetUp = true;
+
+    const wake = () => {
+        if (!globalThis.phongAudio)
+            globalThis.phongAudio = new Context();
+        if (globalThis.phongAudio.state !== "running")
+            globalThis.phongAudio.resume();
+    };
+    for (const type of ["keydown", "pointerdown", "touchend"])
+        document.addEventListener(type, wake, { capture: true });
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && globalThis.phongAudio)
+            wake();
+    });
+});
+
 EM_JS(void, phong_play_tone, (int waveform, double start, double duration, double from,
                               double to, double volume), {
-    const Context = globalThis.AudioContext || globalThis.webkitAudioContext;
-    if (!Context)
-        return;
-    if (!globalThis.phongAudio)
-        globalThis.phongAudio = new Context();
-
-    // Browsers only start audio after a user gesture, sounds follow key
-    // presses and clicks, so resuming here works
     const context = globalThis.phongAudio;
-    if (context.state === "suspended")
+    if (!context)
+        return;
+    // Also "interrupted" on Safari, e.g. after a call
+    if (context.state !== "running")
         context.resume();
 
     const time = context.currentTime + start;
@@ -78,6 +103,11 @@ EM_JS(void, phong_play_tone, (int waveform, double start, double duration, doubl
 class SoundEffects::Backend
 {
 public:
+    Backend()
+    {
+        phong_setup_audio();
+    }
+
     bool isAvailable() const
     {
         return true;
@@ -93,21 +123,69 @@ public:
 
 #elif defined(PHONG_HAVE_MULTIMEDIA)
 
-// Mixes the playing sounds for an audio sink that pulls, silence in between
-class Mixer : public QIODevice
+// Mixes the playing sounds into the output, silence in between
+class Mixer
 {
 public:
-    explicit Mixer(const QAudioFormat& format, QObject* parent = nullptr):
-        QIODevice(parent),
-        m_format(format)
-    {
-        open(QIODevice::ReadOnly);
-    }
-
     void add(const QList<float>& samples)
     {
         QMutexLocker locker(&m_mutex);
         m_voices.append({ samples, 0 });
+    }
+
+    template<typename Sample>
+    void render(QSpan<Sample> output, int channels)
+    {
+        QMutexLocker locker(&m_mutex);
+        const qsizetype frames = output.size() / channels;
+        for (qsizetype frame = 0; frame < frames; ++frame) {
+            float sample = 0.0f;
+            for (Voice& voice : m_voices) {
+                if (voice.position < voice.samples.size())
+                    sample += voice.samples.at(voice.position++);
+            }
+
+            const Sample value = convert<Sample>(std::clamp(sample, -1.0f, 1.0f));
+            for (int channel = 0; channel < channels; ++channel)
+                output[frame * channels + channel] = value;
+        }
+
+        m_voices.removeIf([](const Voice& voice) { return voice.position >= voice.samples.size(); });
+    }
+
+private:
+    template<typename Sample>
+    static Sample convert(float sample)
+    {
+        if constexpr (std::is_same_v<Sample, float>)
+            return sample;
+        else if constexpr (std::is_same_v<Sample, qint16>)
+            return qint16(sample * 32767.0f);
+        else if constexpr (std::is_same_v<Sample, qint32>)
+            return qint32(sample * 2147483647.0f);
+        else
+            return quint8((sample + 1.0f) * 127.5f);
+    }
+
+    struct Voice {
+        QList<float> samples;
+        qsizetype position;
+    };
+
+    QMutex m_mutex;
+    QList<Voice> m_voices;
+};
+
+#if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
+// Before Qt 6.11 a sink only pulls from a QIODevice, on the main thread
+class MixerDevice : public QIODevice
+{
+public:
+    MixerDevice(std::shared_ptr<Mixer> mixer, const QAudioFormat& format):
+        m_mixer(std::move(mixer)),
+        m_format(format)
+    {
+        open(QIODevice::ReadOnly);
     }
 
     bool isSequential() const override
@@ -123,32 +201,12 @@ public:
 protected:
     qint64 readData(char* data, qint64 maxSize) override
     {
-        const int bytesPerSample = m_format.bytesPerSample();
-        const int channels = m_format.channelCount();
         const qint64 frames = maxSize / m_format.bytesPerFrame();
-
-        QMutexLocker locker(&m_mutex);
-        for (qint64 frame = 0; frame < frames; ++frame) {
-            float sample = 0.0f;
-            for (Voice& voice : m_voices) {
-                if (voice.position < voice.samples.size())
-                    sample += voice.samples.at(voice.position++);
-            }
-            sample = std::clamp(sample, -1.0f, 1.0f);
-
-            for (int channel = 0; channel < channels; ++channel) {
-                char* target = data + (frame * channels + channel) * bytesPerSample;
-                if (m_format.sampleFormat() == QAudioFormat::Float) {
-                    std::memcpy(target, &sample, sizeof(float));
-                }
-                else {
-                    const qint16 value = qint16(sample * 32767.0f);
-                    std::memcpy(target, &value, sizeof(qint16));
-                }
-            }
-        }
-
-        m_voices.removeIf([](const Voice& voice) { return voice.position >= voice.samples.size(); });
+        const qsizetype samples = frames * m_format.channelCount();
+        if (m_format.sampleFormat() == QAudioFormat::Float)
+            m_mixer->render(QSpan<float>(reinterpret_cast<float*>(data), samples), m_format.channelCount());
+        else
+            m_mixer->render(QSpan<qint16>(reinterpret_cast<qint16*>(data), samples), m_format.channelCount());
         return frames * m_format.bytesPerFrame();
     }
 
@@ -158,42 +216,22 @@ protected:
     }
 
 private:
-    struct Voice {
-        QList<float> samples;
-        qsizetype position;
-    };
-
+    std::shared_ptr<Mixer> m_mixer;
     QAudioFormat m_format;
-    QMutex m_mutex;
-    QList<Voice> m_voices;
 };
+#endif
 
 class SoundEffects::Backend
 {
 public:
     Backend()
     {
-        const QAudioDevice device = QMediaDevices::defaultAudioOutput();
-        if (device.isNull())
-            return;
-
-        QAudioFormat format;
-        format.setSampleRate(44100);
-        format.setChannelCount(1);
-        format.setSampleFormat(QAudioFormat::Int16);
-        if (!device.isFormatSupported(format))
-            format = device.preferredFormat();
-
-        if (format.sampleFormat() != QAudioFormat::Int16
-            && format.sampleFormat() != QAudioFormat::Float)
-            return;
-
-        m_sampleRate = format.sampleRate();
-        m_mixer = std::make_unique<Mixer>(format);
-        m_sink = std::make_unique<QAudioSink>(device, format);
-        // Short buffer, a hit should sound when it happens
-        m_sink->setBufferSize(format.bytesForDuration(40000));
-        m_sink->start(m_mixer.get());
+        // Follow the default output, e.g. when headphones are plugged in
+        QObject::connect(&m_devices, &QMediaDevices::audioOutputsChanged, &m_context, [this] {
+            qCDebug(lcSound) << "Audio outputs changed";
+            restart();
+        });
+        restart();
     }
 
     ~Backend()
@@ -209,13 +247,104 @@ public:
 
     void play(const QList<Tone>& tones, qreal pitch)
     {
+        // Don't wait for the retry if the sound went away in the meantime
+        if (!m_sink || m_sink->state() == QAudio::StoppedState)
+            restart();
+
         if (m_mixer)
             m_mixer->add(SoundEffects::render(tones, m_sampleRate, pitch));
     }
 
 private:
+    // An error stops a sink for good, e.g. a write error when the output
+    // device changes or is suspended, so a new one takes over
+    void restart()
+    {
+        m_restartPending = false;
+        if (m_sink) {
+            QObject::disconnect(m_sink.get(), nullptr, &m_context, nullptr);
+            m_sink->stop();
+        }
+        m_sink.reset();
+#if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
+        m_device.reset();
+#endif
+
+        const QAudioDevice device = QMediaDevices::defaultAudioOutput();
+        if (device.isNull()) {
+            qCDebug(lcSound) << "No audio output";
+            return;
+        }
+
+        QAudioFormat format;
+        format.setSampleRate(44100);
+        format.setChannelCount(1);
+        format.setSampleFormat(QAudioFormat::Float);
+        if (!device.isFormatSupported(format))
+            format = device.preferredFormat();
+
+        m_sampleRate = format.sampleRate();
+        m_mixer = std::make_shared<Mixer>();
+        m_sink = std::make_unique<QAudioSink>(device, format);
+        m_sink->setBufferSize(format.bytesForDuration(60000));
+
+        QObject::connect(m_sink.get(), &QAudioSink::stateChanged, &m_context,
+                         [this](QAudio::State state) {
+            qCDebug(lcSound) << "Audio state" << state << "error" << m_sink->error();
+            if (state == QAudio::StoppedState && m_sink->error() != QAudio::NoError)
+                scheduleRestart();
+        });
+
+        const int channels = format.channelCount();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 11, 0)
+        // The audio thread mixes, a busy main thread can't starve the sound
+        const std::shared_ptr<Mixer> mixer = m_mixer;
+        switch (format.sampleFormat()) {
+            case QAudioFormat::Float:
+                m_sink->start([mixer, channels](QSpan<float> output) { mixer->render(output, channels); });
+                break;
+            case QAudioFormat::Int16:
+                m_sink->start([mixer, channels](QSpan<qint16> output) { mixer->render(output, channels); });
+                break;
+            case QAudioFormat::Int32:
+                m_sink->start([mixer, channels](QSpan<qint32> output) { mixer->render(output, channels); });
+                break;
+            case QAudioFormat::UInt8:
+                m_sink->start([mixer, channels](QSpan<quint8> output) { mixer->render(output, channels); });
+                break;
+            default:
+                m_sink.reset();
+                return;
+        }
+#else
+        if (format.sampleFormat() != QAudioFormat::Float && format.sampleFormat() != QAudioFormat::Int16) {
+            m_sink.reset();
+            return;
+        }
+        Q_UNUSED(channels)
+        m_device = std::make_unique<MixerDevice>(m_mixer, format);
+        m_sink->start(m_device.get());
+#endif
+        qCDebug(lcSound) << "Playing on" << device.description() << format;
+    }
+
+    void scheduleRestart()
+    {
+        if (m_restartPending)
+            return;
+
+        m_restartPending = true;
+        QTimer::singleShot(250, &m_context, [this] { restart(); });
+    }
+
+    QObject m_context;
+    QMediaDevices m_devices;
+    bool m_restartPending = false;
     int m_sampleRate = 44100;
-    std::unique_ptr<Mixer> m_mixer;
+    std::shared_ptr<Mixer> m_mixer;
+#if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
+    std::unique_ptr<MixerDevice> m_device;
+#endif
     std::unique_ptr<QAudioSink> m_sink;
 };
 
