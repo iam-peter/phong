@@ -1,49 +1,40 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include "racket.h"
-
 #include <QObject>
-#include <Qt3DInput/QKeyEvent>
+#include <QString>
+#include <QtQml/qqmlregistration.h>
 
 class Player : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QString m_name READ name WRITE setName NOTIFY nameChanged)
-    Q_PROPERTY(Racket* m_racket READ racket WRITE setRacket NOTIFY racketChanged)
-    Q_PROPERTY(unsigned m_score READ score WRITE setScore NOTIFY scoreChanged)
+    QML_ELEMENT
+    QML_UNCREATABLE("Players are owned by a Match")
+    Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
+    Q_PROPERTY(int score READ score NOTIFY scoreChanged)
+    Q_PROPERTY(bool computer READ isComputer WRITE setComputer NOTIFY computerChanged)
 
 public:
-    enum Command {
-        Start = 0,
-        Up,
-        Down
-    };
-
-    explicit Player();
-
-    virtual void keyPressed(Qt3DInput::QKeyEvent* event);
-    virtual void keyReleased(Qt3DInput::QKeyEvent* event);
-
-    void setRacket(Racket* racket);
-    Racket* racket() const;
+    explicit Player(QObject* parent = nullptr);
 
     void setName(const QString& name);
     QString name() const;
 
-    void setScore(unsigned score);
-    unsigned score() const;
+    void setScore(int score);
+    int score() const;
+
+    void setComputer(bool computer);
+    bool isComputer() const;
 
 signals:
     void nameChanged(const QString&);
-    void racketChanged(Racket*);
-    void scoreChanged(unsigned);
+    void scoreChanged(int);
+    void computerChanged(bool);
 
 private:
-    std::vector<int> m_keyBinding;
     QString m_name;
-    Racket* m_racket;
-    unsigned m_score;
+    int m_score;
+    bool m_computer;
 };
 
 #endif // PLAYER_H

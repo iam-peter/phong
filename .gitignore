@@ -72,4 +72,9 @@ Thumbs.db
 *.dll
 *.exe
 
-phong-cpp
+# CMake build directories
+/build/
+CMakeLists.txt.user*
+
+# qmlls configuration, points at the local build directory
+.qmlls.ini
