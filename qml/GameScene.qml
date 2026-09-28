@@ -983,6 +983,10 @@ Scene {
     }
 
     function leave() {
+        // Nothing of the match that ended follows to the next screen
+        resultsDelay.stop()
+        replaying = false
+        replayFrame = null
         match.stop()
         releaseInput()
         lanGame = false
@@ -1512,6 +1516,7 @@ Scene {
 
     onActiveChanged: {
         if (!active) {
+            resultsDelay.stop()
             releaseInput()
             viewOffset = viewRotation = Qt.vector3d(0, 0, 0)
         }
@@ -1529,9 +1534,14 @@ Scene {
         if (event.isAutoRepeat)
             return
 
-        // Any key skips the replay
+        // Any key skips the replay, and the moment after it
         if (replaying) {
             endReplay()
+            return
+        }
+        if (resultsDelay.running) {
+            resultsDelay.stop()
+            phong.showResults()
             return
         }
 
@@ -1624,6 +1634,11 @@ Scene {
     onPointerPressed: (id, x, y) => {
         if (replaying) {
             endReplay()
+            return
+        }
+        if (resultsDelay.running) {
+            resultsDelay.stop()
+            phong.showResults()
             return
         }
 
@@ -1905,10 +1920,15 @@ Scene {
         }
     }
 
+    // A moment after the replay, then the results, unless the game was
+    // left meanwhile
     Timer {
         id: resultsDelay
         interval: 900
-        onTriggered: root.phong.showResults()
+        onTriggered: {
+            if (root.active)
+                root.phong.showResults()
+        }
     }
 
     PhysicsWorld {
