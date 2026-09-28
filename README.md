@@ -125,6 +125,13 @@ cmake --build build/server
 ./build/server/phong-server --port 45460 --scores scores.json
 ```
 
+It also comes as a container, `server/Dockerfile` builds it with the Qt of
+Debian, and `render.yaml` sets it up on Render: New, Blueprint, this
+repository. Render adds the TLS, the address is then
+`wss://<name>.onrender.com`. On the free plan the server sleeps after a
+while without players and takes about a minute to wake up, and it has no
+disk that lasts, so the high scores start over with every restart.
+
 The server speaks plain WebSockets. The browser version on an HTTPS page can
 only reach it over TLS, `wss://`, so a public server goes behind a proxy
 that adds TLS, e.g. Caddy with `reverse_proxy localhost:45460`.

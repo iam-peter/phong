@@ -1,0 +1,10 @@
+# The server for games over the internet on Render: New, Blueprint, and
+# this repository. It gets wss://<name>.onrender.com, Render adds the TLS.
+services:
+  - type: web
+    name: phong-server
+    runtime: docker
+    plan: free
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    autoDeploy: true

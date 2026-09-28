@@ -30,7 +30,8 @@ class HighScores : public QObject
     Q_PROPERTY(QString error READ error NOTIFY errorChanged)
 
 public:
-    static constexpr int timeout = 6000;
+    // A sleeping server, e.g. on a free plan, takes a while to wake up
+    static constexpr int timeout = 60000;
 
     explicit HighScores(QObject* parent = nullptr);
     ~HighScores() override;

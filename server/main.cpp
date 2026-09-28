@@ -14,8 +14,11 @@ int main(int argc, char* argv[])
     parser.setApplicationDescription(
         QStringLiteral("Rooms for P(H)ONG over the internet and its shared high scores"));
     parser.addHelpOption();
-    const QCommandLineOption portOption(QStringLiteral("port"), QStringLiteral("The port to listen on"),
-                                        QStringLiteral("port"), QStringLiteral("45460"));
+    // Hosting services like Render say in PORT where to listen
+    const QCommandLineOption portOption(QStringLiteral("port"),
+                                        QStringLiteral("The port to listen on, $PORT or 45460 by default"),
+                                        QStringLiteral("port"),
+                                        qEnvironmentVariable("PORT", QStringLiteral("45460")));
     const QCommandLineOption dataOption(QStringLiteral("scores"),
                                         QStringLiteral("The file keeping the high scores, none by default"),
                                         QStringLiteral("file"));
