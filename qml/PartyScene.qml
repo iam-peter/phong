@@ -75,11 +75,36 @@ Scene {
         return Qt.vector3d(r * Math.cos(angle), r * Math.sin(angle), 0)
     }
 
+    // Wide windows list the players beside the polygon, that lets the
+    // camera come closer. Narrow ones have the names at the sides.
+    readonly property bool sideLayout: (phong?.aspectRatio ?? 1.0) >= 1.45
+    readonly property real extentX: {
+        let extent = 0
+        for (let i = 0; i < players; ++i)
+            extent = Math.max(extent, Math.abs(corner(i, apothem + wallThickness).x))
+        return extent
+    }
+    readonly property real extentY: {
+        let low = Infinity
+        let high = -Infinity
+        for (let i = 0; i < players; ++i) {
+            const y = corner(i, apothem + wallThickness).y
+            low = Math.min(low, y)
+            high = Math.max(high, y)
+        }
+        return 0.5 * (high - low)
+    }
+    contentHalfWidth: sideLayout ? extentX + 8.0 : Math.max(extentX + 3.5, 18.5)
+    contentHalfHeight: sideLayout ? extentY + 0.6 : 13.0
+
     readonly property real middleY: {
         let low = Infinity
         let high = -Infinity
         for (let i = 0; i < players; ++i) {
-            for (const y of [corner(i, apothem + wallThickness).y, sidePoint(i, labelDistance, 0).y]) {
+            const points = [corner(i, apothem + wallThickness).y]
+            if (!sideLayout)
+                points.push(sidePoint(i, labelDistance, 0).y)
+            for (const y of points) {
                 low = Math.min(low, y)
                 high = Math.max(high, y)
             }
@@ -529,6 +554,7 @@ Scene {
 
             // Name and balls left, outside the side
             Node {
+                visible: !root.sideLayout
                 position: root.sidePoint(side.index, root.labelDistance, 0)
 
                 Text3D {
@@ -614,10 +640,52 @@ Scene {
         z: 1.5
     }
 
-    // In the corner, the polygons leave it free
+    // The players beside the polygon on wide windows
     Node {
-        x: -18.5
-        y: root.middleY - 11.5
+        visible: root.sideLayout
+        x: -root.extentX - 7.5
+        y: root.middleY + root.extentY - 1.0
+
+        Repeater3D {
+            model: root.players
+
+            delegate: Node {
+                id: entry
+
+                required property int index
+                readonly property bool alive: (match.livesLeft[index] ?? 1) > 0
+                readonly property color color: root.colors[index]
+
+                y: -index * 1.6
+
+                Text3D {
+                    scale: Qt.vector3d(0.6, 0.6, 0.6)
+                    verticalAlignment: Text.AlignVCenter
+                    color: entry.alive ? entry.color : Theme.dimmed
+                    glow: entry.alive ? 0.5 : 0.0
+                    text: entry.index === 0 ? qsTr("You") : qsTr("CPU %1").arg(entry.index)
+                }
+
+                Repeater3D {
+                    model: match.lives
+
+                    delegate: Disc {
+                        required property int index
+                        x: 4.0 + index * 0.7
+                        radius: 0.24
+                        sphere: true
+                        color: index < (match.livesLeft[entry.index] ?? 0) ? entry.color : Theme.goal
+                        glow: 0.4
+                    }
+                }
+            }
+        }
+    }
+
+    // In a corner, the polygons leave it free
+    Node {
+        x: root.sideLayout ? -root.extentX - 7.5 : -18.5
+        y: root.middleY - (root.sideLayout ? root.extentY - 0.8 : 11.5)
         scale: Qt.vector3d(0.5, 0.5, 0.5)
 
         Repeater3D {

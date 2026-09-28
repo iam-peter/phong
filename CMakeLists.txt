@@ -31,6 +31,8 @@ qt_add_qml_module(phong
         qml/ModifierItem.qml
         qml/BallBody.qml
         qml/PaddleBody.qml
+        qml/PlayerPanel.qml
+        qml/PowerBar.qml
         qml/Sparks.qml
         qml/AchievementsScene.qml
         qml/Banner.qml

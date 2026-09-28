@@ -118,7 +118,7 @@ QtObject {
     readonly property bool phong: GraphicsSettings.shading === GraphicsSettings.Phong
 
     // Closest camera distance in front of the scene it looks at, Main
-    // backs off further when the window is too narrow for the scenes
-    readonly property real cameraDistance: 34.0
+    // backs off further until the scene fits the window
+    readonly property real minimumCameraDistance: 20.0
     readonly property int cameraDuration: 250
 }

@@ -24,10 +24,21 @@ Window {
     readonly property real contentHalfHeight: 13.0
     readonly property real tanHalfFieldOfView: Math.tan(0.5 * camera.fieldOfView * Math.PI / 180)
     readonly property real aspectRatio: Math.max(width, 1) / Math.max(height, 1)
-    readonly property real cameraDistance: Math.max(Theme.cameraDistance,
-                                                    contentHalfWidth / (tanHalfFieldOfView * aspectRatio))
+    // The camera distance for content reaching halfWidth and halfHeight
+    // from the middle of a scene
+    function distanceFor(halfWidth, halfHeight) {
+        return Math.max(Theme.minimumCameraDistance, halfWidth / (tanHalfFieldOfView * aspectRatio),
+                        halfHeight / tanHalfFieldOfView)
+    }
+    function sceneDistance(scene) {
+        return distanceFor(scene?.contentHalfWidth ?? contentHalfWidth, scene?.contentHalfHeight ?? contentHalfHeight)
+    }
+    // The widest content any scene has, its distance keeps the others out
+    // of view
+    readonly property real widestHalfWidth: 23.0
+    readonly property real cameraDistance: distanceFor(widestHalfWidth, contentHalfHeight)
     readonly property real sceneSpacingX: Math.max(40, cameraDistance * tanHalfFieldOfView * aspectRatio
-                                                       + contentHalfWidth + 1.0)
+                                                       + widestHalfWidth + 1.0)
     readonly property real sceneSpacingY: Math.max(40, cameraDistance * tanHalfFieldOfView
                                                        + contentHalfHeight + 1.0)
 
@@ -36,7 +47,7 @@ Window {
             currentScene.active = false
 
         sceneStack = sceneStack.concat([scene])
-        transformCamera(scene.position)
+        transformCamera(scene)
         scene.active = true
     }
 
@@ -46,7 +57,7 @@ Window {
 
         currentScene.active = false
         sceneStack = sceneStack.slice(0, -1)
-        transformCamera(currentScene.position)
+        transformCamera(currentScene)
         currentScene.active = true
     }
 
@@ -58,19 +69,26 @@ Window {
 
         currentScene.active = false
         sceneStack = sceneStack.slice(0, index + 1)
-        transformCamera(currentScene.position)
+        transformCamera(currentScene)
         currentScene.active = true
     }
 
     function cameraPosition(scene) {
-        return scene.position.plus(Qt.vector3d(0, 0, cameraDistance))
+        return scene.position.plus(Qt.vector3d(0, 0, sceneDistance(scene)))
     }
 
-    function transformCamera(position) {
+    function transformCamera(scene) {
         cameraAnimation.stop()
         cameraAnimation.from = cameraRig.position
-        cameraAnimation.to = position.plus(Qt.vector3d(0, 0, cameraDistance))
+        cameraAnimation.to = cameraPosition(scene)
         cameraAnimation.start()
+    }
+
+    // A scene whose content changes size, e.g. with the layout
+    Connections {
+        target: phong.currentScene
+        function onContentHalfWidthChanged() { Qt.callLater(phong.snapCamera) }
+        function onContentHalfHeightChanged() { Qt.callLater(phong.snapCamera) }
     }
 
     // The scenes moved with the window size, catch up with the current one

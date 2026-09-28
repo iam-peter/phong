@@ -16,6 +16,11 @@ Node {
     // 0 to 1, for effects of the view
     property real slowMotion: 0.0
 
+    // How far the content reaches from the middle, the camera comes as
+    // close as it fits
+    property real contentHalfWidth: 18.5
+    property real contentHalfHeight: 13.0
+
     signal keyPressed(var event)
     signal keyReleased(var event)
 

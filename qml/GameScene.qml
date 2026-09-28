@@ -247,6 +247,38 @@ Scene {
         resultsDelay.start()
     }
 
+    // Wide windows get the scores and keys beside the field, that leaves
+    // the height to the field. Narrow ones have them above and below.
+    readonly property bool sideLayout: (phong?.aspectRatio ?? 1.0) >= 1.72
+    contentHalfWidth: sideLayout ? 22.6 : 18.5
+    contentHalfHeight: sideLayout ? 10.9 : 12.9
+
+    readonly property var keyNames: KeySettings.keyNames
+    function keyHint(...actions) {
+        return "[" + actions.map((action) => keyNames[action]).join("/") + "]"
+    }
+    readonly property var leftHints: {
+        const twoPlayers = mode === GameScene.TwoPlayers
+        const lines = [qsTr("%1 move").arg(keyHint(KeySettings.LeftUp, KeySettings.LeftDown))]
+        if (!twoPlayers)
+            lines.push(qsTr("%1 move").arg(keyHint(KeySettings.RightUp, KeySettings.RightDown)))
+        lines.push(qsTr("twice to dash"),
+                   qsTr("%1 smash").arg(twoPlayers ? keyHint(KeySettings.LeftSmash) : "[" + qsTr("Space") + "]"),
+                   qsTr("%1 special").arg(keyHint(KeySettings.LeftSpecial)))
+        return lines
+    }
+    readonly property var rightHints: {
+        if (mode === GameScene.TwoPlayers)
+            return [qsTr("%1 move").arg(keyHint(KeySettings.RightUp, KeySettings.RightDown)), qsTr("twice to dash"),
+                    qsTr("%1 smash").arg(keyHint(KeySettings.RightSmash)),
+                    qsTr("%1 special").arg(keyHint(KeySettings.RightSpecial))]
+        if (mode === GameScene.Ladder)
+            return [qsTr("Ladder %1/3").arg(ladderStage + 1)]
+        if (squash)
+            return [qsTr("Best %1").arg(Math.max(match.longestRally, Stats.squashBest))]
+        return []
+    }
+
     // Camera shake, applied through viewOffset
     property real shakeAmount: 0.0
 
@@ -2213,8 +2245,49 @@ Scene {
         z: 1.5
     }
 
+    // Beside the field on wide windows
+    PlayerPanel {
+        visible: root.sideLayout
+        x: -0.5 * root.stageWidth - 2.8
+        name: match.left.name
+        color: Theme.leftPlayer
+        score: root.endless ? root.endlessScore : root.squash ? match.rally : match.left.score
+        sets: match.left.sets
+        setsToWin: match.setsToWin
+        effects: root.leftEffects
+        power: match.left.power
+        lives: root.solo ? root.lives : 0
+        livesLeft: root.lives - match.right.score
+        hints: root.leftHints
+    }
+
+    PlayerPanel {
+        visible: root.sideLayout
+        x: 0.5 * root.stageWidth + 2.8
+        name: match.right.name
+        color: Theme.rightPlayer
+        score: root.solo ? "" : match.right.score
+        sets: match.right.sets
+        setsToWin: match.setsToWin
+        effects: root.rightEffects
+        power: match.right.power
+        showPower: !root.squash
+        hints: root.rightHints
+
+        Text3D {
+            y: -9.6
+            scale: Qt.vector3d(0.42, 0.42, 0.42)
+            horizontalAlignment: Text.AlignHCenter
+            color: Theme.dimmed
+            text: qsTr("[Esc] pause")
+            clickable: root.running && root.sideLayout
+            onClicked: match.pause()
+        }
+    }
+
     // Scoreboard
     Node {
+        visible: !root.sideLayout
         y: 0.5 * root.stageHeight + 1.4
 
         Text3D {
@@ -2337,43 +2410,8 @@ Scene {
     }
 
     // Power bars under the field, a segment for every hit
-    component PowerBar: Node {
-        id: bar
-
-        property real power: 0.0
-        property color color: Theme.text
-        // Grows away from the middle
-        property int direction: 1
-        readonly property bool full: power >= 1.0
-        property real pulse: 0.0
-
-        SequentialAnimation on pulse {
-            running: bar.full
-            loops: Animation.Infinite
-            NumberAnimation { from: 0.0; to: 1.0; duration: 300 }
-            NumberAnimation { from: 1.0; to: 0.0; duration: 300 }
-        }
-
-        Repeater3D {
-            model: 8
-
-            delegate: Model {
-                required property int index
-                readonly property bool filled: bar.power * 8 >= index + 1 - 1e-6
-
-                x: bar.direction * (0.35 + index * 0.78)
-                source: "#Cube"
-                scale: Qt.vector3d(0.7 / 100, 0.35 / 100, 0.004)
-                materials: PhongMaterial {
-                    color: parent.filled ? bar.color : Theme.goal
-                    glow: parent.filled ? (bar.full ? 0.8 + 1.2 * bar.pulse : 0.5) : 0.0
-                    lighting: DefaultMaterial.NoLighting
-                }
-            }
-        }
-    }
-
     Node {
+        visible: !root.sideLayout
         y: -0.5 * root.stageHeight - 1.15
 
         PowerBar {
@@ -2393,6 +2431,7 @@ Scene {
 
     // Controls
     Node {
+        visible: !root.sideLayout
         y: -0.5 * root.stageHeight - 2.2
         scale: Qt.vector3d(0.5, 0.5, 0.5)
 
@@ -2425,7 +2464,7 @@ Scene {
             horizontalAlignment: Text.AlignRight
             color: Theme.dimmed
             text: qsTr("[Esc] pause")
-            clickable: root.running
+            clickable: root.running && !root.sideLayout
             onClicked: match.pause()
         }
     }
