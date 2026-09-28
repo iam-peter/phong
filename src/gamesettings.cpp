@@ -13,6 +13,7 @@ constexpr bool defaultWinByTwo = false;
 const QString defaultArena = QStringLiteral("random");
 constexpr bool defaultSound = true;
 constexpr bool defaultMusic = true;
+constexpr int defaultMusicVolume = 75;
 constexpr int defaultKickoffTime = 2;
 
 template<typename Enum>
@@ -36,6 +37,7 @@ GameSettings::GameSettings(QObject* parent):
     m_arena(defaultArena),
     m_sound(defaultSound),
     m_music(defaultMusic),
+    m_musicVolume(defaultMusicVolume),
     m_kickoffTime(defaultKickoffTime),
     m_mode(0),
     m_partyPlayers(4)
@@ -52,6 +54,7 @@ GameSettings::GameSettings(QObject* parent):
     m_arena = m_settings.value("arena", defaultArena).toString();
     m_sound = m_settings.value("sound", defaultSound).toBool();
     m_music = m_settings.value("music", defaultMusic).toBool();
+    m_musicVolume = std::clamp(m_settings.value("musicVolume", defaultMusicVolume).toInt(), 0, 100);
     m_kickoffTime = std::clamp(m_settings.value("kickoffTime", defaultKickoffTime).toInt(),
                                minKickoffTime, maxKickoffTime);
     m_mode = std::max(m_settings.value("mode", 0).toInt(), 0);
@@ -71,6 +74,7 @@ void GameSettings::restoreDefaults()
     setArena(defaultArena);
     setSound(defaultSound);
     setMusic(defaultMusic);
+    setMusicVolume(defaultMusicVolume);
     setKickoffTime(defaultKickoffTime);
 }
 
@@ -224,6 +228,22 @@ void GameSettings::setMusic(bool music)
 bool GameSettings::music() const
 {
     return m_music;
+}
+
+void GameSettings::setMusicVolume(int musicVolume)
+{
+    musicVolume = std::clamp(musicVolume, 0, 100);
+    if (m_musicVolume == musicVolume)
+        return;
+
+    m_musicVolume = musicVolume;
+    m_settings.setValue("musicVolume", musicVolume);
+    emit musicVolumeChanged(musicVolume);
+}
+
+int GameSettings::musicVolume() const
+{
+    return m_musicVolume;
 }
 
 void GameSettings::setKickoffTime(int kickoffTime)

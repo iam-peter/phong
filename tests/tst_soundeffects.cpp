@@ -108,6 +108,21 @@ private slots:
         QCOMPARE(sounds.musicTempo(), 240.0);
         sounds.setMusicEnabled(false);
         QVERIFY(!sounds.isMusicEnabled());
+        sounds.setMusicVolume(1.5);
+        QCOMPARE(sounds.musicVolume(), 1.0);
+    }
+
+    void musicVolume()
+    {
+        // Half the volume halves every tone, none leaves no tones
+        for (int step = 0; step < Music::loopSteps; ++step) {
+            const QList<SoundEffects::Tone> full = Music::step(step, Music::maxIntensity, 0.125);
+            const QList<SoundEffects::Tone> half = Music::step(step, Music::maxIntensity, 0.125, 0.5);
+            QCOMPARE(half.size(), full.size());
+            for (qsizetype i = 0; i < full.size(); ++i)
+                QCOMPARE(half.at(i).volume, 0.5 * full.at(i).volume);
+            QVERIFY(Music::step(step, Music::maxIntensity, 0.125, 0.0).isEmpty());
+        }
     }
 
     void disabledIsSilent()

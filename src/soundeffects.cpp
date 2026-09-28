@@ -165,10 +165,11 @@ public:
                             tone.to * pitch, tone.volume * masterVolume);
     }
 
-    void setMusic(bool playing, int intensity, qreal bpm)
+    void setMusic(bool playing, int intensity, qreal bpm, qreal volume)
     {
         m_intensity = intensity;
         m_bpm = bpm;
+        m_volume = volume;
         if (playing == m_timer.isActive())
             return;
 
@@ -195,7 +196,7 @@ private:
 
         while (m_nextStep < now + lookahead) {
             const qreal duration = Music::stepDuration(m_bpm);
-            play(Music::step(m_step++, m_intensity, duration), 1.0, m_nextStep - now);
+            play(Music::step(m_step++, m_intensity, duration, m_volume), 1.0, m_nextStep - now);
             m_nextStep += duration;
         }
     }
@@ -205,6 +206,7 @@ private:
     QTimer m_timer;
     int m_intensity = 0;
     qreal m_bpm = 120.0;
+    qreal m_volume = 1.0;
     int m_step = 0;
     qreal m_nextStep = -1.0;
 };
@@ -226,7 +228,7 @@ public:
         m_voices.append({ samples, 0 });
     }
 
-    void setMusic(bool playing, int intensity, qreal bpm)
+    void setMusic(bool playing, int intensity, qreal bpm, qreal volume)
     {
         QMutexLocker locker(&m_mutex);
         if (playing && !m_musicPlaying) {
@@ -236,6 +238,7 @@ public:
         m_musicPlaying = playing;
         m_intensity = intensity;
         m_bpm = bpm;
+        m_volume = volume;
     }
 
     template<typename Sample>
@@ -286,7 +289,7 @@ private:
         const qreal end = qreal(m_frame + frames);
         while (m_nextStep < end) {
             const qreal duration = Music::stepDuration(m_bpm);
-            const QList<float> samples = SoundEffects::render(Music::step(m_step++, m_intensity, duration),
+            const QList<float> samples = SoundEffects::render(Music::step(m_step++, m_intensity, duration, m_volume),
                                                               m_sampleRate);
             const qsizetype delay = std::max(qsizetype(m_nextStep) - qsizetype(m_frame), qsizetype(0));
             m_voices.append({ samples, -delay });
@@ -306,6 +309,7 @@ private:
     bool m_musicPlaying = false;
     int m_intensity = 0;
     qreal m_bpm = 120.0;
+    qreal m_volume = 1.0;
     int m_step = 0;
     qreal m_nextStep = 0.0;
 };
@@ -389,13 +393,14 @@ public:
             m_mixer->add(SoundEffects::render(tones, m_sampleRate, pitch));
     }
 
-    void setMusic(bool playing, int intensity, qreal bpm)
+    void setMusic(bool playing, int intensity, qreal bpm, qreal volume)
     {
         m_musicPlaying = playing;
         m_intensity = intensity;
         m_bpm = bpm;
+        m_volume = volume;
         if (m_mixer)
-            m_mixer->setMusic(playing, intensity, bpm);
+            m_mixer->setMusic(playing, intensity, bpm, volume);
     }
 
 private:
@@ -428,7 +433,7 @@ private:
 
         m_sampleRate = format.sampleRate();
         m_mixer = std::make_shared<Mixer>(m_sampleRate);
-        m_mixer->setMusic(m_musicPlaying, m_intensity, m_bpm);
+        m_mixer->setMusic(m_musicPlaying, m_intensity, m_bpm, m_volume);
         m_sink = std::make_unique<QAudioSink>(device, format);
         m_sink->setBufferSize(format.bytesForDuration(60000));
 
@@ -488,6 +493,7 @@ private:
     bool m_musicPlaying = false;
     int m_intensity = 0;
     qreal m_bpm = 120.0;
+    qreal m_volume = 1.0;
     std::shared_ptr<Mixer> m_mixer;
 #if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
     std::unique_ptr<MixerDevice> m_device;
@@ -508,7 +514,7 @@ public:
     void play(const QList<Tone>&, qreal)
     {}
 
-    void setMusic(bool, int, qreal)
+    void setMusic(bool, int, qreal, qreal)
     {}
 };
 
@@ -645,6 +651,7 @@ SoundEffects::SoundEffects(QObject* parent):
     m_musicPlaying(false),
     m_musicIntensity(0),
     m_musicTempo(120.0),
+    m_musicVolume(1.0),
     m_backend(std::make_unique<Backend>())
 {}
 
@@ -728,9 +735,25 @@ qreal SoundEffects::musicTempo() const
     return m_musicTempo;
 }
 
+void SoundEffects::setMusicVolume(qreal musicVolume)
+{
+    musicVolume = std::clamp(musicVolume, 0.0, 1.0);
+    if (m_musicVolume == musicVolume)
+        return;
+
+    m_musicVolume = musicVolume;
+    emit musicVolumeChanged(musicVolume);
+    updateMusic();
+}
+
+qreal SoundEffects::musicVolume() const
+{
+    return m_musicVolume;
+}
+
 void SoundEffects::updateMusic()
 {
-    m_backend->setMusic(m_enabled && m_musicEnabled && m_musicPlaying, m_musicIntensity, m_musicTempo);
+    m_backend->setMusic(m_enabled && m_musicEnabled && m_musicPlaying, m_musicIntensity, m_musicTempo, m_musicVolume);
 }
 
 bool SoundEffects::isEnabled() const

@@ -369,7 +369,8 @@ the tempo rises. In slow motion it slows down too. The desktop sequences it
 on the audio thread, the browser schedules it ahead on the audio clock, so
 the beat keeps its time when the game is busy.
 
-Sound and music can be switched off separately in the settings. `QT_LOGGING_RULES="phong.sound.debug=true"` logs what the audio
+Sound and music can be switched off separately in the settings, the music
+also has a volume of its own. `QT_LOGGING_RULES="phong.sound.debug=true"` logs what the audio
 output does.
 
 ## Physics

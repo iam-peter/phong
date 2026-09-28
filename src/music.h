@@ -17,8 +17,9 @@ public:
     // Seconds of a sixteenth step at bpm
     static qreal stepDuration(qreal bpm);
 
-    // Tones of the step, starting relative to its beginning
-    static QList<SoundEffects::Tone> step(int index, int intensity, qreal stepDuration);
+    // Tones of the step, starting relative to its beginning, volume from
+    // 0 to 1 scales them
+    static QList<SoundEffects::Tone> step(int index, int intensity, qreal stepDuration, qreal volume = 1.0);
 };
 
 #endif // MUSIC_H

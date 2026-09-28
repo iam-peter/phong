@@ -487,6 +487,12 @@ Window {
         value: GameSettings.music
     }
 
+    Binding {
+        target: SoundEffects
+        property: "musicVolume"
+        value: GameSettings.musicVolume / 100
+    }
+
     Component.onCompleted: {
         cameraRig.position = cameraPosition(menuScene)
         nextScene(menuScene)

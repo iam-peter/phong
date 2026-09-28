@@ -23,6 +23,8 @@ class SoundEffects : public QObject
     Q_PROPERTY(int musicIntensity READ musicIntensity WRITE setMusicIntensity NOTIFY musicIntensityChanged)
     // Beats per minute
     Q_PROPERTY(qreal musicTempo READ musicTempo WRITE setMusicTempo NOTIFY musicTempoChanged)
+    // 0 to 1
+    Q_PROPERTY(qreal musicVolume READ musicVolume WRITE setMusicVolume NOTIFY musicVolumeChanged)
 
 public:
     enum Sound {
@@ -101,12 +103,16 @@ public:
     void setMusicTempo(qreal musicTempo);
     qreal musicTempo() const;
 
+    void setMusicVolume(qreal musicVolume);
+    qreal musicVolume() const;
+
 signals:
     void enabledChanged(bool);
     void musicEnabledChanged(bool);
     void musicPlayingChanged(bool);
     void musicIntensityChanged(int);
     void musicTempoChanged(qreal);
+    void musicVolumeChanged(qreal);
 
 private:
     class Backend;
@@ -118,6 +124,7 @@ private:
     bool m_musicPlaying;
     int m_musicIntensity;
     qreal m_musicTempo;
+    qreal m_musicVolume;
     std::unique_ptr<Backend> m_backend;
 };
 

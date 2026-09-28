@@ -37,7 +37,7 @@ qreal Music::stepDuration(qreal bpm)
     return 60.0 / std::max(bpm, 30.0) / 4.0;
 }
 
-QList<SoundEffects::Tone> Music::step(int index, int intensity, qreal duration)
+QList<SoundEffects::Tone> Music::step(int index, int intensity, qreal duration, qreal volume)
 {
     constexpr auto Noise = SoundEffects::Noise;
     constexpr auto Sine = SoundEffects::Sine;
@@ -87,5 +87,9 @@ QList<SoundEffects::Tone> Music::step(int index, int intensity, qreal duration)
     if (intensity >= 4 && lead.at(bar).at(beat) >= 0)
         note(Square, lead.at(bar).at(beat), 2.5, 0.06);
 
+    volume = std::clamp(volume, 0.0, 1.0);
+    for (Tone& tone : tones)
+        tone.volume *= volume;
+    tones.removeIf([](const Tone& tone) { return tone.volume <= 0.0; });
     return tones;
 }

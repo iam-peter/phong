@@ -91,6 +91,13 @@ OptionsScene {
             set: (value) => GameSettings.music = value
         },
         {
+            label: qsTr("Music volume"),
+            values: [25, 50, 75, 100],
+            names: ["25%", "50%", "75%", "100%"],
+            get: () => GameSettings.musicVolume,
+            set: (value) => GameSettings.musicVolume = value
+        },
+        {
             label: qsTr("Graphics"),
             values: [],
             names: [],

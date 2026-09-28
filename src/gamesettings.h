@@ -25,6 +25,8 @@ class GameSettings : public QObject
     Q_PROPERTY(QString arena READ arena WRITE setArena NOTIFY arenaChanged)
     Q_PROPERTY(bool sound READ sound WRITE setSound NOTIFY soundChanged)
     Q_PROPERTY(bool music READ music WRITE setMusic NOTIFY musicChanged)
+    // Percent
+    Q_PROPERTY(int musicVolume READ musicVolume WRITE setMusicVolume NOTIFY musicVolumeChanged)
     // Seconds of countdown before a kickoff
     Q_PROPERTY(int kickoffTime READ kickoffTime WRITE setKickoffTime NOTIFY kickoffTimeChanged)
     // The game mode last chosen in the menu, see GameScene.Mode
@@ -93,6 +95,9 @@ public:
     void setMusic(bool music);
     bool music() const;
 
+    void setMusicVolume(int musicVolume);
+    int musicVolume() const;
+
     void setKickoffTime(int kickoffTime);
     int kickoffTime() const;
 
@@ -120,6 +125,7 @@ signals:
     void arenaChanged(const QString&);
     void soundChanged(bool);
     void musicChanged(bool);
+    void musicVolumeChanged(int);
     void kickoffTimeChanged(int);
     void modeChanged(int);
     void partyPlayersChanged(int);
@@ -138,6 +144,7 @@ private:
     QString m_arena;
     bool m_sound;
     bool m_music;
+    int m_musicVolume;
     int m_kickoffTime;
     int m_mode;
     int m_partyPlayers;
