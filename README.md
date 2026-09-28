@@ -26,7 +26,7 @@ workflow. The pages need Settings, Pages, Source set to GitHub Actions once.
 
 ## Requirements
 
-- Qt 6.9 or newer (`ExtrudedTextGeometry`) with the Qt Quick 3D,
+- Qt 6.9 or newer with the Qt Quick 3D,
   Qt Quick 3D Physics and Qt WebSockets modules
 - Qt Multimedia for sound on the desktop, optional
 - SDL 3 for gamepads on the desktop, the build downloads it if it isn't

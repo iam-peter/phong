@@ -78,6 +78,8 @@ qt_add_qml_module(phong
         qml/Instances.qml
         qml/Discs.qml
         qml/Glow.qml
+        qml/TextLayer.qml
+        qml/TextMaterial.qml
         qml/Starfield.qml
         qml/MenuScene.qml
         qml/GameScene.qml
@@ -89,6 +91,8 @@ qt_add_qml_module(phong
         src/partymatch.h src/partymatch.cpp
         src/partymodifiers.h src/partymodifiers.cpp
         src/highscores.h src/highscores.cpp
+        src/fontatlas.h src/fontatlas.cpp
+        src/textbatch.h src/textbatch.cpp
         src/dash.h src/dash.cpp
         src/computerplayer.h src/computerplayer.cpp
         src/tournament.h src/tournament.cpp
@@ -110,6 +114,8 @@ qt_add_qml_module(phong
         qml/phong.frag
         qml/glow_blur.frag
         qml/glow_combine.frag
+        qml/text.vert
+        qml/text.frag
 )
 
 # The generated QML type registration includes the headers by name

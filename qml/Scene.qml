@@ -10,6 +10,16 @@ Node {
     property bool active: false
     property var phong
 
+    // Only the scene in view and the one the camera leaves are drawn
+    visible: active || phong?.leavingScene === root
+
+    // All the texts of the scene in one draw call, see Text3D
+    readonly property TextBatch textBatch: sceneText.batch
+
+    TextLayer {
+        id: sceneText
+    }
+
     // Added to the camera while the scene is active, e.g. for shaking
     property vector3d viewOffset: Qt.vector3d(0, 0, 0)
     property vector3d viewRotation: Qt.vector3d(0, 0, 0)

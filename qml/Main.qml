@@ -15,6 +15,9 @@ Window {
 
     property var sceneStack: []
     readonly property Scene currentScene: sceneStack.length ? sceneStack[sceneStack.length - 1] : null
+    // The scene the camera is flying away from, shown until it arrived.
+    // The others are hidden, instanced models aren't culled.
+    property Scene leavingScene: null
 
     // Scene layout follows the window: the camera backs off until the widest
     // scene fits, and the scenes are spread so that only the current one is
@@ -42,6 +45,7 @@ Window {
                                                        + contentHalfHeight + 1.0)
 
     function nextScene(scene) {
+        leavingScene = currentScene
         if (currentScene)
             currentScene.active = false
 
@@ -54,6 +58,7 @@ Window {
         if (sceneStack.length < 2)
             return
 
+        leavingScene = currentScene
         currentScene.active = false
         sceneStack = sceneStack.slice(0, -1)
         transformCamera(currentScene)
@@ -66,6 +71,7 @@ Window {
         if (index < 0 || scene === currentScene)
             return
 
+        leavingScene = currentScene
         currentScene.active = false
         sceneStack = sceneStack.slice(0, index + 1)
         transformCamera(currentScene)
@@ -97,6 +103,7 @@ Window {
 
         cameraAnimation.stop()
         cameraRig.position = cameraPosition(currentScene)
+        leavingScene = null
     }
 
     onWidthChanged: Qt.callLater(snapCamera)
@@ -288,6 +295,18 @@ Window {
             fxaa: GraphicsSettings.antialiasing === GraphicsSettings.FastAntialiasing ? 1.0 : 0.0
         }
 
+        // The letters of all texts, see Text3D
+        Texture {
+            id: fontAtlasTexture
+            textureData: FontAtlasTexture {}
+            minFilter: Texture.Linear
+            magFilter: Texture.Linear
+            mipFilter: Texture.None
+            tilingModeHorizontal: Texture.ClampToEdge
+            tilingModeVertical: Texture.ClampToEdge
+            Component.onCompleted: FontAtlas.texture = fontAtlasTexture
+        }
+
         // Key light from above in front, gives the Phong highlights and
         // makes the extruded edges read
         DirectionalLight {
@@ -331,6 +350,7 @@ Window {
             property: "position"
             duration: Theme.cameraDuration
             easing.type: Easing.InOutQuad
+            onFinished: phong.leavingScene = null
         }
 
         MenuScene {
@@ -512,6 +532,12 @@ Window {
         target: Lan
         property: "playerName"
         value: GameSettings.playerName
+    }
+
+    Binding {
+        target: FontAtlas
+        property: "family"
+        value: Theme.fontFamily
     }
 
     Binding {

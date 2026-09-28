@@ -33,6 +33,13 @@ phong_add_test(tst_partymodifiers
     ${PROJECT_SOURCE_DIR}/src/player.cpp
 )
 
+find_package(Qt6 REQUIRED COMPONENTS Quick3D)
+phong_add_test(tst_fontatlas
+    ${PROJECT_SOURCE_DIR}/src/fontatlas.cpp
+)
+target_link_libraries(tst_fontatlas PRIVATE Qt6::Quick3D)
+set_tests_properties(tst_fontatlas PROPERTIES ENVIRONMENT QT_QPA_PLATFORM=offscreen)
+
 phong_add_test(tst_dash
     ${PROJECT_SOURCE_DIR}/src/dash.cpp
 )
