@@ -315,6 +315,8 @@ Window {
                 fieldOfView: 45
                 clipNear: 0.1
                 clipFar: 1000
+                // All scenes are in the world, only the one in view is drawn
+                frustumCullingEnabled: true
 
                 // A fill light travelling with the camera
                 PointLight {
