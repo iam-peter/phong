@@ -12,7 +12,9 @@ Player::Player(QObject* parent):
     m_paddleScale(1.0),
     m_spinSpeed(0.0),
     m_shielded(false),
-    m_catches(0)
+    m_catches(0),
+    m_frozen(false),
+    m_reversed(false)
 {}
 
 void Player::setName(const QString& name)
@@ -140,4 +142,32 @@ void Player::setCatches(int catches)
 int Player::catches() const
 {
     return m_catches;
+}
+
+void Player::setFrozen(bool frozen)
+{
+    if (m_frozen == frozen)
+        return;
+
+    m_frozen = frozen;
+    emit frozenChanged(frozen);
+}
+
+bool Player::isFrozen() const
+{
+    return m_frozen;
+}
+
+void Player::setReversed(bool reversed)
+{
+    if (m_reversed == reversed)
+        return;
+
+    m_reversed = reversed;
+    emit reversedChanged(reversed);
+}
+
+bool Player::isReversed() const
+{
+    return m_reversed;
 }

@@ -120,6 +120,11 @@ after a serve the ball flies through without collecting anything.
 | `=` | Narrow field | the walls move in for 12 s |
 | `oo` | Multi ball | two extra balls fly at the opponent for 12 s, their goals count |
 | `U` | Magnet | the collector's paddle catches the next three balls within 12 s |
+| `()` | Portals | two linked portals open for 10 s, a ball flying into one comes out of the other |
+| `*` | Freeze | curse, the opponent's paddle freezes for 1.5 s |
+| `?` | Reversed | curse, the opponent's controls are swapped for 7 s |
+| `~` | Ghost ball | the balls can't be seen in the middle third of the field for 8 s |
+| `O` | Gravity well | a well bends the flight of the balls for 10 s |
 
 A magnetic paddle holds a caught ball for up to 1.2 seconds. Meanwhile the
 paddle stands and the movement keys slide the ball along it, the ball leaves
@@ -127,7 +132,8 @@ at the angle of where it sits. Letting go of the smash key throws it, wound
 up as long as the key was held.
 
 Active effects show next to the player names. Modifiers can be switched off
-in the settings.
+in the settings. Curses get to the computer as well: reversed it reacts
+slower and less accurately, and it can't follow a ghost ball either.
 
 ### Configuration
 
@@ -149,10 +155,10 @@ use them:
 | `spawn.lifetime` | seconds until an item that nobody collected disappears |
 | `spawn.minDistance` | minimum distance between two items |
 | `id`, `name`, `glyph`, `color` | identity and look |
-| `effect` | `ballSpeed`, `paddleSize`, `shield`, `spin`, `narrowField`, `multiBall` or `magnet` |
+| `effect` | `ballSpeed`, `paddleSize`, `shield`, `spin`, `narrowField`, `multiBall`, `magnet`, `portals`, `freeze`, `reverse`, `ghostBall` or `gravityWell` |
 | `target` | `collector` (default), `opponent` for curses, or `both` |
-| `value` | speed or length factor, spin in degrees per second, inset of the walls, number of extra balls, catches |
-| `duration` | seconds the effect lasts, for `paddleSize`, `spin`, `narrowField`, `multiBall` and `magnet` |
+| `value` | speed or length factor, spin in degrees per second, inset of the walls, number of extra balls, catches, strength of the well |
+| `duration` | seconds the effect lasts, all but `ballSpeed` and `shield` |
 | `weight` | relative spawn chance, `0` never spawns |
 | `enabled` | `false` skips the entry |
 

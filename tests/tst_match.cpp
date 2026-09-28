@@ -621,6 +621,35 @@ private slots:
         QCOMPARE(match.ball()->heldBy(), Match::Side::NoSide);
     }
 
+    void gravityBends()
+    {
+        Match match;
+        serve(match);
+
+        const QVector2D before = match.ballVelocity();
+        const QVector2D position(0.0f, 0.0f);
+        // A well above the ball pulls it up, the speed stays
+        for (int i = 0; i < 30; ++i)
+            match.attract(match.ball(), position, QVector2D(before.x() > 0.0f ? 3.0f : -3.0f, 4.0f), 200.0, 1.0 / 60.0);
+
+        const QVector2D after = match.ballVelocity();
+        QVERIFY(after.y() > before.y());
+        QVERIFY(qAbs(after.length() - before.length()) < 1e-3f);
+        QVERIFY(after.x() * before.x() > 0.0f);
+
+        // However strong, the ball keeps crossing the field
+        for (int i = 0; i < 300; ++i)
+            match.attract(match.ball(), position, QVector2D(0.0f, 5.0f), 400.0, 1.0 / 60.0);
+        const QVector2D direction = match.ballVelocity().normalized();
+        QVERIFY(std::abs(direction.x()) >= qCos(qDegreesToRadians(Match::maxBounceAngle)) - 1e-4);
+        QVERIFY(direction.x() * before.x() > 0.0f);
+
+        // No pull without strength
+        const QVector2D velocity = match.ballVelocity();
+        match.attract(match.ball(), position, QVector2D(0.0f, -5.0f), 0.0, 1.0);
+        QCOMPARE(match.ballVelocity(), velocity);
+    }
+
     void matchPoint()
     {
         Match match;

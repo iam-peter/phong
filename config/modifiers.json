@@ -81,6 +81,55 @@
             "target": "collector",
             "value": 3,
             "duration": 12
+        },
+        {
+            "id": "portals",
+            "name": "Portals",
+            "glyph": "()",
+            "color": "#ff9933",
+            "effect": "portals",
+            "target": "both",
+            "duration": 10,
+            "weight": 0.8
+        },
+        {
+            "id": "freeze",
+            "name": "Freeze",
+            "glyph": "*",
+            "color": "#99e6ff",
+            "effect": "freeze",
+            "target": "opponent",
+            "duration": 1.5
+        },
+        {
+            "id": "reverse",
+            "name": "Reversed",
+            "glyph": "?",
+            "color": "#cc66ff",
+            "effect": "reverse",
+            "target": "opponent",
+            "duration": 7
+        },
+        {
+            "id": "ghostBall",
+            "name": "Ghost ball",
+            "glyph": "~",
+            "color": "#b3b3b3",
+            "effect": "ghostBall",
+            "target": "both",
+            "duration": 8,
+            "weight": 0.8
+        },
+        {
+            "id": "gravityWell",
+            "name": "Gravity well",
+            "glyph": "O",
+            "color": "#7a5cff",
+            "effect": "gravityWell",
+            "target": "both",
+            "value": 120,
+            "duration": 10,
+            "weight": 0.8
         }
     ]
 }

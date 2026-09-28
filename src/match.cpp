@@ -319,6 +319,28 @@ bool Match::releaseBall(Ball* ball, qreal smash)
     return true;
 }
 
+void Match::attract(Ball* ball, const QVector2D& position, const QVector2D& well, qreal strength,
+                    qreal dt)
+{
+    if (m_state != State::Playing || !isActive(ball) || ball->heldBy() != Side::NoSide || strength <= 0.0)
+        return;
+
+    const QVector2D velocity = ball->velocity();
+    const QVector2D towards = well - position;
+    const float distance = towards.length();
+    if (distance < 0.01f || velocity.isNull())
+        return;
+
+    // Falls off with the square of the distance, a core keeps it finite
+    constexpr float core = 2.0f;
+    const float pull = float(strength) / std::max(distance * distance, core * core);
+    const QVector2D bent = (velocity + towards / distance * pull * float(dt)).normalized();
+
+    // Never turns the ball around
+    const float x = velocity.x() < 0.0f ? -1.0f : 1.0f;
+    ball->setVelocity(acrossField(QVector2D(x * std::abs(bent.x()), bent.y()), x) * velocity.length());
+}
+
 Ball* Match::addBall(const QVector2D& position, Side towards, qreal lifetime, Side lastTouch)
 {
     if (m_state != State::Playing || towards == Side::NoSide)

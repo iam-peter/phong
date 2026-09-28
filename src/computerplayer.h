@@ -31,6 +31,10 @@ class ComputerPlayer : public QObject
     Q_PROPERTY(qreal paddleSpeed READ paddleSpeed WRITE setPaddleSpeed NOTIFY paddleSpeedChanged)
     // Only a dash reaches the ball in time
     Q_PROPERTY(bool wantsDash READ wantsDash NOTIFY wantsDashChanged)
+    // Reversed controls, 0 to 1: slower to react, less accurate
+    Q_PROPERTY(qreal confusion READ confusion WRITE setConfusion NOTIFY confusionChanged)
+    // Can't see the ball, keeps following the last plan
+    Q_PROPERTY(bool blind READ isBlind WRITE setBlind NOTIFY blindChanged)
 
 public:
     enum Difficulty {
@@ -98,6 +102,12 @@ public:
 
     bool wantsDash() const;
 
+    void setConfusion(qreal confusion);
+    qreal confusion() const;
+
+    void setBlind(bool blind);
+    bool isBlind() const;
+
     void setSeed(quint32 seed);
 
     qreal target() const;
@@ -120,6 +130,8 @@ signals:
     void chargingChanged(bool);
     void paddleSpeedChanged(qreal);
     void wantsDashChanged(bool);
+    void confusionChanged(qreal);
+    void blindChanged(bool);
 
 private:
     struct Profile {
@@ -136,6 +148,8 @@ private:
     // Seconds the wind up of a smash takes
     static constexpr qreal smashWindUp = 0.9;
 
+    // The profile of the difficulty, and with the confusion
+    Profile baseProfile() const;
     Profile profile() const;
     void plan(const QVector2D& ballPosition, const QVector2D& ballVelocity);
     void setTarget(qreal target);
@@ -159,6 +173,8 @@ private:
     bool m_charging;
     qreal m_paddleSpeed;
     bool m_wantsDash;
+    qreal m_confusion;
+    bool m_blind;
     QList<QVector2D> m_targets;
     qreal m_opponentY;
     QRandomGenerator m_random;

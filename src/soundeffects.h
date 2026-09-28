@@ -37,7 +37,9 @@ public:
         Lose,
         Dash,
         Perfect,
-        Catch
+        Catch,
+        Portal,
+        Freeze
     };
     Q_ENUM(Sound)
 

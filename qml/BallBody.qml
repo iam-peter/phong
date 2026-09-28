@@ -20,6 +20,16 @@ DynamicRigidBody {
     // Contact reports go to the game scene
     signal contact(var body, var normals)
 
+    // Invisible, e.g. a ghost ball in the middle of the field
+    property bool hidden: false
+    readonly property real visibility: shown
+    property real shown: hidden ? 0.0 : 1.0
+    Behavior on shown {
+        NumberAnimation { duration: 120 }
+    }
+    // The portal the ball came out of, it doesn't enter it again until it left
+    property int portalLock: -1
+
     // Degrees the ball has turned, only for the looks
     property real turn: 0.0
     property var trail: []
@@ -80,7 +90,7 @@ DynamicRigidBody {
     Node {
         id: body
         eulerRotation.z: root.turn
-        opacity: root.leaving ? blink.value : 1.0
+        opacity: (root.leaving ? blink.value : 1.0) * root.visibility
 
         // A shiny sphere, this is P(H)ONG after all
         Disc {
@@ -126,7 +136,7 @@ DynamicRigidBody {
             visible: point !== undefined && root.trailStrength > 0.0
             position: point !== undefined ? point.minus(Qt.vector3d(root.x, root.y, 0)).minus(Qt.vector3d(0, 0, 0.3))
                                           : Qt.vector3d(0, 0, 0)
-            opacity: root.trailStrength * 0.5 * (1.0 - index / 7)
+            opacity: root.trailStrength * 0.5 * (1.0 - index / 7) * root.visibility
 
             Disc {
                 radius: root.radius * (1.0 - 0.08 * ghost.index)

@@ -29,6 +29,13 @@ class Modifiers : public QAbstractListModel
     Q_PROPERTY(QVariantList obstacles READ obstacles WRITE setObstacles NOTIFY obstaclesChanged)
     Q_PROPERTY(qreal fieldInset READ fieldInset NOTIFY fieldInsetChanged)
     Q_PROPERTY(qreal maxFieldInset READ maxFieldInset NOTIFY definitionsChanged)
+    // Two linked portals while they are open, empty otherwise
+    Q_PROPERTY(QVariantList portals READ portals NOTIFY portalsChanged)
+    // The ball can't be seen in the middle third of the field
+    Q_PROPERTY(bool ghostBall READ isGhostBall NOTIFY ghostBallChanged)
+    // A gravity well bends the flight of the balls, strength 0 while there is none
+    Q_PROPERTY(QVector2D gravityWell READ gravityWell NOTIFY gravityWellChanged)
+    Q_PROPERTY(qreal gravityStrength READ gravityStrength NOTIFY gravityWellChanged)
 
 public:
     enum Effect {
@@ -38,7 +45,12 @@ public:
         Spin,           // value: degrees per second, for duration seconds
         NarrowField,    // value: how far the walls move in, for duration seconds
         MultiBall,      // value: extra balls, they stay for duration seconds
-        Magnet          // value: balls the paddle catches, for duration seconds
+        Magnet,         // value: balls the paddle catches, for duration seconds
+        Portals,        // two linked portals open for duration seconds
+        Freeze,         // the paddle can't move for duration seconds
+        Reverse,        // the controls are swapped for duration seconds
+        GhostBall,      // the ball is invisible in the middle for duration seconds
+        GravityWell     // value: strength of a well bending the flight, for duration seconds
     };
     Q_ENUM(Effect)
 
@@ -143,6 +155,11 @@ public:
     qreal fieldInset() const;
     qreal maxFieldInset() const;
 
+    QVariantList portals() const;
+    bool isGhostBall() const;
+    QVector2D gravityWell() const;
+    qreal gravityStrength() const;
+
 signals:
     void matchChanged(Match*);
     void enabledChanged(bool);
@@ -151,6 +168,9 @@ signals:
     void fieldInsetChanged(qreal);
     void definitionsChanged();
     void effectsChanged();
+    void portalsChanged();
+    void ghostBallChanged(bool);
+    void gravityWellChanged();
 
     // side is the player affected by the effect, NoSide for both
     void collected(int definition, Match::Side side, const QVector2D& position);
@@ -172,6 +192,10 @@ private:
         int shieldDefinition;
         qreal magnetTime;
         int magnetDefinition;
+        qreal freezeTime;
+        int freezeDefinition;
+        qreal reverseTime;
+        int reverseDefinition;
     };
 
     static Effects noEffects();
@@ -181,6 +205,12 @@ private:
     void removeItem(int row);
     void resetSpawnCountdown();
     void setFieldInset(qreal fieldInset);
+    // A random free place in the spawn area within x from minX to maxX
+    QVector2D freePosition(qreal minX, qreal maxX, qreal clearance, bool* found = nullptr);
+    bool isFree(const QVector2D& position, qreal clearance) const;
+    void setPortals(const QList<QVector2D>& portals);
+    void setGhostBall(bool ghostBall);
+    void setGravityWell(const QVector2D& position, qreal strength);
     Effects& effects(Match::Side side);
     const Effects& effects(Match::Side side) const;
 
@@ -200,6 +230,13 @@ private:
     Effects m_right;
     qreal m_narrowTime;
     qreal m_fieldInset;
+    qreal m_portalTime;
+    QList<QVector2D> m_portals;
+    qreal m_ghostTime;
+    bool m_ghostBall;
+    qreal m_gravityTime;
+    QVector2D m_gravityWell;
+    qreal m_gravityStrength;
 
     QRandomGenerator m_random;
 };

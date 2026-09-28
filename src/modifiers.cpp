@@ -21,8 +21,18 @@ const QHash<QString, Modifiers::Effect> effectNames = {
     { QStringLiteral("spin"), Modifiers::Effect::Spin },
     { QStringLiteral("narrowField"), Modifiers::Effect::NarrowField },
     { QStringLiteral("multiBall"), Modifiers::Effect::MultiBall },
-    { QStringLiteral("magnet"), Modifiers::Effect::Magnet }
+    { QStringLiteral("magnet"), Modifiers::Effect::Magnet },
+    { QStringLiteral("portals"), Modifiers::Effect::Portals },
+    { QStringLiteral("freeze"), Modifiers::Effect::Freeze },
+    { QStringLiteral("reverse"), Modifiers::Effect::Reverse },
+    { QStringLiteral("ghostBall"), Modifiers::Effect::GhostBall },
+    { QStringLiteral("gravityWell"), Modifiers::Effect::GravityWell }
 };
+
+// Room the portals and the well keep from obstacles and items
+constexpr qreal portalClearance = 1.6;
+// The portals open on different halves, at least this far from the middle
+constexpr qreal portalMinX = 3.0;
 
 const QHash<QString, Modifiers::Target> targetNames = {
     { QStringLiteral("collector"), Modifiers::Target::Collector },
@@ -52,6 +62,8 @@ ValueRange valueRange(Modifiers::Effect effect)
             return { 1.0, 1.0, 3.0 };
         case Modifiers::Effect::Magnet:
             return { 3.0, 1.0, 5.0 };
+        case Modifiers::Effect::GravityWell:
+            return { 120.0, 20.0, 400.0 };
         case Modifiers::Effect::Shield:
         default:
             return { 0.0, 0.0, 0.0 };
@@ -89,6 +101,13 @@ Modifiers::Modifiers(QObject* parent):
     m_right(noEffects()),
     m_narrowTime(0.0),
     m_fieldInset(0.0),
+    m_portalTime(0.0),
+    m_portals(),
+    m_ghostTime(0.0),
+    m_ghostBall(false),
+    m_gravityTime(0.0),
+    m_gravityWell(),
+    m_gravityStrength(0.0),
     m_random(QRandomGenerator::global()->generate())
 {
     // A broken custom configuration shouldn't take the modifiers away
@@ -291,6 +310,10 @@ QVariantList Modifiers::activeEffects(Match::Side side) const
         active.append(definition(effects.spinDefinition));
     if (effects.magnetTime > 0.0)
         active.append(definition(effects.magnetDefinition));
+    if (effects.freezeTime > 0.0)
+        active.append(definition(effects.freezeDefinition));
+    if (effects.reverseTime > 0.0)
+        active.append(definition(effects.reverseDefinition));
     return active;
 }
 
@@ -312,6 +335,12 @@ void Modifiers::reset()
     m_right = noEffects();
     m_narrowTime = 0.0;
     setFieldInset(0.0);
+    m_portalTime = 0.0;
+    setPortals({});
+    m_ghostTime = 0.0;
+    setGhostBall(false);
+    m_gravityTime = 0.0;
+    setGravityWell(QVector2D(), 0.0);
 
     if (m_match) {
         for (Player* player : { m_match->left(), m_match->right() }) {
@@ -319,6 +348,8 @@ void Modifiers::reset()
             player->setSpinSpeed(0.0);
             player->setShielded(false);
             player->setCatches(0);
+            player->setFrozen(false);
+            player->setReversed(false);
         }
     }
 
@@ -353,6 +384,22 @@ void Modifiers::advance(qreal dt)
             }
         }
 
+        if (effects.freezeTime > 0.0) {
+            effects.freezeTime -= dt;
+            if (effects.freezeTime <= 0.0) {
+                player->setFrozen(false);
+                changed = true;
+            }
+        }
+
+        if (effects.reverseTime > 0.0) {
+            effects.reverseTime -= dt;
+            if (effects.reverseTime <= 0.0) {
+                player->setReversed(false);
+                changed = true;
+            }
+        }
+
         // The magnet is gone after its time or its catches
         if (effects.magnetTime > 0.0) {
             effects.magnetTime -= dt;
@@ -371,6 +418,24 @@ void Modifiers::advance(qreal dt)
         m_narrowTime -= dt;
         if (m_narrowTime <= 0.0)
             setFieldInset(0.0);
+    }
+
+    if (m_portalTime > 0.0) {
+        m_portalTime -= dt;
+        if (m_portalTime <= 0.0)
+            setPortals({});
+    }
+
+    if (m_ghostTime > 0.0) {
+        m_ghostTime -= dt;
+        if (m_ghostTime <= 0.0)
+            setGhostBall(false);
+    }
+
+    if (m_gravityTime > 0.0) {
+        m_gravityTime -= dt;
+        if (m_gravityTime <= 0.0)
+            setGravityWell(QVector2D(), 0.0);
     }
 
     // Items only come and go while the ball is in play
@@ -546,9 +611,32 @@ qreal Modifiers::maxFieldInset() const
     return inset;
 }
 
+QVariantList Modifiers::portals() const
+{
+    QVariantList portals;
+    for (const QVector2D& portal : m_portals)
+        portals.append(portal);
+    return portals;
+}
+
+bool Modifiers::isGhostBall() const
+{
+    return m_ghostBall;
+}
+
+QVector2D Modifiers::gravityWell() const
+{
+    return m_gravityWell;
+}
+
+qreal Modifiers::gravityStrength() const
+{
+    return m_gravityStrength;
+}
+
 Modifiers::Effects Modifiers::noEffects()
 {
-    return { 0.0, -1, 0.0, -1, -1, 0.0, -1 };
+    return { 0.0, -1, 0.0, -1, -1, 0.0, -1, 0.0, -1, 0.0, -1 };
 }
 
 void Modifiers::spawnRandom()
@@ -567,23 +655,45 @@ void Modifiers::spawnRandom()
         ++definition;
     }
 
-    // Keep items apart so a single pass doesn't collect two
+    // Keep items apart so a single pass doesn't collect two, and leave
+    // room for the item itself
+    bool found = false;
+    const QVector2D position = freePosition(m_spawnArea.left(), m_spawnArea.right(), 1.2, &found);
+    if (found)
+        spawn(definition, position);
+}
+
+QVector2D Modifiers::freePosition(qreal minX, qreal maxX, qreal clearance, bool* found)
+{
+    QVector2D position;
     for (int attempt = 0; attempt < 10; ++attempt) {
-        const QVector2D position(m_spawnArea.left() + m_random.bounded(m_spawnArea.width()),
-                                 m_spawnArea.top() + m_random.bounded(m_spawnArea.height()));
-
-        const bool free = std::all_of(m_items.cbegin(), m_items.cend(), [&](const Item& item) {
-            return item.position.distanceToPoint(position) >= m_spawn.minDistance;
-        }) && std::none_of(m_obstacles.cbegin(), m_obstacles.cend(), [&](const QRectF& rect) {
-            // Leave room for the item itself
-            return rect.adjusted(-1.2, -1.2, 1.2, 1.2).contains(position.toPointF());
-        });
-
-        if (free) {
-            spawn(definition, position);
-            return;
+        position = QVector2D(minX + m_random.bounded(std::max(maxX - minX, 0.01)),
+                             m_spawnArea.top() + m_random.bounded(m_spawnArea.height()));
+        if (isFree(position, clearance)) {
+            if (found)
+                *found = true;
+            return position;
         }
     }
+
+    if (found)
+        *found = false;
+    return position;
+}
+
+bool Modifiers::isFree(const QVector2D& position, qreal clearance) const
+{
+    const auto near = [&](const QVector2D& other) {
+        return other.distanceToPoint(position) < m_spawn.minDistance;
+    };
+
+    return std::none_of(m_items.cbegin(), m_items.cend(), [&](const Item& item) { return near(item.position); })
+           && std::none_of(m_portals.cbegin(), m_portals.cend(), near)
+           && !(m_gravityStrength > 0.0 && near(m_gravityWell))
+           && std::none_of(m_obstacles.cbegin(), m_obstacles.cend(), [&](const QRectF& rect) {
+                  return rect.adjusted(-clearance, -clearance, clearance, clearance)
+                      .contains(position.toPointF());
+              });
 }
 
 void Modifiers::apply(int index, Match::Side collector, Ball* ball, const QVector2D& position)
@@ -617,6 +727,25 @@ void Modifiers::apply(int index, Match::Side collector, Ball* ball, const QVecto
             m_narrowTime = definition.duration;
             setFieldInset(definition.value);
             return;
+        case Effect::Portals: {
+            // One on each half, placed anew if they are open already
+            setPortals({});
+            const QVector2D left = freePosition(m_spawnArea.left(), -portalMinX, portalClearance);
+            const QVector2D right = freePosition(portalMinX, m_spawnArea.right(), portalClearance);
+            m_portalTime = definition.duration;
+            setPortals(m_random.bounded(2) ? QList<QVector2D>{ left, right } : QList<QVector2D>{ right, left });
+            return;
+        }
+        case Effect::GhostBall:
+            m_ghostTime = definition.duration;
+            setGhostBall(true);
+            return;
+        case Effect::GravityWell:
+            setGravityWell(QVector2D(), 0.0);
+            m_gravityTime = definition.duration;
+            setGravityWell(freePosition(-0.4 * m_spawnArea.width(), 0.4 * m_spawnArea.width(), portalClearance),
+                           definition.value);
+            return;
         default:
             break;
     }
@@ -644,6 +773,16 @@ void Modifiers::apply(int index, Match::Side collector, Ball* ball, const QVecto
                 player->setCatches(int(definition.value));
                 effects.magnetTime = definition.duration;
                 effects.magnetDefinition = index;
+                break;
+            case Effect::Freeze:
+                player->setFrozen(true);
+                effects.freezeTime = definition.duration;
+                effects.freezeDefinition = index;
+                break;
+            case Effect::Reverse:
+                player->setReversed(true);
+                effects.reverseTime = definition.duration;
+                effects.reverseDefinition = index;
                 break;
             default:
                 break;
@@ -682,4 +821,32 @@ Modifiers::Effects& Modifiers::effects(Match::Side side)
 const Modifiers::Effects& Modifiers::effects(Match::Side side) const
 {
     return side == Match::Side::LeftSide ? m_left : m_right;
+}
+
+void Modifiers::setPortals(const QList<QVector2D>& portals)
+{
+    if (m_portals == portals)
+        return;
+
+    m_portals = portals;
+    emit portalsChanged();
+}
+
+void Modifiers::setGhostBall(bool ghostBall)
+{
+    if (m_ghostBall == ghostBall)
+        return;
+
+    m_ghostBall = ghostBall;
+    emit ghostBallChanged(ghostBall);
+}
+
+void Modifiers::setGravityWell(const QVector2D& position, qreal strength)
+{
+    if (m_gravityWell == position && m_gravityStrength == strength)
+        return;
+
+    m_gravityWell = position;
+    m_gravityStrength = strength;
+    emit gravityWellChanged();
 }

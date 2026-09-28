@@ -128,6 +128,11 @@ public:
     // Sends a held ball off like a paddle hit at its offset
     Q_INVOKABLE bool releaseBall(Ball* ball, qreal smash = 0.0);
 
+    // A gravity well at well bends the flight of the ball at position,
+    // more the closer it is. The speed stays and the ball keeps crossing.
+    Q_INVOKABLE void attract(Ball* ball, const QVector2D& position, const QVector2D& well,
+                             qreal strength, qreal dt);
+
     // An extra ball flying from position towards side, gone after lifetime
     // seconds or its goal
     Q_INVOKABLE Ball* addBall(const QVector2D& position, Match::Side towards, qreal lifetime,

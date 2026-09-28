@@ -231,6 +231,50 @@ private slots:
         QVERIFY(player.holdAim(0.0) < 0.0);
     }
 
+    void blindKeepsThePlan()
+    {
+        ComputerPlayer player;
+        player.setDifficulty(ComputerPlayer::Difficulty::Hard);
+        player.setPaddleX(12.0);
+        player.setPaddleReach(2.8);
+        player.setFieldTop(8.0);
+        player.setFieldBottom(-8.0);
+
+        player.update(0.1, QVector2D(0, 0), QVector2D(10, 0), 0.0);
+        player.update(0.1, QVector2D(1, 0), QVector2D(10, 0), 0.0);
+        const qreal target = player.target();
+
+        // The ball changes course unseen
+        player.setBlind(true);
+        for (int i = 0; i < 10; ++i)
+            player.update(0.1, QVector2D(2, 0), QVector2D(10, 8), 0.0);
+        QCOMPARE(player.target(), target);
+
+        player.setBlind(false);
+        player.update(0.1, QVector2D(2, 0), QVector2D(10, 8), 0.0);
+        QVERIFY(player.target() != target);
+    }
+
+    void confusionSlowsDown()
+    {
+        ComputerPlayer player;
+        player.setDifficulty(ComputerPlayer::Difficulty::Hard);
+        player.setPaddleX(12.0);
+        player.setPaddleReach(2.8);
+        player.setConfusion(1.0);
+
+        // Hard reacts after 0.08 s, confused three times slower
+        player.update(0.1, QVector2D(0, 0), QVector2D(10, 5), 0.0);
+        player.update(0.1, QVector2D(1, 0.5), QVector2D(10, 5), 0.0);
+        QCOMPARE(player.target(), 0.0);
+        player.update(0.1, QVector2D(2, 1), QVector2D(10, 5), 0.0);
+        player.update(0.1, QVector2D(3, 1.5), QVector2D(10, 5), 0.0);
+        QVERIFY(player.target() != 0.0);
+
+        player.setConfusion(5.0);
+        QCOMPARE(player.confusion(), 1.0);
+    }
+
     void reactsWithDelay()
     {
         ComputerPlayer player;

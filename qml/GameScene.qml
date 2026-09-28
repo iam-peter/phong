@@ -86,9 +86,14 @@ Scene {
     property real rightPointerY: NaN
     property var pointerSides: ({})
 
-    // Items balls flew through and goals, handled after the physics step
+    // Items balls flew through, goals and portal passages, handled after
+    // the physics step
     property var pendingItems: []
     property var pendingGoals: []
+    property var pendingPortals: []
+
+    // A ghost ball can't be seen in the middle third of the field
+    readonly property real ghostHalfWidth: stageWidth / 6
 
     // Definitions of the active effects, for the icons next to the names
     property var leftEffects: []
@@ -409,6 +414,36 @@ Scene {
         Qt.callLater(scorePending)
     }
 
+    // Teleporting resets the body, not while the triggers report
+    function queuePortal(body, index) {
+        pendingPortals.push({ body: body, index: index })
+        Qt.callLater(teleportPending)
+    }
+
+    // The ball comes out of the other portal, flying on as it was
+    function teleportPending() {
+        const passages = pendingPortals
+        pendingPortals = []
+        const portals = modifiers.portals
+        for (const passage of passages) {
+            const body = passage.body
+            if (portals.length !== 2 || body.portalLock === passage.index || body.ball.heldBy !== Match.NoSide)
+                continue
+
+            const from = portals[passage.index]
+            const to = portals[1 - passage.index]
+            body.portalLock = 1 - passage.index
+            body.reset(Qt.vector3d(to.x, to.y, 0), Qt.vector3d(0, 0, 0))
+            body.applyVelocity()
+            body.clearTrail()
+            SoundEffects.play(SoundEffects.Portal)
+            sparks.burst(Qt.vector3d(from.x, from.y, 0.5), Theme.tint(portalColors[passage.index]), 16)
+            sparks.burst(Qt.vector3d(to.x, to.y, 0.5), Theme.tint(portalColors[1 - passage.index]), 16)
+        }
+    }
+
+    readonly property var portalColors: ["#ff9933", "#3399ff"]
+
     function scorePending() {
         const goals = pendingGoals
         pendingGoals = []
@@ -445,24 +480,31 @@ Scene {
         rightDash.advance(dt)
 
         const onePlayer = mode !== GameScene.TwoPlayers
-        const leftKeys = onePlayer ? keyInput(leftUp || rightUp, leftDown || rightDown) : keyInput(leftUp, leftDown)
-        let leftInput = humanInput(leftKeys > 0, leftKeys < 0, leftPointerY, leftPaddleY)
+        // Reversed controls swap the keys and mirror the pointer
+        const leftSign = match.left.reversed ? -1 : 1
+        const rightSign = match.right.reversed ? -1 : 1
+        const leftKeys = leftSign * (onePlayer ? keyInput(leftUp || rightUp, leftDown || rightDown)
+                                               : keyInput(leftUp, leftDown))
+        let leftInput = humanInput(leftKeys > 0, leftKeys < 0, leftSign * leftPointerY, leftPaddleY)
 
         let rightInput
-        const rightKeys = onePlayer ? 0 : keyInput(rightUp, rightDown)
+        const rightKeys = onePlayer ? 0 : rightSign * keyInput(rightUp, rightDown)
         const leftHeld = heldBody(Match.LeftSide)
         const rightHeld = heldBody(Match.RightSide)
         if (onePlayer) {
             const urgent = urgentBall()
             computer.targets = modifiers.itemPositions()
             computer.opponentY = leftPaddleY
+            // Curses get to the computer too
+            computer.confusion = match.right.reversed ? 1.0 : 0.0
+            computer.blind = modifiers.ghostBall && Math.abs(urgent.x) < ghostHalfWidth
             computer.update(dt, Qt.vector2d(urgent.x, urgent.y), urgent.ball.velocity, rightPaddleY)
             rightInput = computer.direction
-            if (computer.wantsDash && !rightHeld)
+            if (computer.wantsDash && !rightHeld && !match.right.frozen)
                 rightDash.trigger(computer.direction >= 0 ? 1 : -1)
         }
         else {
-            rightInput = humanInput(rightKeys > 0, rightKeys < 0, rightPointerY, rightPaddleY)
+            rightInput = humanInput(rightKeys > 0, rightKeys < 0, rightSign * rightPointerY, rightPaddleY)
         }
 
         // A paddle holding a ball stands, the input aims the ball
@@ -484,6 +526,19 @@ Scene {
         if (rightDash.active && !rightHeld)
             rightInput = rightDash.direction * rightDash.boost
 
+        // Nothing moves a frozen paddle
+        if (match.left.frozen)
+            leftInput = 0
+        if (match.right.frozen)
+            rightInput = 0
+
+        // A gravity well bends the flights
+        if (modifiers.gravityStrength > 0.0) {
+            for (const body of ballBodies())
+                match.attract(body.ball, Qt.vector2d(body.x, body.y), modifiers.gravityWell,
+                              modifiers.gravityStrength, dt)
+        }
+
         leftCharge = windUp(leftCharge, leftCharging, dt)
         rightCharge = windUp(rightCharge, onePlayer ? computer.charging : rightCharging, dt)
         arenaTime += dt
@@ -500,6 +555,7 @@ Scene {
         for (const body of ballBodies()) {
             if (body.ball.heldBy !== Match.NoSide)
                 placeHeld(body)
+            body.hidden = modifiers.ghostBall && match.state === Match.Playing && Math.abs(body.x) < ghostHalfWidth
             body.advance(dt)
         }
 
@@ -547,14 +603,17 @@ Scene {
         return false
     }
 
-    // Tapping a direction twice dashes
+    // Tapping a direction twice dashes, not when frozen
     function tapDash(key) {
-        const upDown = mode === GameScene.TwoPlayers ? rightDash : leftDash
+        const twoPlayers = mode === GameScene.TwoPlayers
+        const upDown = twoPlayers ? rightDash : leftDash
+        const left = match.left.frozen ? 0 : match.left.reversed ? -1 : 1
+        const right = twoPlayers ? (match.right.frozen ? 0 : match.right.reversed ? -1 : 1) : left
         switch (key) {
-            case Qt.Key_W: return leftDash.tap(1)
-            case Qt.Key_S: return leftDash.tap(-1)
-            case Qt.Key_Up: return upDown.tap(1)
-            case Qt.Key_Down: return upDown.tap(-1)
+            case Qt.Key_W: return leftDash.tap(left)
+            case Qt.Key_S: return leftDash.tap(-left)
+            case Qt.Key_Up: return upDown.tap(right)
+            case Qt.Key_Down: return upDown.tap(-right)
         }
         return false
     }
@@ -831,7 +890,11 @@ Scene {
 
             if (definition.effect === Modifiers.MultiBall)
                 SoundEffects.play(SoundEffects.MultiBall)
-            else if (definition.target === Modifiers.Opponent)
+            else if (definition.effect === Modifiers.Portals)
+                SoundEffects.play(SoundEffects.Portal)
+            else if (definition.effect === Modifiers.Freeze)
+                SoundEffects.play(SoundEffects.Freeze)
+            else if (definition.target === Modifiers.Opponent || definition.effect === Modifiers.GhostBall)
                 SoundEffects.play(SoundEffects.Curse)
             else
                 SoundEffects.play(SoundEffects.Pickup)
@@ -919,6 +982,7 @@ Scene {
         Shadow {
             position: Qt.vector3d(mainBall.x + 0.3, mainBall.y - 0.6, 0)
             size: 2.2 * root.ballRadius
+            opacity: 0.45 * mainBall.visibility
         }
 
         Repeater3D {
@@ -929,6 +993,7 @@ Scene {
                 readonly property var body: extraBalls.objectAt(index)
                 position: body ? Qt.vector3d(body.x + 0.3, body.y - 0.6, 0) : Qt.vector3d(0, 0, 0)
                 size: 2.2 * root.ballRadius
+                opacity: body ? 0.45 * body.visibility : 0.0
             }
         }
 
@@ -1151,6 +1216,8 @@ Scene {
         charge: root.leftCharge
         dash: leftDash.direction
         magnet: match.left.catches > 0
+        frozen: match.left.frozen
+        reversed: match.left.reversed
         paddleX: -root.paddleX
         paddleY: root.leftPaddleY
         angle: root.leftPaddleAngle
@@ -1164,6 +1231,8 @@ Scene {
         charge: root.rightCharge
         dash: rightDash.direction
         magnet: match.right.catches > 0
+        frozen: match.right.frozen
+        reversed: match.right.reversed
         paddleX: root.paddleX
         paddleY: root.rightPaddleY
         angle: root.rightPaddleAngle
@@ -1276,6 +1345,160 @@ Scene {
             radius: root.ballRadius
             trailSpeed: match.serveSpeed
             onContact: (body, normals) => root.ballContact(extraBall, body, normals)
+        }
+    }
+
+    // Two linked portals, a ball flying into one comes out of the other
+    Repeater3D {
+        model: modifiers.portals
+
+        delegate: TriggerBody {
+            id: portal
+
+            required property var modelData
+            required property int index
+            readonly property color color: Theme.tint(root.portalColors[index])
+
+            position: Qt.vector3d(modelData.x, modelData.y, 0)
+            collisionShapes: SphereShape {
+                diameter: 1.6
+            }
+            onBodyEntered: (body) => {
+                const ballBody = body as BallBody
+                if (ballBody)
+                    root.queuePortal(ballBody, portal.index)
+            }
+            onBodyExited: (body) => {
+                const ballBody = body as BallBody
+                if (ballBody && ballBody.portalLock === portal.index)
+                    ballBody.portalLock = -1
+            }
+
+            Disc {
+                z: -0.3
+                radius: 1.25
+                thickness: 0.2
+                color: portal.color
+                glow: 0.9
+            }
+
+            Disc {
+                z: -0.15
+                radius: 0.95
+                thickness: 0.2
+                color: Theme.background
+                glow: 0.0
+                shininess: 0.0
+            }
+
+            // Sparks circling inside
+            Node {
+                NumberAnimation on eulerRotation.z {
+                    from: portal.index ? 360 : 0
+                    to: portal.index ? 0 : 360
+                    duration: 1500
+                    loops: Animation.Infinite
+                }
+
+                Repeater3D {
+                    model: 6
+
+                    delegate: Disc {
+                        required property int index
+                        readonly property real angle: index * Math.PI / 3
+                        position: Qt.vector3d(0.7 * Math.cos(angle), 0.7 * Math.sin(angle), 0)
+                        radius: 0.12
+                        thickness: 0.1
+                        color: portal.color
+                        glow: 1.0
+                    }
+                }
+            }
+
+            Vector3dAnimation on scale {
+                from: Qt.vector3d(0, 0, 0)
+                to: Qt.vector3d(1, 1, 1)
+                duration: 300
+                easing.type: Easing.OutBack
+            }
+        }
+    }
+
+    // A gravity well, arms of dots spiralling into a dark core
+    Node {
+        id: gravityWell
+
+        readonly property color color: Theme.tint("#7a5cff")
+
+        visible: modifiers.gravityStrength > 0.0
+        position: Qt.vector3d(modifiers.gravityWell.x, modifiers.gravityWell.y, -0.2)
+
+        Disc {
+            radius: 0.6
+            sphere: true
+            color: Theme.background
+            glow: 0.0
+            shininess: 1.0
+        }
+
+        Node {
+            NumberAnimation on eulerRotation.z {
+                running: gravityWell.visible
+                from: 360
+                to: 0
+                duration: 2000
+                loops: Animation.Infinite
+            }
+
+            Repeater3D {
+                model: 18
+
+                delegate: Disc {
+                    required property int index
+                    // Three arms, each dot a bit further out and further round
+                    readonly property real arm: index % 3
+                    readonly property real step: Math.floor(index / 3)
+                    readonly property real angle: arm * 2.0 * Math.PI / 3 + step * 0.45
+                    readonly property real distance: 0.9 + step * 0.45
+                    position: Qt.vector3d(distance * Math.cos(angle), distance * Math.sin(angle), 0)
+                    radius: 0.16 - 0.015 * step
+                    thickness: 0.1
+                    color: gravityWell.color
+                    glow: 1.0 - 0.12 * step
+                }
+            }
+        }
+    }
+
+    // The fog a ghost ball disappears in, dark with glowing edges
+    Node {
+        visible: modifiers.ghostBall
+        z: -0.4
+
+        Model {
+            source: "#Rectangle"
+            scale: Qt.vector3d(2.0 * root.ghostHalfWidth / 100, 2.0 * root.wallY / 100, 1)
+            opacity: 0.8
+            materials: DefaultMaterial {
+                diffuseColor: Theme.background
+                lighting: DefaultMaterial.NoLighting
+            }
+        }
+
+        Repeater3D {
+            model: [-1, 1]
+
+            delegate: Model {
+                required property int modelData
+                x: modelData * root.ghostHalfWidth
+                source: "#Cube"
+                scale: Qt.vector3d(0.08 / 100, 2.0 * root.wallY / 100, 0.001)
+                materials: PhongMaterial {
+                    color: Theme.dimmed
+                    glow: 0.6
+                    lighting: DefaultMaterial.NoLighting
+                }
+            }
         }
     }
 

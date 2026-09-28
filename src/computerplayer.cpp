@@ -23,6 +23,8 @@ ComputerPlayer::ComputerPlayer(QObject* parent):
     m_charging(false),
     m_paddleSpeed(24.0),
     m_wantsDash(false),
+    m_confusion(0.0),
+    m_blind(false),
     m_targets(),
     m_opponentY(0.0),
     m_random(QRandomGenerator::global()->generate())
@@ -127,7 +129,7 @@ void ComputerPlayer::update(qreal dt, const QVector2D& ballPosition,
         m_sincePlan += dt;
     }
 
-    if (m_sincePlan >= profile.reactionTime) {
+    if (m_sincePlan >= profile.reactionTime && !m_blind) {
         plan(ballPosition, ballVelocity);
         m_sincePlan = 0.0;
     }
@@ -303,6 +305,35 @@ void ComputerPlayer::setWantsDash(bool wantsDash)
     emit wantsDashChanged(wantsDash);
 }
 
+void ComputerPlayer::setConfusion(qreal confusion)
+{
+    confusion = std::clamp(confusion, 0.0, 1.0);
+    if (m_confusion == confusion)
+        return;
+
+    m_confusion = confusion;
+    emit confusionChanged(confusion);
+}
+
+qreal ComputerPlayer::confusion() const
+{
+    return m_confusion;
+}
+
+void ComputerPlayer::setBlind(bool blind)
+{
+    if (m_blind == blind)
+        return;
+
+    m_blind = blind;
+    emit blindChanged(blind);
+}
+
+bool ComputerPlayer::isBlind() const
+{
+    return m_blind;
+}
+
 void ComputerPlayer::setCharging(bool charging)
 {
     if (m_charging == charging)
@@ -313,6 +344,15 @@ void ComputerPlayer::setCharging(bool charging)
 }
 
 ComputerPlayer::Profile ComputerPlayer::profile() const
+{
+    Profile profile = baseProfile();
+    profile.reactionTime *= 1.0 + 2.0 * m_confusion;
+    profile.aimError *= 1.0 + m_confusion;
+    profile.maxInput *= 1.0 - 0.3 * m_confusion;
+    return profile;
+}
+
+ComputerPlayer::Profile ComputerPlayer::baseProfile() const
 {
     switch (m_difficulty) {
         case Difficulty::Easy:

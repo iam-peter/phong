@@ -41,7 +41,8 @@ private slots:
 
         const QStringList ids = { "fastBall", "bigPaddle", "shield",
                                   "smallPaddle", "spin", "narrowField", "multiBall",
-                                  "magnet" };
+                                  "magnet", "portals", "freeze", "reverse", "ghostBall",
+                                  "gravityWell" };
         QCOMPARE(modifiers.definitions().size(), ids.size());
         for (const QString& id : ids)
             QVERIFY2(modifiers.findDefinition(id) >= 0, qPrintable(id));
@@ -357,6 +358,78 @@ private slots:
         modifiers.advance(magnet.duration + 0.1);
         QCOMPARE(match.left()->catches(), 0);
         QVERIFY(modifiers.activeEffects(Match::Side::LeftSide).isEmpty());
+    }
+
+    void cursesOnControls()
+    {
+        Match match;
+        Modifiers modifiers;
+        modifiers.setMatch(&match);
+        const Modifiers::Definition& freeze = definition(modifiers, "freeze");
+        const Modifiers::Definition& reverse = definition(modifiers, "reverse");
+
+        touch(match, Match::Side::LeftSide);
+        QVERIFY(modifiers.collect(spawn(modifiers, "freeze")));
+        QVERIFY(modifiers.collect(spawn(modifiers, "reverse")));
+        QVERIFY(match.right()->isFrozen());
+        QVERIFY(match.right()->isReversed());
+        QVERIFY(!match.left()->isFrozen());
+        QCOMPARE(modifiers.activeEffects(Match::Side::RightSide).size(), 2);
+
+        // The freeze is short, the reversal lasts longer
+        modifiers.advance(freeze.duration + 0.1);
+        QVERIFY(!match.right()->isFrozen());
+        QVERIFY(match.right()->isReversed());
+        modifiers.advance(reverse.duration);
+        QVERIFY(!match.right()->isReversed());
+        QVERIFY(modifiers.activeEffects(Match::Side::RightSide).isEmpty());
+    }
+
+    void fieldEffects()
+    {
+        Match match;
+        Modifiers modifiers;
+        modifiers.setMatch(&match);
+        modifiers.setSpawnArea(QRectF(-8, -5, 16, 10));
+        QSignalSpy portalsChanged(&modifiers, &Modifiers::portalsChanged);
+
+        touch(match, Match::Side::RightSide);
+        QVERIFY(modifiers.portals().isEmpty());
+        QVERIFY(modifiers.collect(spawn(modifiers, "portals")));
+
+        // One on each half, inside the spawn area
+        const QVariantList portals = modifiers.portals();
+        QCOMPARE(portals.size(), 2);
+        const QVector2D a = portals.at(0).value<QVector2D>();
+        const QVector2D b = portals.at(1).value<QVector2D>();
+        QVERIFY(a.x() * b.x() < 0.0f);
+        for (const QVector2D& portal : { a, b }) {
+            QVERIFY(std::abs(portal.x()) >= 3.0f && std::abs(portal.x()) <= 8.0f);
+            QVERIFY(std::abs(portal.y()) <= 5.0f);
+        }
+
+        QVERIFY(modifiers.collect(spawn(modifiers, "ghostBall")));
+        QVERIFY(modifiers.isGhostBall());
+        QVERIFY(modifiers.collect(spawn(modifiers, "gravityWell")));
+        QCOMPARE(modifiers.gravityStrength(), definition(modifiers, "gravityWell").value);
+        QVERIFY(modifiers.spawnArea().contains(modifiers.gravityWell().toPointF()));
+        // Field effects don't show next to the names
+        QVERIFY(modifiers.activeEffects(Match::Side::LeftSide).isEmpty());
+        QVERIFY(modifiers.activeEffects(Match::Side::RightSide).isEmpty());
+
+        // Items keep away from the well and the portals
+        for (int i = 0; i < 200; ++i)
+            modifiers.advance(0.5);
+        QVERIFY(!modifiers.isGhostBall());
+        QVERIFY(modifiers.portals().isEmpty());
+        QCOMPARE(modifiers.gravityStrength(), 0.0);
+        QCOMPARE(portalsChanged.count(), 2);
+
+        modifiers.collect(spawn(modifiers, "portals"));
+        modifiers.collect(spawn(modifiers, "gravityWell"));
+        modifiers.reset();
+        QVERIFY(modifiers.portals().isEmpty());
+        QCOMPARE(modifiers.gravityStrength(), 0.0);
     }
 
     void multiBallFromTheItem()

@@ -21,6 +21,9 @@ DynamicRigidBody {
     // Catches balls, glows at the face in the magnet color
     property bool magnet: false
     property color magnetColor: "#ff3333"
+    // Curses: frozen in ice, or swapped controls
+    property bool frozen: false
+    property bool reversed: false
 
     function flash() {
         flashAnimation.restart()
@@ -93,6 +96,30 @@ DynamicRigidBody {
             NumberAnimation { from: 0.0; to: 1.0; duration: 400; easing.type: Easing.InOutSine }
             NumberAnimation { from: 1.0; to: 0.0; duration: 400; easing.type: Easing.InOutSine }
         }
+    }
+
+    // Ice around a frozen paddle
+    Model {
+        visible: root.frozen
+        source: "#Cube"
+        scale: Qt.vector3d((root.width + 0.5) / 100, (root.length + 0.5) / 100, 0.012)
+        opacity: 0.55
+        materials: PhongMaterial {
+            color: Theme.tint("#ccf2ff")
+            glow: 0.5
+            shininess: 1.0
+        }
+    }
+
+    // A question mark over a paddle with swapped controls
+    Text3D {
+        visible: root.reversed
+        y: 0.5 * root.length + 0.5
+        scale: Qt.vector3d(0.9, 0.9, 0.9)
+        horizontalAlignment: Text.AlignHCenter
+        color: Theme.tint("#cc66ff")
+        glow: 0.6
+        text: "?"
     }
 
     QtObject {
