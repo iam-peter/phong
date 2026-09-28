@@ -14,7 +14,7 @@ DefaultMaterial {
 
     lighting: Theme.phong ? DefaultMaterial.FragmentLighting : DefaultMaterial.NoLighting
     diffuseColor: color
-    specularAmount: Theme.phong ? shininess : 0.0
+    specularAmount: Theme.phong ? shininess * Theme.shine : 0.0
     specularRoughness: 0.15
     emissiveFactor: Qt.vector3d(color.r, color.g, color.b).times(glow * Theme.glowScale)
 }

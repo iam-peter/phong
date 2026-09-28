@@ -534,7 +534,7 @@ Scene {
         onCollected: (index, side, position) => {
             const definition = modifiers.definition(index)
             pickupPopup.show(definition, position)
-            sparks.burst(Qt.vector3d(position.x, position.y, 0.5), definition.color, 24)
+            sparks.burst(Qt.vector3d(position.x, position.y, 0.5), Theme.tint(definition.color), 24)
 
             if (definition.effect === Modifiers.MultiBall)
                 SoundEffects.play(SoundEffects.MultiBall)
@@ -1072,7 +1072,7 @@ Scene {
         Text3D {
             scale: Qt.vector3d(0.6, 0.6, 0.6)
             horizontalAlignment: Text.AlignHCenter
-            color: pickupPopup.definition.color ?? Theme.text
+            color: Theme.tint(pickupPopup.definition.color ?? Theme.text)
             text: pickupPopup.definition.name ?? ""
         }
 
@@ -1229,7 +1229,7 @@ Scene {
             source: "#Rectangle"
             scale: Qt.vector3d(root.stageWidth / 100, root.stageHeight / 100, 1)
             materials: DefaultMaterial {
-                diffuseColor: "black"
+                diffuseColor: Theme.background
                 opacity: 0.75
                 lighting: DefaultMaterial.NoLighting
             }

@@ -23,6 +23,7 @@ Enum readEnum(const QSettings& settings, const char* key, Enum fallback, Enum la
 GraphicsSettings::GraphicsSettings(QObject* parent):
     QObject(parent),
     m_settings(),
+    m_theme(Theme::Neon),
     m_shading(defaultShading),
     m_glow(defaultGlow),
     m_antialiasing(defaultAntialiasing),
@@ -32,6 +33,7 @@ GraphicsSettings::GraphicsSettings(QObject* parent):
     m_showFps(false)
 {
     m_settings.beginGroup(QStringLiteral("graphics"));
+    m_theme = readEnum(m_settings, "theme", Theme::Neon, Theme::Amber);
     m_shading = readEnum(m_settings, "shading", defaultShading, Shading::Flat);
     m_glow = readEnum(m_settings, "glow", defaultGlow, Glow::MediumGlow);
     m_antialiasing = readEnum(m_settings, "antialiasing", defaultAntialiasing,
@@ -44,6 +46,7 @@ GraphicsSettings::GraphicsSettings(QObject* parent):
 
 void GraphicsSettings::restoreDefaults()
 {
+    setTheme(Theme::Neon);
     setShading(defaultShading);
     setGlow(defaultGlow);
     setAntialiasing(defaultAntialiasing);
@@ -65,6 +68,17 @@ bool GraphicsSettings::store(Value& member, Value value, const char* key)
     else
         m_settings.setValue(key, value);
     return true;
+}
+
+void GraphicsSettings::setTheme(Theme theme)
+{
+    if (store(m_theme, theme, "theme"))
+        emit themeChanged(theme);
+}
+
+GraphicsSettings::Theme GraphicsSettings::theme() const
+{
+    return m_theme;
 }
 
 void GraphicsSettings::setShading(Shading shading)

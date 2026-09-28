@@ -100,7 +100,7 @@ Scene {
 
             Text3D {
                 x: -11.0
-                color: row.selected ? Theme.text : Qt.tint(Theme.text, Qt.rgba(0.02, 0.035, 0.1, 0.25))
+                color: row.selected ? Theme.text : Qt.tint(Theme.text, Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.25))
                 text: row.modelData.label
                 clickable: true
                 onClicked: {

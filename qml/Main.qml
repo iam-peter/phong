@@ -156,7 +156,7 @@ Window {
             fxaaEnabled: antialiasing === GraphicsSettings.FastAntialiasing
 
             // Higher glow spreads wider, only high blurs at full quality
-            glowEnabled: glow !== GraphicsSettings.NoGlow
+            glowEnabled: glow !== GraphicsSettings.NoGlow && Theme.bloom
             glowQualityHigh: glow === GraphicsSettings.HighGlow
             glowBlendMode: ExtendedSceneEnvironment.Additive
             glowStrength: 1.0
@@ -173,7 +173,7 @@ Window {
         // makes the extruded edges read
         DirectionalLight {
             eulerRotation: Qt.vector3d(-35, -15, 0)
-            brightness: 0.9
+            brightness: 0.9 * Theme.light
             ambientColor: Qt.rgba(0.1, 0.12, 0.2, 1.0)
         }
 
@@ -196,7 +196,7 @@ Window {
 
                 // A fill light travelling with the camera
                 PointLight {
-                    brightness: 0.45
+                    brightness: 0.45 * Theme.light
                     constantFade: 1.0
                     linearFade: 0.0
                     quadraticFade: 0.0

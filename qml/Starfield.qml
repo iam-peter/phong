@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick3D
 import QtQuick3D.Helpers
+import Phong
 
 // Stars far behind all scenes, a single instanced draw call
 Node {
@@ -35,8 +36,8 @@ Node {
                 to: Qt.vector3d(360, 360, 360)
             }
             color: InstanceRange {
-                from: Qt.rgba(0.45, 0.55, 1.0, 1.0)
-                to: Qt.rgba(1.0, 0.9, 1.0, 1.0)
+                from: Theme.starFrom
+                to: Theme.starTo
             }
         }
         materials: DefaultMaterial {

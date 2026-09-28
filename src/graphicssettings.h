@@ -12,6 +12,7 @@ class GraphicsSettings : public QObject
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
+    Q_PROPERTY(Theme theme READ theme WRITE setTheme NOTIFY themeChanged)
     Q_PROPERTY(Shading shading READ shading WRITE setShading NOTIFY shadingChanged)
     Q_PROPERTY(Glow glow READ glow WRITE setGlow NOTIFY glowChanged)
     Q_PROPERTY(Antialiasing antialiasing READ antialiasing WRITE setAntialiasing NOTIFY antialiasingChanged)
@@ -21,6 +22,16 @@ class GraphicsSettings : public QObject
     Q_PROPERTY(bool showFps READ showFps WRITE setShowFps NOTIFY showFpsChanged)
 
 public:
+    // Color palettes, see Theme.qml
+    enum Theme {
+        Neon = 0,
+        Classic,
+        Paper,
+        GameBoy,
+        Amber
+    };
+    Q_ENUM(Theme)
+
     // Phong lights with highlights, Flat just shows the colors
     enum Shading {
         Phong = 0,
@@ -49,6 +60,9 @@ public:
 
     Q_INVOKABLE void restoreDefaults();
 
+    void setTheme(Theme theme);
+    Theme theme() const;
+
     void setShading(Shading shading);
     Shading shading() const;
 
@@ -71,6 +85,7 @@ public:
     bool showFps() const;
 
 signals:
+    void themeChanged(GraphicsSettings::Theme);
     void shadingChanged(GraphicsSettings::Shading);
     void glowChanged(GraphicsSettings::Glow);
     void antialiasingChanged(GraphicsSettings::Antialiasing);
@@ -85,6 +100,7 @@ private:
 
     QSettings m_settings;
 
+    Theme m_theme;
     Shading m_shading;
     Glow m_glow;
     Antialiasing m_antialiasing;

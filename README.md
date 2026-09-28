@@ -152,8 +152,13 @@ above in front and shows a specular highlight, the ball is a shiny sphere. On
 top of that bright surfaces glow like neon, the field has a floor with a grid
 and soft shadows, and stars drift behind all screens.
 
-The graphics screen in the settings switches these on and off: shading
-(Phong or flat, unlit colors), glow, anti-aliasing (fast is FXAA, 2x and 4x
+Five themes set the colors: Neon, Classic in black, grey and white, Paper,
+the four greens of the Game Boy and an amber monitor. The classic ones map
+the colors of the modifiers onto their few shades.
+
+The graphics screen in the settings picks the theme and switches the rest on
+and off: shading
+(Phong or flat, unlit colors), glow (low, medium, high), anti-aliasing (fast is FXAA, 2x and 4x
 multisampling), stars, floor, shadows and a frame rate display. The browser
 and phones start with low glow and fast anti-aliasing, the desktop with high
 glow and 4x multisampling.

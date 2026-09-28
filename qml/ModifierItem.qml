@@ -23,7 +23,7 @@ Node {
         Disc {
             radius: root.radius
             thickness: 0.3
-            color: root.color
+            color: Theme.tint(root.color)
         }
 
         Text3D {
@@ -32,7 +32,7 @@ Node {
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             depth: 0.2
-            color: "black"
+            color: Theme.background
             text: root.glyph
         }
     }

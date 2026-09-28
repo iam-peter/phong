@@ -9,6 +9,14 @@ OptionsScene {
 
     rows: [
         {
+            label: qsTr("Theme"),
+            values: [GraphicsSettings.Neon, GraphicsSettings.Classic, GraphicsSettings.Paper,
+                     GraphicsSettings.GameBoy, GraphicsSettings.Amber],
+            names: [qsTr("Neon"), qsTr("Classic"), qsTr("Paper"), qsTr("Game Boy"), qsTr("Amber")],
+            get: () => GraphicsSettings.theme,
+            set: (value) => GraphicsSettings.theme = value
+        },
+        {
             label: qsTr("Shading"),
             values: [GraphicsSettings.Phong, GraphicsSettings.Flat],
             names: [qsTr("Phong"), qsTr("Flat")],
