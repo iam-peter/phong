@@ -196,8 +196,9 @@ return is faster, a full wind up takes 0.6 seconds and even goes beyond the
 top speed. The computer smashes too, on Normal now and then, on Hard often.
 
 Tapping a direction twice dashes, the paddle shoots a few units that way.
-After a dash it takes a second before the next one, a bar on the back of the
-paddle fills up again meanwhile. On Normal and Hard the computer dashes for
+After a dash it takes a second before the next one: the paddle goes dark
+and lights up again from the bottom, when it glows all over it can dash
+again. On Normal and Hard the computer dashes for
 balls it wouldn't reach otherwise.
 
 Every hit fills the power bar under the field by a segment, a perfect hit by

@@ -18,7 +18,8 @@ DynamicRigidBody {
     property real squash: 1.0
     // Direction of a dash, 0 while not dashing, leaves afterimages
     property int dash: 0
-    // Share of the dash cooldown left, a bar on the back fills as it runs out
+    // Share of the dash cooldown left, the paddle lights up again as it
+    // runs out
     property real dashCooldown: 0.0
     // Catches balls, glows at the face in the magnet color
     property bool magnet: false
@@ -51,29 +52,40 @@ DynamicRigidBody {
         extents: Qt.vector3d(root.width, root.length, 1.0)
     }
 
-    Model {
-        source: "#Cube"
-        x: root.charge > 0.05 ? 0.06 * root.charge * Math.sin(tremble.phase) : 0.0
-        scale: Qt.vector3d(root.width * root.squash * (1.0 + 0.25 * root.charge) / 100, root.length / 100, 0.01)
-        materials: PhongMaterial {
-            id: material
-            color: root.color
-            glow: 0.6 + 1.4 * root.charge
-            shininess: 0.7
-        }
-    }
+    // The paddle lights up from the bottom as the dash cooldown runs out,
+    // the dash is ready when all of it glows again
+    Node {
+        id: body
 
-    // The dash is ready when the bar on the back is full
-    Model {
-        readonly property real fill: 1.0 - root.dashCooldown
-        x: root.back * (0.5 * root.width + 0.2)
-        y: -0.5 * root.length * (1.0 - fill)
-        source: "#Cube"
-        scale: Qt.vector3d(0.14 / 100, Math.max(0.01, root.length * fill) / 100, 0.008)
-        materials: PhongMaterial {
-            color: root.color
-            glow: root.dashCooldown > 0.0 ? 0.15 : 0.7
-            lighting: DefaultMaterial.NoLighting
+        readonly property real fill: Math.max(0.0, Math.min(1.0, 1.0 - root.dashCooldown))
+        readonly property real thickness: root.width * root.squash * (1.0 + 0.25 * root.charge)
+
+        x: root.charge > 0.05 ? 0.06 * root.charge * Math.sin(tremble.phase) : 0.0
+
+        Model {
+            visible: body.fill > 0.0
+            y: -0.5 * root.length * (1.0 - body.fill)
+            source: "#Cube"
+            scale: Qt.vector3d(body.thickness / 100, root.length * body.fill / 100, 0.01)
+            materials: PhongMaterial {
+                id: material
+                color: root.color
+                glow: 0.6 + 1.4 * root.charge
+                shininess: 0.7
+            }
+        }
+
+        // The part still cooling down, dark and without glow
+        Model {
+            visible: body.fill < 1.0
+            y: 0.5 * root.length * body.fill
+            source: "#Cube"
+            scale: Qt.vector3d(body.thickness / 100, root.length * (1.0 - body.fill) / 100, 0.01)
+            materials: PhongMaterial {
+                color: Qt.tint(root.color, Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.75))
+                glow: 0.0
+                shininess: 0.3
+            }
         }
     }
 
