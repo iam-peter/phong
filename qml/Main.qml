@@ -265,6 +265,13 @@ Window {
             id: statsScene
             phong: phong
             position: Qt.vector3d(-phong.sceneSpacingX, -phong.sceneSpacingY, 0)
+            achievementsScene: achievementsScene
+        }
+
+        AchievementsScene {
+            id: achievementsScene
+            phong: phong
+            position: Qt.vector3d(-2 * phong.sceneSpacingX, -phong.sceneSpacingY, 0)
         }
 
         BracketScene {
@@ -284,6 +291,7 @@ Window {
             ladderStage: gameScene.ladderStage
             endlessScore: gameScene.endlessScore
             newHighScore: gameScene.newHighScore
+            achievements: gameScene.newAchievements
         }
 
         Keys.onPressed: (event) => {

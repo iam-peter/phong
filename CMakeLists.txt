@@ -32,6 +32,7 @@ qt_add_qml_module(phong
         qml/BallBody.qml
         qml/PaddleBody.qml
         qml/Sparks.qml
+        qml/AchievementsScene.qml
         qml/Banner.qml
         qml/BracketScene.qml
         qml/FloatingText.qml

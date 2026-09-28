@@ -21,9 +21,19 @@ class Stats : public QObject
     Q_PROPERTY(int endlessBest READ endlessBest NOTIFY changed)
     Q_PROPERTY(int tournamentsWon READ tournamentsWon NOTIFY changed)
     Q_PROPERTY(int squashBest READ squashBest NOTIFY changed)
+    // Challenges: id, name, description and whether it was done
+    Q_PROPERTY(QVariantList achievements READ achievements NOTIFY changed)
+    Q_PROPERTY(int unlockedCount READ unlockedCount NOTIFY changed)
 
 public:
     static constexpr int difficulties = 3;
+
+    struct Achievement {
+        QString id;
+        QString name;
+        QString description;
+    };
+    static QList<Achievement> achievementList();
 
     explicit Stats(QObject* parent = nullptr);
 
@@ -34,6 +44,9 @@ public:
     Q_INVOKABLE void recordTournamentWin();
     // Returns whether rally is a new best
     Q_INVOKABLE bool recordSquash(int rally);
+    // Returns whether the achievement is new, unknown ids are ignored
+    Q_INVOKABLE bool unlock(const QString& id);
+    Q_INVOKABLE bool isUnlocked(const QString& id) const;
     Q_INVOKABLE void reset();
 
     int wins(int difficulty) const;
@@ -45,13 +58,17 @@ public:
     int endlessBest() const;
     int tournamentsWon() const;
     int squashBest() const;
+    QVariantList achievements() const;
+    int unlockedCount() const;
 
 signals:
     void changed();
+    void achievementUnlocked(const QString& name);
 
 private:
     int value(const QString& key) const;
     void setValue(const QString& key, int value);
+    QStringList unlocked() const;
 
     QSettings m_settings;
 };

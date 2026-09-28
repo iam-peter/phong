@@ -117,6 +117,15 @@ points. The stats screen keeps the record against every computer level, the
 best ladder run, the endless and squash high scores, the tournaments won and
 the longest rally.
 
+### Achievements
+
+Twelve challenges wait on the achievements screen, next to the stats, from
+the first win against the computer to a rally of 20 on Elevators, a goal
+with a smash, five perfect hits in a match, a win after trailing by three
+or 100 points in endless play. They count for the player against the
+computer or the wall, the results show the ones a match brought. Resetting
+the stats resets them too.
+
 ## Modifiers
 
 Now and then a modifier appears on the field. The ball collects it by flying

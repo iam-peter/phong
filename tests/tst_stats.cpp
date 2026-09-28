@@ -1,6 +1,7 @@
 #include "stats.h"
 
 #include <QCoreApplication>
+#include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTest>
 
@@ -77,6 +78,32 @@ private slots:
         QVERIFY(!stats.recordSquash(3));
         QVERIFY(stats.recordSquash(20));
         QCOMPARE(Stats().squashBest(), 20);
+    }
+
+    void achievements()
+    {
+        Stats stats;
+        const QList<Stats::Achievement> list = Stats::achievementList();
+        QCOMPARE(stats.achievements().size(), list.size());
+        QCOMPARE(stats.unlockedCount(), 0);
+
+        QSignalSpy unlocked(&stats, &Stats::achievementUnlocked);
+        QVERIFY(stats.unlock(QStringLiteral("smashGoal")));
+        QVERIFY(!stats.unlock(QStringLiteral("smashGoal")));
+        QVERIFY(!stats.unlock(QStringLiteral("noSuchThing")));
+        QCOMPARE(unlocked.count(), 1);
+        QCOMPARE(unlocked.last().at(0).toString(), QStringLiteral("Smash hit"));
+
+        // Kept, and reset with the rest
+        Stats other;
+        QVERIFY(other.isUnlocked(QStringLiteral("smashGoal")));
+        QCOMPARE(other.unlockedCount(), 1);
+        const QVariantMap entry = other.achievements().at(5).toMap();
+        QCOMPARE(entry.value("id").toString(), QStringLiteral("smashGoal"));
+        QVERIFY(entry.value("unlocked").toBool());
+
+        other.reset();
+        QCOMPARE(stats.unlockedCount(), 0);
     }
 
     void ladderKeepsTheBest()

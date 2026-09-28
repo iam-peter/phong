@@ -121,6 +121,27 @@ Scene {
     property int nextBrickId: 1
     property var pendingBricks: []
 
+    // Challenges count for the one player against the computer or the
+    // wall: perfect hits, the deepest deficit and the points lost
+    readonly property bool challenges: againstComputer || squash
+    property int leftPerfects: 0
+    property int leftDeficit: 0
+    property int leftConceded: 0
+    // Names of the achievements of this match, for the results
+    property var newAchievements: []
+
+    function achieve(id) {
+        if (challenges)
+            Stats.unlock(id)
+    }
+
+    // After every point, the scores before a new set starts
+    function countPoint(scorer) {
+        if (scorer === Match.RightSide)
+            ++leftConceded
+        leftDeficit = Math.max(leftDeficit, match.right.score - match.left.score)
+    }
+
     // Camera shake, applied through viewOffset
     property real shakeAmount: 0.0
 
@@ -167,6 +188,8 @@ Scene {
         timeScale = 1.0
         arenaTime = 0.0
         newHighScore = false
+        leftPerfects = leftDeficit = leftConceded = 0
+        newAchievements = []
         releaseInput()
         chooseArena()
         buildBricks()
@@ -248,8 +271,11 @@ Scene {
                 match.awardPoint(scorer)
             }
 
-            if (brickModel.count === 0)
+            if (brickModel.count === 0) {
                 banner.show(qsTr("Wall down"), Theme.title)
+                if (scorer === Match.LeftSide)
+                    root.achieve("demolition")
+            }
         }
     }
 
@@ -857,6 +883,8 @@ Scene {
             paddle.flash()
 
             // Perfect hits ring an octave higher
+            if (perfect && side === Match.LeftSide && ++root.leftPerfects >= 5)
+                root.achieve("perfectionist")
             if (perfect) {
                 SoundEffects.play(SoundEffects.Perfect, root.rallyPitch(match.rally))
                 sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.text, 30)
@@ -894,6 +922,10 @@ Scene {
         // Every fifth hit of a rally gets a louder cheer
         onRallyChanged: {
             const rally = match.rally
+            if (rally >= 20 && root.arenaId === "elevators")
+                root.achieve("goingUp")
+            if (rally >= 25 && root.squash)
+                root.achieve("squashPro")
             if (rally < 5 || rally % 5 !== 0)
                 return
             const level = Math.min(4, rally / 5)
@@ -908,6 +940,9 @@ Scene {
         }
 
         onPointScored: (scorer, ball) => {
+            root.countPoint(scorer)
+            if (scorer === Match.LeftSide && ball.smashed)
+                root.achieve("smashGoal")
             const goalX = scorer === Match.LeftSide ? root.goalLine : -root.goalLine
             SoundEffects.play(SoundEffects.Goal)
             sparks.burst(Qt.vector3d(goalX, 0, 0.5), Theme.text, 60)
@@ -941,6 +976,7 @@ Scene {
 
         // A point for a brick can end the set, the ball goes back then
         onPointAwarded: (scorer) => {
+            root.countPoint(scorer)
             if (match.state !== Match.Playing) {
                 root.resetBall()
                 computer.reset()
@@ -960,8 +996,22 @@ Scene {
                 Stats.recordLadder(root.ladderStage + 1)
             if (root.tournament) {
                 Tournament.recordResult(won)
-                if (Tournament.champion)
+                if (Tournament.champion) {
                     Stats.recordTournamentWin()
+                    root.achieve("champion")
+                }
+            }
+
+            if (won && root.againstComputer && !root.solo) {
+                root.achieve("firstWin")
+                if (root.difficulty === ComputerPlayer.Hard)
+                    root.achieve("beatHard")
+                if (root.leftConceded === 0)
+                    root.achieve("shutout")
+                if (root.leftDeficit >= 3)
+                    root.achieve("comeback")
+                if (!GameSettings.modifiers)
+                    root.achieve("purist")
             }
 
             // Let the last point sink in before showing the results
@@ -982,6 +1032,21 @@ Scene {
     function dashed(paddle) {
         SoundEffects.play(SoundEffects.Dash)
         sparks.burst(Qt.vector3d(paddle.x, paddle.y, 0.5), paddle.color, 10)
+    }
+
+    onEndlessScoreChanged: {
+        if (endless && endlessScore >= 100)
+            achieve("endurance")
+    }
+
+    Connections {
+        target: Stats
+        enabled: root.active
+        function onAchievementUnlocked(name) {
+            root.newAchievements = root.newAchievements.concat([name])
+            SoundEffects.play(SoundEffects.Achievement)
+            achievementBanner.show(qsTr("Achievement: %1").arg(name), Theme.title, 0.8)
+        }
     }
 
     ComputerPlayer {
@@ -1823,6 +1888,12 @@ Scene {
     Banner {
         id: banner
         y: 3.0
+        z: 1.5
+    }
+
+    Banner {
+        id: achievementBanner
+        y: -5.5
         z: 1.5
     }
 

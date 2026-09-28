@@ -7,8 +7,10 @@ import Phong
 Scene {
     id: root
 
+    property Scene achievementsScene
     // Resetting needs a second confirmation
     property bool confirming: false
+    property int currentItem: 0
 
     readonly property var rows: [
         [qsTr("Ladder best"), [qsTr("-"), qsTr("Easy"), qsTr("Normal"), qsTr("Champion")][Stats.ladderBest]],
@@ -18,6 +20,7 @@ Scene {
         [qsTr("Endless best"), Stats.endlessBest],
         [qsTr("Tournaments won"), Stats.tournamentsWon],
         [qsTr("Squash best"), Stats.squashBest],
+        [qsTr("Achievements"), qsTr("%1 of %2").arg(Stats.unlockedCount).arg(Stats.achievements.length)],
         [qsTr("2 player matches"), Stats.twoPlayerMatches],
         [qsTr("Longest rally"), Stats.longestRally]
     ]
@@ -38,6 +41,17 @@ Scene {
         confirming = false
     }
 
+    function activate(index) {
+        if (index === 0) {
+            SoundEffects.play(SoundEffects.MenuSelect)
+            confirming = false
+            phong.nextScene(achievementsScene)
+        }
+        else {
+            reset()
+        }
+    }
+
     onActiveChanged: confirming = false
 
     onKeyPressed: (event) => {
@@ -46,11 +60,22 @@ Scene {
             case Qt.Key_Escape:
                 phong.previousScene()
                 break
+            case Qt.Key_Left:
+            case Qt.Key_Up:
+                currentItem = 0
+                confirming = false
+                SoundEffects.play(SoundEffects.MenuMove)
+                break
+            case Qt.Key_Right:
+            case Qt.Key_Down:
+                currentItem = 1
+                SoundEffects.play(SoundEffects.MenuMove)
+                break
             case Qt.Key_Enter:
             case Qt.Key_Return:
             case Qt.Key_Space:
                 if (!event.isAutoRepeat)
-                    reset()
+                    activate(currentItem)
                 break
         }
     }
@@ -72,16 +97,17 @@ Scene {
             required property var modelData
             required property int index
 
-            y: 5.0 - index * 1.45
+            y: 5.2 - index * 1.35
+            scale: Qt.vector3d(0.85, 0.85, 0.85)
 
             Text3D {
-                x: -11.0
+                x: -13.0
                 color: Theme.dimmed
                 text: row.modelData[0]
             }
 
             Text3D {
-                x: 11.0
+                x: 13.0
                 horizontalAlignment: Text.AlignRight
                 text: row.modelData[1]
             }
@@ -89,15 +115,40 @@ Scene {
     }
 
     Text3D {
+        id: achievementsItem
+        x: -6.0
+        y: -9.0
+        horizontalAlignment: Text.AlignHCenter
+        text: qsTr("Achievements")
+        clickable: true
+        onClicked: {
+            root.currentItem = 0
+            root.activate(0)
+        }
+
+        Disc {
+            visible: root.currentItem === 0
+            position: Qt.vector3d(-0.5 * achievementsItem.textWidth - 1.0, 0.35, 0)
+            radius: 0.35
+            sphere: true
+        }
+    }
+
+    Text3D {
         id: resetItem
-        y: -8.5
+        x: 6.0
+        y: -9.0
         horizontalAlignment: Text.AlignHCenter
         color: root.confirming ? Theme.accent : Theme.text
         text: root.confirming ? qsTr("Really reset?") : qsTr("Reset stats")
         clickable: true
-        onClicked: root.reset()
+        onClicked: {
+            root.currentItem = 1
+            root.activate(1)
+        }
 
         Disc {
+            visible: root.currentItem === 1
             position: Qt.vector3d(-0.5 * resetItem.textWidth - 1.0, 0.35, 0)
             radius: 0.35
             sphere: true
@@ -108,7 +159,7 @@ Scene {
         y: -11
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
-        text: qsTr("[Enter] reset   [Esc] back")
+        text: qsTr("[Left/Right] select   [Enter] confirm   [Esc] back")
         color: Theme.dimmed
     }
 }

@@ -16,6 +16,24 @@ QString lossesKey(int difficulty)
 }
 }
 
+QList<Stats::Achievement> Stats::achievementList()
+{
+    return {
+        { QStringLiteral("firstWin"), tr("First win"), tr("Beat the computer") },
+        { QStringLiteral("beatHard"), tr("Top level"), tr("Beat the computer on Hard") },
+        { QStringLiteral("shutout"), tr("Shutout"), tr("Win without losing a point") },
+        { QStringLiteral("comeback"), tr("Comeback"), tr("Win after trailing by three") },
+        { QStringLiteral("purist"), tr("Purist"), tr("Beat the computer with modifiers off") },
+        { QStringLiteral("smashGoal"), tr("Smash hit"), tr("Score with a smash") },
+        { QStringLiteral("perfectionist"), tr("Perfectionist"), tr("Five perfect hits in a match") },
+        { QStringLiteral("goingUp"), tr("Going up"), tr("A rally of 20 on Elevators") },
+        { QStringLiteral("champion"), tr("Champion"), tr("Win the tournament") },
+        { QStringLiteral("demolition"), tr("Demolition"), tr("Break the last brick of a wall") },
+        { QStringLiteral("squashPro"), tr("Squash pro"), tr("A rally of 25 in squash") },
+        { QStringLiteral("endurance"), tr("Endurance"), tr("Score 100 in endless") }
+    };
+}
+
 Stats::Stats(QObject* parent):
     QObject(parent),
     m_settings()
@@ -70,6 +88,25 @@ bool Stats::recordSquash(int rally)
     return true;
 }
 
+bool Stats::unlock(const QString& id)
+{
+    const QList<Achievement> list = achievementList();
+    const auto it = std::find_if(list.cbegin(), list.cend(),
+                                 [&id](const Achievement& achievement) { return achievement.id == id; });
+    if (it == list.cend() || isUnlocked(id))
+        return false;
+
+    m_settings.setValue(QStringLiteral("stats/achievements"), unlocked() << id);
+    emit changed();
+    emit achievementUnlocked(it->name);
+    return true;
+}
+
+bool Stats::isUnlocked(const QString& id) const
+{
+    return unlocked().contains(id);
+}
+
 void Stats::reset()
 {
     m_settings.remove(QStringLiteral("stats"));
@@ -122,6 +159,34 @@ int Stats::tournamentsWon() const
 int Stats::squashBest() const
 {
     return value(QStringLiteral("stats/squashBest"));
+}
+
+QVariantList Stats::achievements() const
+{
+    const QStringList done = unlocked();
+    QVariantList achievements;
+    for (const Achievement& achievement : achievementList()) {
+        achievements.append(QVariantMap{
+            { QStringLiteral("id"), achievement.id },
+            { QStringLiteral("name"), achievement.name },
+            { QStringLiteral("description"), achievement.description },
+            { QStringLiteral("unlocked"), done.contains(achievement.id) }
+        });
+    }
+    return achievements;
+}
+
+int Stats::unlockedCount() const
+{
+    const QStringList done = unlocked();
+    const QList<Achievement> list = achievementList();
+    return int(std::count_if(list.cbegin(), list.cend(),
+                             [&done](const Achievement& achievement) { return done.contains(achievement.id); }));
+}
+
+QStringList Stats::unlocked() const
+{
+    return m_settings.value(QStringLiteral("stats/achievements")).toStringList();
 }
 
 int Stats::value(const QString& key) const

@@ -40,7 +40,8 @@ public:
         Catch,
         Portal,
         Freeze,
-        BrickBreak
+        BrickBreak,
+        Achievement
     };
     Q_ENUM(Sound)
 

@@ -13,6 +13,8 @@ Scene {
     property int ladderStage: 0
     property int endlessScore: 0
     property bool newHighScore: false
+    // Names of the achievements of the match
+    property var achievements: []
     property int currentItem: 0
 
     readonly property bool won: match?.winner === match?.left
@@ -197,6 +199,16 @@ Scene {
                 text: stat.modelData[1]
             }
         }
+    }
+
+    Text3D {
+        visible: root.achievements.length > 0
+        y: -7.2
+        scale: Qt.vector3d(0.6, 0.6, 0.6)
+        horizontalAlignment: Text.AlignHCenter
+        color: Theme.title
+        glow: 0.5
+        text: qsTr("Achievement: %1").arg(root.achievements.join(", "))
     }
 
     Repeater3D {
