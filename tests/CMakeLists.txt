@@ -19,6 +19,10 @@ phong_add_test(tst_modifiers
     ${PROJECT_SOURCE_DIR}/src/player.cpp
 )
 
+phong_add_test(tst_dash
+    ${PROJECT_SOURCE_DIR}/src/dash.cpp
+)
+
 phong_add_test(tst_computerplayer
     ${PROJECT_SOURCE_DIR}/src/computerplayer.cpp
 )

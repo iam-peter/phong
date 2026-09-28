@@ -58,6 +58,7 @@ browser's local storage.
 | Left smash | hold `Space`, `D` or `Left` | hold `D` |
 | Right paddle | computer | `Up`/`Down` |
 | Right smash | computer | hold `Left` |
+| Dash | tap a direction twice | tap a direction twice |
 | Mouse / touch | drag anywhere | drag on your half |
 
 `Esc` or `P` pauses and resumes, the pause menu also leads back to the main
@@ -69,6 +70,13 @@ ball dips on its way over, brushed downwards it rises.
 Holding the smash key winds up the paddle, it glows and slows down. The next
 return is faster, a full wind up takes 0.6 seconds and even goes beyond the
 top speed. The computer smashes too, on Normal now and then, on Hard often.
+
+Tapping a direction twice dashes, the paddle shoots a few units that way.
+After a dash it takes a second before the next one. On Normal and Hard the
+computer dashes for balls it wouldn't reach otherwise.
+
+A ball met with the middle of a paddle that stands still is a perfect hit,
+it rings higher and flies faster, also beyond the top speed.
 
 Rallies heat up: every hit climbs a musical scale, the walls and the grid glow
 hotter, and every fifth hit gets a cheer. When a ball is about to decide the
@@ -111,6 +119,12 @@ after a serve the ball flies through without collecting anything.
 | `@` | Spin curse | curse, the opponent's paddle rotates for 7 s and the ball bounces off its surface |
 | `=` | Narrow field | the walls move in for 12 s |
 | `oo` | Multi ball | two extra balls fly at the opponent for 12 s, their goals count |
+| `U` | Magnet | the collector's paddle catches the next three balls within 12 s |
+
+A magnetic paddle holds a caught ball for up to 1.2 seconds. Meanwhile the
+paddle stands and the movement keys slide the ball along it, the ball leaves
+at the angle of where it sits. Letting go of the smash key throws it, wound
+up as long as the key was held.
 
 Active effects show next to the player names. Modifiers can be switched off
 in the settings.
@@ -135,10 +149,10 @@ use them:
 | `spawn.lifetime` | seconds until an item that nobody collected disappears |
 | `spawn.minDistance` | minimum distance between two items |
 | `id`, `name`, `glyph`, `color` | identity and look |
-| `effect` | `ballSpeed`, `paddleSize`, `shield`, `spin`, `narrowField` or `multiBall` |
+| `effect` | `ballSpeed`, `paddleSize`, `shield`, `spin`, `narrowField`, `multiBall` or `magnet` |
 | `target` | `collector` (default), `opponent` for curses, or `both` |
-| `value` | speed or length factor, spin in degrees per second, inset of the walls, number of extra balls |
-| `duration` | seconds the effect lasts, for `paddleSize`, `spin`, `narrowField` and `multiBall` |
+| `value` | speed or length factor, spin in degrees per second, inset of the walls, number of extra balls, catches |
+| `duration` | seconds the effect lasts, for `paddleSize`, `spin`, `narrowField`, `multiBall` and `magnet` |
 | `weight` | relative spawn chance, `0` never spawns |
 | `enabled` | `false` skips the entry |
 

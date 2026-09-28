@@ -21,6 +21,8 @@ ComputerPlayer::ComputerPlayer(QObject* parent):
     m_aiming(false),
     m_smashing(false),
     m_charging(false),
+    m_paddleSpeed(24.0),
+    m_wantsDash(false),
     m_targets(),
     m_opponentY(0.0),
     m_random(QRandomGenerator::global()->generate())
@@ -85,6 +87,13 @@ qreal ComputerPlayer::predictCrossing(const QVector2D& position, const QVector2D
     return predictY(position, velocity, lineX, m_fieldTop, m_fieldBottom);
 }
 
+qreal ComputerPlayer::holdAim(qreal hitY) const
+{
+    // Through a target if there is one, otherwise away from the opponent
+    const qreal offset = aimOffset(hitY, m_paddleX, m_targets);
+    return qIsNaN(offset) ? awayOffset(hitY, m_paddleX, m_opponentY, m_fieldTop, m_fieldBottom) : offset;
+}
+
 void ComputerPlayer::reset()
 {
     m_sincePlan = 0.0;
@@ -93,6 +102,7 @@ void ComputerPlayer::reset()
     setTarget(0.5 * (m_fieldTop + m_fieldBottom));
     setDirection(0.0);
     setCharging(false);
+    setWantsDash(false);
 }
 
 void ComputerPlayer::update(qreal dt, const QVector2D& ballPosition,
@@ -133,6 +143,10 @@ void ComputerPlayer::update(qreal dt, const QVector2D& ballPosition,
         setDirection(0.0);
     else
         setDirection(std::clamp(distance / m_paddleReach, -1.0, 1.0) * profile.maxInput);
+
+    // A dash when the ball comes soon and too far away for the paddle
+    const qreal reach = arrival * m_paddleSpeed * profile.maxInput + deadZone;
+    setWantsDash(profile.dashes && approaching && arrival < 0.6 && std::abs(distance) > reach);
 }
 
 void ComputerPlayer::setDifficulty(Difficulty difficulty)
@@ -261,6 +275,34 @@ bool ComputerPlayer::isCharging() const
     return m_charging;
 }
 
+void ComputerPlayer::setPaddleSpeed(qreal paddleSpeed)
+{
+    if (m_paddleSpeed == paddleSpeed)
+        return;
+
+    m_paddleSpeed = paddleSpeed;
+    emit paddleSpeedChanged(paddleSpeed);
+}
+
+qreal ComputerPlayer::paddleSpeed() const
+{
+    return m_paddleSpeed;
+}
+
+bool ComputerPlayer::wantsDash() const
+{
+    return m_wantsDash;
+}
+
+void ComputerPlayer::setWantsDash(bool wantsDash)
+{
+    if (m_wantsDash == wantsDash)
+        return;
+
+    m_wantsDash = wantsDash;
+    emit wantsDashChanged(wantsDash);
+}
+
 void ComputerPlayer::setCharging(bool charging)
 {
     if (m_charging == charging)
@@ -274,12 +316,12 @@ ComputerPlayer::Profile ComputerPlayer::profile() const
 {
     switch (m_difficulty) {
         case Difficulty::Easy:
-            return { 0.35, 1.6, 0.5, false, 0.0, false, 0.0 };
+            return { 0.35, 1.6, 0.5, false, 0.0, false, 0.0, false };
         case Difficulty::Hard:
-            return { 0.08, 0.6, 1.0, true, 1.0, true, 0.5 };
+            return { 0.08, 0.6, 1.0, true, 1.0, true, 0.5, true };
         case Difficulty::Normal:
         default:
-            return { 0.2, 1.15, 0.75, true, 0.5, false, 0.25 };
+            return { 0.2, 1.15, 0.75, true, 0.5, false, 0.25, true };
     }
 }
 

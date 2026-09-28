@@ -415,6 +415,15 @@ QList<SoundEffects::Tone> SoundEffects::tones(Sound sound)
             return { { Square, 0.00, 0.18, 392, 392, 0.18 },
                      { Square, 0.18, 0.18, 330, 330, 0.18 },
                      { Square, 0.36, 0.40, 262, 196, 0.18 } };
+        case Sound::Dash:
+            return { { Triangle, 0.0, 0.12, 300, 1200, 0.30 },
+                     { Square, 0.0, 0.08, 150, 600, 0.08 } };
+        case Sound::Perfect:
+            return { { Square, 0.00, 0.05, 1318, 1318, 0.16 },
+                     { Triangle, 0.04, 0.25, 2637, 2637, 0.22 } };
+        case Sound::Catch:
+            return { { Triangle, 0.0, 0.10, 900, 300, 0.35 },
+                     { Square, 0.0, 0.06, 120, 90, 0.12 } };
     }
     return {};
 }

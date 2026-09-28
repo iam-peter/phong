@@ -27,6 +27,10 @@ class ComputerPlayer : public QObject
     Q_PROPERTY(qreal direction READ direction NOTIFY directionChanged)
     // Winds up a smash for the next return
     Q_PROPERTY(bool charging READ isCharging NOTIFY chargingChanged)
+    // Full paddle speed, to know when only a dash makes it in time
+    Q_PROPERTY(qreal paddleSpeed READ paddleSpeed WRITE setPaddleSpeed NOTIFY paddleSpeedChanged)
+    // Only a dash reaches the ball in time
+    Q_PROPERTY(bool wantsDash READ wantsDash NOTIFY wantsDashChanged)
 
 public:
     enum Difficulty {
@@ -55,6 +59,10 @@ public:
     // predictY() within this player's field
     Q_INVOKABLE qreal predictCrossing(const QVector2D& position, const QVector2D& velocity,
                                       qreal lineX) const;
+
+    // Where on the paddle to put a caught ball held at hitY before
+    // releasing it, see Match::aimHeldBall()
+    Q_INVOKABLE qreal holdAim(qreal hitY) const;
 
     // Forget the current plan, e.g. after a point was scored
     Q_INVOKABLE void reset();
@@ -85,6 +93,11 @@ public:
     void setOpponentY(qreal opponentY);
     qreal opponentY() const;
 
+    void setPaddleSpeed(qreal paddleSpeed);
+    qreal paddleSpeed() const;
+
+    bool wantsDash() const;
+
     void setSeed(quint32 seed);
 
     qreal target() const;
@@ -105,6 +118,8 @@ signals:
     void targetChanged(qreal);
     void directionChanged(qreal);
     void chargingChanged(bool);
+    void paddleSpeedChanged(qreal);
+    void wantsDashChanged(bool);
 
 private:
     struct Profile {
@@ -115,6 +130,7 @@ private:
         qreal aimChance;    // share of returns aimed at a target
         bool tactics;       // otherwise plays away from the opponent
         qreal smashChance;  // share of returns smashed
+        bool dashes;        // dashes when the ball is out of reach otherwise
     };
 
     // Seconds the wind up of a smash takes
@@ -125,6 +141,7 @@ private:
     void setTarget(qreal target);
     void setDirection(qreal direction);
     void setCharging(bool charging);
+    void setWantsDash(bool wantsDash);
 
     Difficulty m_difficulty;
     qreal m_paddleX;
@@ -140,6 +157,8 @@ private:
     bool m_aiming;    // rolled once per approach
     bool m_smashing;  // rolled once per approach
     bool m_charging;
+    qreal m_paddleSpeed;
+    bool m_wantsDash;
     QList<QVector2D> m_targets;
     qreal m_opponentY;
     QRandomGenerator m_random;

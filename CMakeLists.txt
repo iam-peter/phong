@@ -33,6 +33,7 @@ qt_add_qml_module(phong
         qml/PaddleBody.qml
         qml/Sparks.qml
         qml/Banner.qml
+        qml/FloatingText.qml
         qml/StatsScene.qml
         qml/GraphicsScene.qml
         qml/OptionsScene.qml
@@ -45,6 +46,7 @@ qt_add_qml_module(phong
     SOURCES
         src/player.h src/player.cpp
         src/match.h src/match.cpp
+        src/dash.h src/dash.cpp
         src/computerplayer.h src/computerplayer.cpp
         src/modifiers.h src/modifiers.cpp
         src/arenas.h src/arenas.cpp

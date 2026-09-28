@@ -67,6 +67,8 @@ void Match::start()
     m_ball->setVelocity(QVector2D());
     m_ball->setSpin(0.0);
     m_ball->setLastTouch(Side::NoSide);
+    m_ball->setSmashed(false);
+    m_ball->setHold(Side::NoSide, 0.0, 0.0);
     removeExtraBalls();
 
     setRally(0);
@@ -86,6 +88,7 @@ void Match::stop()
 {
     m_ball->setVelocity(QVector2D());
     m_ball->setSpin(0.0);
+    m_ball->setHold(Side::NoSide, 0.0, 0.0);
     removeExtraBalls();
     setState(State::Idle);
 }
@@ -121,8 +124,16 @@ void Match::advance(qreal dt)
 
     setPlayTime(m_playTime + dt);
 
-    for (Ball* ball : balls())
+    for (Ball* ball : balls()) {
         curve(ball, dt);
+
+        // A held ball goes when the time is up
+        if (ball->heldBy() != Side::NoSide) {
+            ball->setHold(ball->heldBy(), ball->holdOffset(), std::max(ball->holdTime() - dt, 0.0));
+            if (ball->holdTime() <= 0.0)
+                releaseBall(ball);
+        }
+    }
 
     // Extra balls only stay for a while
     const QList<Ball*> extras = m_extraBalls->balls();
@@ -135,7 +146,7 @@ void Match::advance(qreal dt)
 
 void Match::paddleHit(Ball* ball, Side side, qreal offset, qreal paddleVelocity, qreal smash)
 {
-    if (m_state != State::Playing || !isActive(ball))
+    if (m_state != State::Playing || !isActive(ball) || ball->heldBy() != Side::NoSide)
         return;
 
     // A paddle only returns balls travelling towards it. This also swallows
@@ -144,22 +155,25 @@ void Match::paddleHit(Ball* ball, Side side, qreal offset, qreal paddleVelocity,
     if (ball->velocity().x() * direction > 0.0f)
         return;
 
-    // A smash is faster and may go beyond the max speed
+    // A smash or a perfect hit is faster and may go beyond the max speed
     smash = std::clamp(smash, 0.0, 1.0);
-    const qreal speed = std::min(qreal(ball->velocity().length()) * m_speedUp * (1.0 + smashBoost * smash),
-                                 m_maxSpeed * (1.0 + smashOverspeed * smash));
+    const bool perfect = std::abs(offset) <= perfectZone
+                         && std::abs(paddleVelocity) <= perfectStillness * m_paddleSpeed;
+    const qreal boost = (1.0 + smashBoost * smash) * (perfect ? 1.0 + perfectBoost : 1.0);
+    const qreal limit = m_maxSpeed * (1.0 + smashOverspeed * smash + (perfect ? perfectOverspeed : 0.0));
+    const qreal speed = std::min(qreal(ball->velocity().length()) * m_speedUp * boost, limit);
     const qreal angle = qDegreesToRadians(std::clamp(offset, -1.0, 1.0) * maxBounceAngle);
 
     // Brushing the ball upwards makes it dip on its way over
     const qreal brush = m_paddleSpeed > 0.0 ? std::clamp(paddleVelocity / m_paddleSpeed, -1.0, 1.0) : 0.0;
     const qreal spin = -direction * brush * maxSpin;
 
-    hit(ball, side, QVector2D(direction * speed * qCos(angle), speed * qSin(angle)), spin, smash);
+    hit(ball, side, QVector2D(direction * speed * qCos(angle), speed * qSin(angle)), spin, smash, perfect);
 }
 
 void Match::deflect(Ball* ball, Side side, const QVector2D& normal)
 {
-    if (m_state != State::Playing || !isActive(ball) || normal.isNull())
+    if (m_state != State::Playing || !isActive(ball) || normal.isNull() || ball->heldBy() != Side::NoSide)
         return;
 
     // Only balls running into the paddle surface bounce
@@ -210,6 +224,7 @@ bool Match::shieldHit(Ball* ball, Side side)
 
     ball->setVelocity(QVector2D(-velocity.x(), velocity.y()));
     ball->setSpin(0.0);
+    ball->setSmashed(false);
     return true;
 }
 
@@ -234,16 +249,10 @@ void Match::wallHit(Ball* ball, bool top)
 
 void Match::goal(Ball* ball, Side scorer)
 {
-    Player* player = this->player(scorer);
-    if (m_state != State::Playing || !player || !isActive(ball))
+    if (m_state != State::Playing || !player(scorer) || !isActive(ball))
         return;
 
-    player->setScore(player->score() + 1);
-
-    const int lead = player->score() - this->player(opponent(scorer))->score();
-    // In endless play the left player's points never end it
-    const bool setWon = player->score() >= m_pointsToWin && (!m_winByTwo || lead >= 2)
-                        && !(m_endless && scorer == Side::LeftSide);
+    const bool setWon = addPoint(scorer);
 
     // An extra ball scores and is gone, the rally goes on with the others
     if (ball->isExtra()) {
@@ -257,33 +266,57 @@ void Match::goal(Ball* ball, Side scorer)
         emit pointScored(scorer, ball);
     }
 
-    m_ball->setVelocity(QVector2D());
-    m_ball->setSpin(0.0);
-    removeExtraBalls();
-    setRally(0);
+    endRally(scorer, setWon);
+}
 
-    // Like in football the player who conceded kicks off, the ball flies
-    // towards the scorer. After a set the loser of it kicks off.
-    prepareServe(scorer);
+bool Match::catchBall(Ball* ball, Side side, qreal offset)
+{
+    Player* player = this->player(side);
+    if (m_state != State::Playing || !isActive(ball) || !player || player->catches() <= 0
+        || ball->heldBy() != Side::NoSide)
+        return false;
 
-    if (setWon) {
-        player->setSets(player->sets() + 1);
-        emit setFinished(scorer);
+    // Like a hit, only balls running into the paddle
+    const float direction = side == Side::LeftSide ? 1.0f : -1.0f;
+    if (ball->velocity().x() * direction >= 0.0f)
+        return false;
 
-        if (player->sets() >= m_setsToWin) {
-            setWinner(player);
-            setState(State::Finished);
-            updateMatchPoint();
-            emit finished();
-            return;
-        }
+    player->setCatches(player->catches() - 1);
+    ball->m_heldSpeed = ball->velocity().length();
+    ball->setVelocity(QVector2D());
+    ball->setSpin(0.0);
+    ball->setSmashed(false);
+    ball->setLastTouch(side);
+    ball->setHold(side, std::clamp(offset, -1.0, 1.0), maxHoldTime);
+    emit ballCaught(ball, side);
+    return true;
+}
 
-        m_left->setScore(0);
-        m_right->setScore(0);
-    }
+void Match::aimHeldBall(Ball* ball, qreal offset)
+{
+    if (!isActive(ball) || ball->heldBy() == Side::NoSide)
+        return;
 
-    updateMatchPoint();
-    setState(State::Serving);
+    ball->setHold(ball->heldBy(), std::clamp(offset, -1.0, 1.0), ball->holdTime());
+}
+
+bool Match::releaseBall(Ball* ball, qreal smash)
+{
+    if (m_state != State::Playing || !isActive(ball) || ball->heldBy() == Side::NoSide)
+        return false;
+
+    const Side side = ball->heldBy();
+    const qreal offset = ball->holdOffset();
+    ball->setHold(Side::NoSide, 0.0, 0.0);
+
+    // Like a hit at the offset, but without spin
+    smash = std::clamp(smash, 0.0, 1.0);
+    const qreal direction = side == Side::LeftSide ? 1.0 : -1.0;
+    const qreal speed = std::min(ball->m_heldSpeed * m_speedUp * (1.0 + smashBoost * smash),
+                                 m_maxSpeed * (1.0 + smashOverspeed * smash));
+    const qreal angle = qDegreesToRadians(offset * maxBounceAngle);
+    hit(ball, side, QVector2D(direction * speed * qCos(angle), speed * qSin(angle)), 0.0, smash);
+    return true;
 }
 
 Ball* Match::addBall(const QVector2D& position, Side towards, qreal lifetime, Side lastTouch)
@@ -577,6 +610,11 @@ qreal Match::playTime() const
     return m_playTime;
 }
 
+qreal Match::holdLimit() const
+{
+    return maxHoldTime;
+}
+
 void Match::setState(State state)
 {
     if (m_state == state)
@@ -627,11 +665,12 @@ void Match::setPlayTime(qreal playTime)
     emit playTimeChanged(playTime);
 }
 
-void Match::hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin, qreal smash)
+void Match::hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin, qreal smash, bool perfect)
 {
     ball->setVelocity(velocity);
     ball->setSpin(spin);
     ball->setLastTouch(side);
+    ball->setSmashed(smash >= smashThreshold);
 
     Player* player = this->player(side);
     player->setHits(player->hits() + 1);
@@ -639,7 +678,52 @@ void Match::hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin, qr
     setRally(m_rally + 1);
     ++m_totalHits;
     emit totalHitsChanged(m_totalHits);
-    emit paddleHitBall(ball, side, smash);
+    emit paddleHitBall(ball, side, smash, perfect);
+}
+
+bool Match::addPoint(Side scorer)
+{
+    Player* player = this->player(scorer);
+    player->setScore(player->score() + 1);
+
+    const int lead = player->score() - this->player(opponent(scorer))->score();
+    // In endless play the left player's points never end it
+    return player->score() >= m_pointsToWin && (!m_winByTwo || lead >= 2)
+           && !(m_endless && scorer == Side::LeftSide);
+}
+
+void Match::endRally(Side scorer, bool setWon)
+{
+    Player* player = this->player(scorer);
+
+    m_ball->setVelocity(QVector2D());
+    m_ball->setSpin(0.0);
+    m_ball->setHold(Side::NoSide, 0.0, 0.0);
+    removeExtraBalls();
+    setRally(0);
+
+    // Like in football the player who conceded kicks off, the ball flies
+    // towards the scorer. After a set the loser of it kicks off.
+    prepareServe(scorer);
+
+    if (setWon) {
+        player->setSets(player->sets() + 1);
+        emit setFinished(scorer);
+
+        if (player->sets() >= m_setsToWin) {
+            setWinner(player);
+            setState(State::Finished);
+            updateMatchPoint();
+            emit finished();
+            return;
+        }
+
+        m_left->setScore(0);
+        m_right->setScore(0);
+    }
+
+    updateMatchPoint();
+    setState(State::Serving);
 }
 
 bool Match::winsWithNextPoint(Side side) const
@@ -729,7 +813,12 @@ Ball::Ball(bool extra, const QVector2D& spawnPosition, QObject* parent):
     m_lastTouch(Match::Side::NoSide),
     m_extra(extra),
     m_spawnPosition(spawnPosition),
-    m_lifetime(0.0)
+    m_lifetime(0.0),
+    m_smashed(false),
+    m_heldBy(Match::Side::NoSide),
+    m_holdOffset(0.0),
+    m_holdTime(0.0),
+    m_heldSpeed(0.0)
 {}
 
 QVector2D Ball::velocity() const
@@ -760,6 +849,26 @@ QVector2D Ball::spawnPosition() const
 qreal Ball::lifetime() const
 {
     return m_lifetime;
+}
+
+bool Ball::isSmashed() const
+{
+    return m_smashed;
+}
+
+Match::Side Ball::heldBy() const
+{
+    return m_heldBy;
+}
+
+qreal Ball::holdOffset() const
+{
+    return m_holdOffset;
+}
+
+qreal Ball::holdTime() const
+{
+    return m_holdTime;
 }
 
 void Ball::setVelocity(const QVector2D& velocity)
@@ -863,4 +972,24 @@ void BallModel::clear()
 
     for (Ball* ball : balls)
         ball->deleteLater();
+}
+
+void Ball::setSmashed(bool smashed)
+{
+    if (m_smashed == smashed)
+        return;
+
+    m_smashed = smashed;
+    emit smashedChanged(smashed);
+}
+
+void Ball::setHold(Match::Side heldBy, qreal offset, qreal time)
+{
+    if (m_heldBy == heldBy && m_holdOffset == offset && m_holdTime == time)
+        return;
+
+    m_heldBy = heldBy;
+    m_holdOffset = offset;
+    m_holdTime = time;
+    emit holdChanged();
 }

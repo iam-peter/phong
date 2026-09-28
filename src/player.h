@@ -22,6 +22,8 @@ class Player : public QObject
     // Degrees per second the paddle rotates with, 0 is upright
     Q_PROPERTY(qreal spinSpeed READ spinSpeed WRITE setSpinSpeed NOTIFY spinSpeedChanged)
     Q_PROPERTY(bool shielded READ isShielded WRITE setShielded NOTIFY shieldedChanged)
+    // Balls the magnetic paddle still catches
+    Q_PROPERTY(int catches READ catches WRITE setCatches NOTIFY catchesChanged)
 
 public:
     explicit Player(QObject* parent = nullptr);
@@ -50,6 +52,9 @@ public:
     void setShielded(bool shielded);
     bool isShielded() const;
 
+    void setCatches(int catches);
+    int catches() const;
+
 signals:
     void nameChanged(const QString&);
     void scoreChanged(int);
@@ -59,6 +64,7 @@ signals:
     void paddleScaleChanged(qreal);
     void spinSpeedChanged(qreal);
     void shieldedChanged(bool);
+    void catchesChanged(int);
 
 private:
     QString m_name;
@@ -69,6 +75,7 @@ private:
     qreal m_paddleScale;
     qreal m_spinSpeed;
     bool m_shielded;
+    int m_catches;
 };
 
 #endif // PLAYER_H

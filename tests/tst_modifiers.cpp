@@ -40,7 +40,8 @@ private slots:
         QVERIFY(modifiers.load(QStringLiteral(PHONG_SOURCE_DIR "/config/modifiers.json")));
 
         const QStringList ids = { "fastBall", "bigPaddle", "shield",
-                                  "smallPaddle", "spin", "narrowField", "multiBall" };
+                                  "smallPaddle", "spin", "narrowField", "multiBall",
+                                  "magnet" };
         QCOMPARE(modifiers.definitions().size(), ids.size());
         for (const QString& id : ids)
             QVERIFY2(modifiers.findDefinition(id) >= 0, qPrintable(id));
@@ -325,6 +326,37 @@ private slots:
         match.goal(Match::Side::LeftSide);
         modifiers.advance(60.0);
         QVERIFY(match.right()->isShielded());
+    }
+
+    void magnetCatches()
+    {
+        Match match;
+        Modifiers modifiers;
+        modifiers.setMatch(&match);
+        const Modifiers::Definition& magnet = definition(modifiers, "magnet");
+        QSignalSpy effects(&modifiers, &Modifiers::effectsChanged);
+
+        touch(match, Match::Side::LeftSide);
+        QVERIFY(modifiers.collect(spawn(modifiers, "magnet")));
+        QCOMPARE(match.left()->catches(), int(magnet.value));
+        QCOMPARE(modifiers.activeEffects(Match::Side::LeftSide).size(), 1);
+
+        // Every catch uses one up, the magnet is gone with the last
+        for (int i = 0; i < int(magnet.value); ++i) {
+            match.paddleHit(Match::Side::RightSide, 0.5);
+            QVERIFY(match.catchBall(match.ball(), Match::Side::LeftSide, 0.0));
+            QVERIFY(match.releaseBall(match.ball()));
+        }
+        effects.clear();
+        modifiers.advance(0.1);
+        QCOMPARE(effects.count(), 1);
+        QVERIFY(modifiers.activeEffects(Match::Side::LeftSide).isEmpty());
+
+        // Or after its time
+        QVERIFY(modifiers.collect(spawn(modifiers, "magnet")));
+        modifiers.advance(magnet.duration + 0.1);
+        QCOMPARE(match.left()->catches(), 0);
+        QVERIFY(modifiers.activeEffects(Match::Side::LeftSide).isEmpty());
     }
 
     void multiBallFromTheItem()

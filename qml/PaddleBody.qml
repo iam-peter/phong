@@ -16,6 +16,11 @@ DynamicRigidBody {
     property real charge: 0.0
     // Squashes on a hit
     property real squash: 1.0
+    // Direction of a dash, 0 while not dashing, leaves afterimages
+    property int dash: 0
+    // Catches balls, glows at the face in the magnet color
+    property bool magnet: false
+    property color magnetColor: "#ff3333"
 
     function flash() {
         flashAnimation.restart()
@@ -46,6 +51,47 @@ DynamicRigidBody {
             color: root.color
             glow: 0.6 + 1.4 * root.charge
             shininess: 0.7
+        }
+    }
+
+    // Afterimages behind a dashing paddle
+    Repeater3D {
+        model: 3
+
+        delegate: Model {
+            required property int index
+
+            visible: root.dash !== 0
+            y: -root.dash * (0.8 + 0.8 * index)
+            z: -0.2
+            opacity: 0.35 - 0.1 * index
+            source: "#Cube"
+            scale: Qt.vector3d(root.width / 100, root.length / 100, 0.01)
+            materials: PhongMaterial {
+                color: root.color
+                glow: 0.8
+            }
+        }
+    }
+
+    // A magnet sits on the face, towards the field
+    Model {
+        id: magnetFace
+        visible: root.magnet
+        property real pulse: 0.0
+        x: (root.paddleX < 0 ? 1 : -1) * (0.5 * root.width + 0.15)
+        source: "#Cube"
+        scale: Qt.vector3d(0.3 / 100, (root.length + 0.3) / 100, 0.014)
+        materials: PhongMaterial {
+            color: Theme.tint(root.magnetColor)
+            glow: 0.8 + 1.2 * magnetFace.pulse
+        }
+
+        SequentialAnimation on pulse {
+            running: root.magnet
+            loops: Animation.Infinite
+            NumberAnimation { from: 0.0; to: 1.0; duration: 400; easing.type: Easing.InOutSine }
+            NumberAnimation { from: 1.0; to: 0.0; duration: 400; easing.type: Easing.InOutSine }
         }
     }
 

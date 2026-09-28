@@ -60,12 +60,13 @@ private slots:
             const QVector2D before = match.ballVelocity();
             const Match::Side side = before.x() < 0.0f ? Match::Side::LeftSide
                                                        : Match::Side::RightSide;
-            match.paddleHit(side, 0.0);
+            // Moving a little, a still paddle would make it a perfect hit
+            match.paddleHit(side, 0.0, 2.0 * Match::perfectStillness * match.paddleSpeed());
 
             const QVector2D after = match.ballVelocity();
             QVERIFY(after.x() * before.x() < 0.0f);
             QCOMPARE(after.y(), 0.0f);
-            QCOMPARE(after.length(), before.length() * 1.1f);
+            QVERIFY(qAbs(after.length() - before.length() * 1.1f) < 1e-3f);
             QCOMPARE(match.rally(), 1);
         }
     }
@@ -510,15 +511,114 @@ private slots:
         const Match::Side first = match.ballVelocity().x() < 0.0f ? Match::Side::LeftSide
                                                                   : Match::Side::RightSide;
         const float speed = match.ballVelocity().length();
-        match.paddleHit(first, 0.0, 0.0, 1.0);
+        match.paddleHit(first, 0.5, 0.0, 1.0);
         QVERIFY(qAbs(match.ballVelocity().length() - speed * float(1.0 + Match::smashBoost)) < 1e-3f);
         QCOMPARE(hits.last().at(2).toReal(), 1.0);
         QCOMPARE(match.player(first)->hits(), 1);
+        QVERIFY(match.ball()->isSmashed());
 
         // Beyond the max speed, but only a little
         match.setMaxSpeed(20.0);
-        match.paddleHit(Match::opponent(first), 0.0, 0.0, 1.0);
+        match.paddleHit(Match::opponent(first), 0.5, 0.0, 1.0);
         QVERIFY(qAbs(match.ballVelocity().length() - 20.0f * float(1.0 + Match::smashOverspeed)) < 1e-3f);
+    }
+
+    void perfectHit()
+    {
+        Match match;
+        match.setSpeedUp(1.0);
+        match.setMaxSpeed(100.0);
+        QSignalSpy hits(&match, &Match::paddleHitBall);
+        serve(match);
+
+        // In the middle with a still paddle
+        Match::Side side = match.ballVelocity().x() < 0.0f ? Match::Side::LeftSide : Match::Side::RightSide;
+        float speed = match.ballVelocity().length();
+        match.paddleHit(side, 0.5 * Match::perfectZone, 0.0);
+        QVERIFY(hits.last().at(3).toBool());
+        QVERIFY(qAbs(match.ballVelocity().length() - speed * float(1.0 + Match::perfectBoost)) < 1e-3f);
+        QVERIFY(!match.ball()->isSmashed());
+
+        // Off center or with a moving paddle it's a normal hit
+        side = Match::opponent(side);
+        speed = match.ballVelocity().length();
+        match.paddleHit(side, 2.0 * Match::perfectZone, 0.0);
+        QVERIFY(!hits.last().at(3).toBool());
+        QVERIFY(qAbs(match.ballVelocity().length() - speed) < 1e-3f);
+
+        side = Match::opponent(side);
+        match.paddleHit(side, 0.0, 0.5 * match.paddleSpeed());
+        QVERIFY(!hits.last().at(3).toBool());
+
+        // At the top speed a perfect hit still goes a little faster
+        match.setMaxSpeed(20.0);
+        side = Match::opponent(side);
+        match.paddleHit(side, 0.0, 0.0);
+        side = Match::opponent(side);
+        match.paddleHit(side, 0.0, 0.0);
+        QVERIFY(qAbs(match.ballVelocity().length() - 20.0f * float(1.0 + Match::perfectOverspeed)) < 1e-3f);
+    }
+
+    void catchAndRelease()
+    {
+        Match match;
+        match.setSpeedUp(1.0);
+        QSignalSpy caught(&match, &Match::ballCaught);
+        QSignalSpy hits(&match, &Match::paddleHitBall);
+        serve(match);
+
+        const Match::Side side = match.ballVelocity().x() < 0.0f ? Match::Side::LeftSide
+                                                                 : Match::Side::RightSide;
+        const Match::Side other = Match::opponent(side);
+        const float speed = match.ballVelocity().length();
+
+        // Only a magnetic paddle catches, and only balls coming at it
+        QVERIFY(!match.catchBall(match.ball(), side, 0.0));
+        match.player(side)->setCatches(2);
+        match.player(other)->setCatches(2);
+        QVERIFY(!match.catchBall(match.ball(), other, 0.0));
+
+        QVERIFY(match.catchBall(match.ball(), side, 0.2));
+        QCOMPARE(caught.count(), 1);
+        QCOMPARE(match.player(side)->catches(), 1);
+        QCOMPARE(match.ball()->heldBy(), side);
+        QCOMPARE(match.ball()->lastTouch(), side);
+        QCOMPARE(match.ballVelocity(), QVector2D());
+
+        // A held ball ignores the paddle and isn't caught twice
+        match.paddleHit(side, 0.0);
+        QCOMPARE(match.ballVelocity(), QVector2D());
+        QVERIFY(!match.catchBall(match.ball(), side, 0.0));
+        QCOMPARE(hits.count(), 0);
+
+        // Aimed at the top edge and released like a hit there
+        match.aimHeldBall(match.ball(), 5.0);
+        QCOMPARE(match.ball()->holdOffset(), 1.0);
+        QVERIFY(match.releaseBall(match.ball()));
+        QCOMPARE(match.ball()->heldBy(), Match::Side::NoSide);
+        QCOMPARE(hits.count(), 1);
+        QCOMPARE(match.rally(), 1);
+
+        const QVector2D v = match.ballVelocity();
+        QVERIFY(qAbs(v.length() - speed) < 1e-3f);
+        QVERIFY(v.x() * (side == Match::Side::LeftSide ? 1.0f : -1.0f) > 0.0f);
+        const qreal angle = qRadiansToDegrees(qAtan2(v.y(), std::abs(v.x())));
+        QVERIFY(qAbs(angle - Match::maxBounceAngle) < 0.01);
+
+        // The other side catches and holds until the time is up
+        QVERIFY(match.catchBall(match.ball(), other, 0.0));
+        match.advance(0.5 * Match::maxHoldTime);
+        QCOMPARE(match.ball()->heldBy(), other);
+        match.advance(0.6 * Match::maxHoldTime);
+        QCOMPARE(match.ball()->heldBy(), Match::Side::NoSide);
+        QVERIFY(match.ballVelocity().x() * (other == Match::Side::LeftSide ? 1.0f : -1.0f) > 0.0f);
+        QCOMPARE(match.rally(), 2);
+
+        // A goal ends any hold
+        match.player(side)->setCatches(1);
+        QVERIFY(match.catchBall(match.ball(), side, 0.0));
+        match.goal(other);
+        QCOMPARE(match.ball()->heldBy(), Match::Side::NoSide);
     }
 
     void matchPoint()

@@ -34,7 +34,10 @@ public:
         MenuMove,
         MenuSelect,
         Win,
-        Lose
+        Lose,
+        Dash,
+        Perfect,
+        Catch
     };
     Q_ENUM(Sound)
 

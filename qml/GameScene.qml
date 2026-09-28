@@ -114,6 +114,11 @@ Scene {
     // The rally heats up the field
     readonly property real rallyHeat: Math.min(1.0, match.rally / 25)
 
+    // A held ball slides along the paddle this much per second, and the
+    // computer lets go once it held a ball this long
+    readonly property real holdSlide: 2.0
+    readonly property real computerHoldTime: 0.45
+
     // Slow motion when a ball is about to decide the match
     property real timeScale: 1.0
     slowMotion: 1.0 - timeScale
@@ -133,6 +138,8 @@ Scene {
         leftPaddleY = rightPaddleY = 0.0
         leftPaddleAngle = rightPaddleAngle = 0.0
         leftCharge = rightCharge = 0.0
+        leftDash.reset()
+        rightDash.reset()
         timeScale = 1.0
         arenaTime = 0.0
         newHighScore = false
@@ -290,12 +297,62 @@ Scene {
         return urgent
     }
 
+    // The ball the paddle of side holds, or null
+    function heldBody(side) {
+        for (const body of ballBodies()) {
+            if (body.ball.heldBy === side)
+                return body
+        }
+        return null
+    }
+
+    // Throws the held ball with the wind up so far
+    function releaseHeld(side) {
+        const body = heldBody(side)
+        if (body)
+            match.releaseBall(body.ball, side === Match.LeftSide ? leftCharge : rightCharge)
+    }
+
+    // A held ball sits on the face of its paddle
+    function placeHeld(body) {
+        const left = body.ball.heldBy === Match.LeftSide
+        const length = left ? leftPaddleLength : rightPaddleLength
+        const x = (left ? -1 : 1) * (paddleX - 0.5 * paddleWidth - ballRadius - 0.05)
+        const y = (left ? leftPaddleY : rightPaddleY) + body.ball.holdOffset * 0.5 * length
+        body.reset(Qt.vector3d(x, y, 0), Qt.vector3d(0, 0, 0))
+    }
+
+    // Keys slide the held ball along the paddle, a pointer puts it where it is
+    function aimHeld(body, keys, pointerY, paddleY, length, dt) {
+        const offset = keys !== 0 || isNaN(pointerY) ? body.ball.holdOffset + keys * holdSlide * dt
+                                                     : (pointerY - paddleY) / (0.5 * length)
+        match.aimHeldBall(body.ball, offset)
+    }
+
+    // The computer aims through a target and lets go
+    function computerHold(body, dt) {
+        const offset = body.ball.holdOffset
+        const slide = holdSlide * dt
+        const aim = computer.holdAim(body.y)
+        match.aimHeldBall(body.ball, offset + Math.max(-slide, Math.min(slide, aim - offset)))
+        if (body.ball.holdTime <= match.maxHoldTime - computerHoldTime)
+            releaseHeld(Match.RightSide)
+    }
+
+    function keyInput(up, down) {
+        return (up ? 1 : 0) - (down ? 1 : 0)
+    }
+
     // Upright paddles use the arcade bounce, turned ones reflect the ball
-    // off their surface
+    // off their surface. A magnetic paddle catches the ball.
     function paddleContact(body, side, paddle, angle, length, velocity, normals) {
         if (angle % 180 === 0 || normals.length === 0) {
             const smash = side === Match.LeftSide ? leftCharge : rightCharge
-            match.paddleHit(body.ball, side, (body.y - paddle.y) / (0.5 * length + ballRadius), velocity, smash)
+            const offset = (body.y - paddle.y) / (0.5 * length + ballRadius)
+            const player = side === Match.LeftSide ? match.left : match.right
+            if (player.catches > 0 && match.catchBall(body.ball, side, offset))
+                return
+            match.paddleHit(body.ball, side, offset, velocity, smash)
             return
         }
 
@@ -373,28 +430,59 @@ Scene {
         timeScale += (slow - timeScale) * Math.min(1.0, 8.0 * realDt)
         const dt = realDt * timeScale
 
+        // A held ball about to go is thrown with the wind up so far
+        for (const body of ballBodies()) {
+            if (body.ball.heldBy !== Match.NoSide && body.ball.holdTime <= dt)
+                releaseHeld(body.ball.heldBy)
+        }
+
         match.advance(dt)
         if (!running)
             return
 
         modifiers.advance(dt)
+        leftDash.advance(dt)
+        rightDash.advance(dt)
 
         const onePlayer = mode !== GameScene.TwoPlayers
-        const leftInput = onePlayer
-                ? humanInput(leftUp || rightUp, leftDown || rightDown, leftPointerY, leftPaddleY)
-                : humanInput(leftUp, leftDown, leftPointerY, leftPaddleY)
+        const leftKeys = onePlayer ? keyInput(leftUp || rightUp, leftDown || rightDown) : keyInput(leftUp, leftDown)
+        let leftInput = humanInput(leftKeys > 0, leftKeys < 0, leftPointerY, leftPaddleY)
 
         let rightInput
+        const rightKeys = onePlayer ? 0 : keyInput(rightUp, rightDown)
+        const leftHeld = heldBody(Match.LeftSide)
+        const rightHeld = heldBody(Match.RightSide)
         if (onePlayer) {
             const urgent = urgentBall()
             computer.targets = modifiers.itemPositions()
             computer.opponentY = leftPaddleY
             computer.update(dt, Qt.vector2d(urgent.x, urgent.y), urgent.ball.velocity, rightPaddleY)
             rightInput = computer.direction
+            if (computer.wantsDash && !rightHeld)
+                rightDash.trigger(computer.direction >= 0 ? 1 : -1)
         }
         else {
-            rightInput = humanInput(rightUp, rightDown, rightPointerY, rightPaddleY)
+            rightInput = humanInput(rightKeys > 0, rightKeys < 0, rightPointerY, rightPaddleY)
         }
+
+        // A paddle holding a ball stands, the input aims the ball
+        if (leftHeld) {
+            aimHeld(leftHeld, leftKeys, leftPointerY, leftPaddleY, leftPaddleLength, dt)
+            leftInput = 0
+        }
+        if (rightHeld) {
+            if (onePlayer)
+                computerHold(rightHeld, dt)
+            else
+                aimHeld(rightHeld, rightKeys, rightPointerY, rightPaddleY, rightPaddleLength, dt)
+            rightInput = 0
+        }
+
+        // A dash takes over the paddle for a moment
+        if (leftDash.active && !leftHeld)
+            leftInput = leftDash.direction * leftDash.boost
+        if (rightDash.active && !rightHeld)
+            rightInput = rightDash.direction * rightDash.boost
 
         leftCharge = windUp(leftCharge, leftCharging, dt)
         rightCharge = windUp(rightCharge, onePlayer ? computer.charging : rightCharging, dt)
@@ -409,8 +497,11 @@ Scene {
         leftPaddleAngle = turnPaddle(leftPaddleAngle, match.left.spinSpeed, dt)
         rightPaddleAngle = turnPaddle(rightPaddleAngle, match.right.spinSpeed, dt)
 
-        for (const body of ballBodies())
+        for (const body of ballBodies()) {
+            if (body.ball.heldBy !== Match.NoSide)
+                placeHeld(body)
             body.advance(dt)
+        }
 
         // The camera shakes on impacts and leans a little towards the ball
         shakeAmount *= Math.exp(-7.0 * realDt)
@@ -422,6 +513,20 @@ Scene {
                                          .minus(viewRotation).times(follow))
     }
 
+    // Letting go of the smash key throws a held ball
+    function setCharging(side, pressed) {
+        if (side === Match.LeftSide) {
+            if (!pressed && leftCharging)
+                releaseHeld(side)
+            leftCharging = pressed
+        }
+        else {
+            if (!pressed && rightCharging)
+                releaseHeld(side)
+            rightCharging = pressed
+        }
+    }
+
     function setKey(key, pressed) {
         switch (key) {
             case Qt.Key_W: leftUp = pressed; return true
@@ -429,18 +534,27 @@ Scene {
             case Qt.Key_Up: rightUp = pressed; return true
             case Qt.Key_Down: rightDown = pressed; return true
             // Smash, towards the middle of the keyboard, also space alone
-            case Qt.Key_D: leftCharging = pressed; return true
+            case Qt.Key_D: setCharging(Match.LeftSide, pressed); return true
             case Qt.Key_Space:
                 if (mode === GameScene.TwoPlayers)
                     return false
-                leftCharging = pressed
+                setCharging(Match.LeftSide, pressed)
                 return true
             case Qt.Key_Left:
-                if (mode === GameScene.TwoPlayers)
-                    rightCharging = pressed
-                else
-                    leftCharging = pressed
+                setCharging(mode === GameScene.TwoPlayers ? Match.RightSide : Match.LeftSide, pressed)
                 return true
+        }
+        return false
+    }
+
+    // Tapping a direction twice dashes
+    function tapDash(key) {
+        const upDown = mode === GameScene.TwoPlayers ? rightDash : leftDash
+        switch (key) {
+            case Qt.Key_W: return leftDash.tap(1)
+            case Qt.Key_S: return leftDash.tap(-1)
+            case Qt.Key_Up: return upDown.tap(1)
+            case Qt.Key_Down: return upDown.tap(-1)
         }
         return false
     }
@@ -497,6 +611,8 @@ Scene {
             }
         }
 
+        if (running)
+            tapDash(event.key)
         if (setKey(event.key, true))
             return
 
@@ -571,13 +687,21 @@ Scene {
             root.kickoffSecond = second
         }
 
-        onPaddleHitBall: (ball, side, smash) => {
+        onPaddleHitBall: (ball, side, smash, perfect) => {
             const paddle = side === Match.LeftSide ? leftPaddle : rightPaddle
             const speed = ball.velocity.length() / match.serveSpeed
             const sparkX = paddle.x + (side === Match.LeftSide ? 0.6 : -0.6)
             paddle.flash()
 
-            if (smash > 0.25) {
+            // Perfect hits ring an octave higher
+            if (perfect) {
+                SoundEffects.play(SoundEffects.Perfect, root.rallyPitch(match.rally))
+                sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.text, 30)
+                perfectPopup.show(qsTr("Perfect!"), Theme.text,
+                                  Qt.vector3d(side === Match.LeftSide ? sparkX + 3.5 : sparkX - 3.5, paddle.y, 0))
+            }
+
+            if (smash >= 0.25) {
                 SoundEffects.play(SoundEffects.Smash, 0.8 + 0.4 * smash)
                 sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.text, Math.round(20 + 40 * smash))
                 root.shake(0.3 + 0.5 * smash)
@@ -594,6 +718,14 @@ Scene {
                 root.leftCharge = 0.0
             else
                 root.rightCharge = 0.0
+        }
+
+        onBallCaught: (ball, side) => {
+            const paddle = side === Match.LeftSide ? leftPaddle : rightPaddle
+            paddle.flash()
+            SoundEffects.play(SoundEffects.Catch)
+            sparks.burst(Qt.vector3d(paddle.x + (side === Match.LeftSide ? 0.6 : -0.6), paddle.y, 0.5),
+                         Theme.tint(paddle.magnetColor), 16)
         }
 
         // Every fifth hit of a rally gets a louder cheer
@@ -656,10 +788,26 @@ Scene {
         }
     }
 
+    Dash {
+        id: leftDash
+        onDashed: root.dashed(leftPaddle)
+    }
+
+    Dash {
+        id: rightDash
+        onDashed: root.dashed(rightPaddle)
+    }
+
+    function dashed(paddle) {
+        SoundEffects.play(SoundEffects.Dash)
+        sparks.burst(Qt.vector3d(paddle.x, paddle.y, 0.5), paddle.color, 10)
+    }
+
     ComputerPlayer {
         id: computer
 
         difficulty: root.difficulty
+        paddleSpeed: root.paddleSpeed
         paddleX: root.paddleX - 0.5 * root.paddleWidth - root.ballRadius
         paddleReach: 0.5 * root.rightPaddleLength + root.ballRadius
         fieldTop: root.ballLimit
@@ -678,7 +826,7 @@ Scene {
 
         onCollected: (index, side, position) => {
             const definition = modifiers.definition(index)
-            pickupPopup.show(definition, position)
+            pickupPopup.show(definition.name, Theme.tint(definition.color), position)
             sparks.burst(Qt.vector3d(position.x, position.y, 0.5), Theme.tint(definition.color), 24)
 
             if (definition.effect === Modifiers.MultiBall)
@@ -1001,6 +1149,8 @@ Scene {
         id: leftPaddle
         color: Theme.leftPlayer
         charge: root.leftCharge
+        dash: leftDash.direction
+        magnet: match.left.catches > 0
         paddleX: -root.paddleX
         paddleY: root.leftPaddleY
         angle: root.leftPaddleAngle
@@ -1012,6 +1162,8 @@ Scene {
         id: rightPaddle
         color: Theme.rightPlayer
         charge: root.rightCharge
+        dash: rightDash.direction
+        magnet: match.right.catches > 0
         paddleX: root.paddleX
         paddleY: root.rightPaddleY
         angle: root.rightPaddleAngle
@@ -1207,40 +1359,13 @@ Scene {
     }
 
     // Name of the collected modifier, rising and fading
-    Node {
+    FloatingText {
         id: pickupPopup
+    }
 
-        property var definition: ({})
-        property real startY: 0.0
-
-        function show(definition, position) {
-            pickupPopup.definition = definition
-            x = position.x
-            startY = position.y + 1.2
-            popupAnimation.restart()
-        }
-
-        z: 1.5
-        opacity: 0.0
-
-        Text3D {
-            scale: Qt.vector3d(0.6, 0.6, 0.6)
-            horizontalAlignment: Text.AlignHCenter
-            color: Theme.tint(pickupPopup.definition.color ?? Theme.text)
-            text: pickupPopup.definition.name ?? ""
-        }
-
-        ParallelAnimation {
-            id: popupAnimation
-            NumberAnimation {
-                target: pickupPopup; property: "opacity"
-                from: 1.0; to: 0.0; duration: 1400; easing.type: Easing.InQuad
-            }
-            NumberAnimation {
-                target: pickupPopup; property: "y"
-                from: pickupPopup.startY; to: pickupPopup.startY + 2.0; duration: 1400
-            }
-        }
+    FloatingText {
+        id: perfectPopup
+        textScale: 0.5
     }
 
     // Arena name at the start, set winners
@@ -1382,10 +1507,10 @@ Scene {
             x: -root.stageWidth
             color: Theme.dimmed
             text: root.mode === GameScene.TwoPlayers
-                  ? qsTr("[W/S] move [D] smash   [Up/Down] move [Left] smash")
+                  ? qsTr("[W/S] move [D] smash   [Up/Down] move [Left] smash   tap twice to dash")
                   : root.mode === GameScene.Ladder
-                  ? qsTr("Ladder %1/3   [W/S] or [Up/Down] move   [Space] smash").arg(root.ladderStage + 1)
-                  : qsTr("[W/S] or [Up/Down] move   [Space] smash")
+                  ? qsTr("Ladder %1/3   [W/S] or [Up/Down] move, twice dashes   [Space] smash").arg(root.ladderStage + 1)
+                  : qsTr("[W/S] or [Up/Down] move, twice dashes   [Space] smash")
         }
 
         Text3D {

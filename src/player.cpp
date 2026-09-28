@@ -1,5 +1,7 @@
 #include "player.h"
 
+#include <algorithm>
+
 Player::Player(QObject* parent):
     QObject(parent),
     m_name(),
@@ -9,7 +11,8 @@ Player::Player(QObject* parent):
     m_computer(false),
     m_paddleScale(1.0),
     m_spinSpeed(0.0),
-    m_shielded(false)
+    m_shielded(false),
+    m_catches(0)
 {}
 
 void Player::setName(const QString& name)
@@ -122,4 +125,19 @@ void Player::setShielded(bool shielded)
 bool Player::isShielded() const
 {
     return m_shielded;
+}
+
+void Player::setCatches(int catches)
+{
+    catches = std::max(catches, 0);
+    if (m_catches == catches)
+        return;
+
+    m_catches = catches;
+    emit catchesChanged(catches);
+}
+
+int Player::catches() const
+{
+    return m_catches;
 }

@@ -46,6 +46,8 @@ class Match : public QObject
     Q_PROPERTY(int longestRally READ longestRally NOTIFY longestRallyChanged)
     Q_PROPERTY(int totalHits READ totalHits NOTIFY totalHitsChanged)
     Q_PROPERTY(qreal playTime READ playTime NOTIFY playTimeChanged)
+    // Seconds a magnetic paddle holds a caught ball at most
+    Q_PROPERTY(qreal maxHoldTime READ holdLimit CONSTANT)
 
 public:
     enum State {
@@ -76,6 +78,16 @@ public:
     // A fully charged smash is this much faster, also beyond the max speed
     static constexpr qreal smashBoost = 0.6;
     static constexpr qreal smashOverspeed = 0.25;
+    // From this wind up on a hit counts as a smash
+    static constexpr qreal smashThreshold = 0.25;
+    // A hit in the middle of a paddle that stands still is perfect, and
+    // faster, also beyond the max speed
+    static constexpr qreal perfectZone = 0.15;
+    static constexpr qreal perfectStillness = 0.1;
+    static constexpr qreal perfectBoost = 0.15;
+    static constexpr qreal perfectOverspeed = 0.1;
+    // Seconds a magnetic paddle holds a caught ball at most
+    static constexpr qreal maxHoldTime = 1.2;
 
     explicit Match(QObject* parent = nullptr);
 
@@ -90,7 +102,8 @@ public:
 
     // offset: where the ball hit the paddle, -1 (bottom edge) to 1 (top
     // edge). A moving paddle puts spin on the ball, smash from 0 to 1 is
-    // how far the player wound up.
+    // how far the player wound up. A centered hit with a still paddle is
+    // perfect.
     Q_INVOKABLE void paddleHit(Ball* ball, Match::Side side, qreal offset, qreal paddleVelocity = 0.0,
                                qreal smash = 0.0);
     // A paddle that isn't upright reflects the ball off its surface, but
@@ -105,6 +118,15 @@ public:
     Q_INVOKABLE void scaleBallSpeed(Ball* ball, qreal factor);
     Q_INVOKABLE void wallHit(Ball* ball, bool top);
     Q_INVOKABLE void goal(Ball* ball, Match::Side scorer);
+
+    // A magnetic paddle catches a ball running into it at offset (see
+    // paddleHit), returns whether it did. The paddle holds it until
+    // released, at most maxHoldTime.
+    Q_INVOKABLE bool catchBall(Ball* ball, Match::Side side, qreal offset);
+    // Where on the paddle a held ball sits, aims the release
+    Q_INVOKABLE void aimHeldBall(Ball* ball, qreal offset);
+    // Sends a held ball off like a paddle hit at its offset
+    Q_INVOKABLE bool releaseBall(Ball* ball, qreal smash = 0.0);
 
     // An extra ball flying from position towards side, gone after lifetime
     // seconds or its goal
@@ -176,6 +198,7 @@ public:
     int longestRally() const;
     int totalHits() const;
     qreal playTime() const;
+    qreal holdLimit() const;
 
 signals:
     void stateChanged(Match::State);
@@ -199,7 +222,8 @@ signals:
     void playTimeChanged(qreal);
 
     void served();
-    void paddleHitBall(Ball* ball, Match::Side side, qreal smash);
+    void paddleHitBall(Ball* ball, Match::Side side, qreal smash, bool perfect);
+    void ballCaught(Ball* ball, Match::Side side);
     void pointScored(Match::Side scorer, Ball* ball);
     void setFinished(Match::Side winner);
     void finished();
@@ -210,7 +234,12 @@ private:
     void setServeCountdown(qreal serveCountdown);
     void setRally(int rally);
     void setPlayTime(qreal playTime);
-    void hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin, qreal smash = 0.0);
+    void hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin, qreal smash = 0.0,
+             bool perfect = false);
+    // Ends the rally after a point of scorer, setWon if it won the set
+    void endRally(Side scorer, bool setWon);
+    // Adds a point, returns whether it wins the set
+    bool addPoint(Side scorer);
     void updateMatchPoint();
     void curve(Ball* ball, qreal dt);
     void removeExtraBalls();
@@ -260,6 +289,13 @@ class Ball : public QObject
     Q_PROPERTY(bool extra READ isExtra CONSTANT)
     Q_PROPERTY(QVector2D spawnPosition READ spawnPosition CONSTANT)
     Q_PROPERTY(qreal lifetime READ lifetime NOTIFY lifetimeChanged)
+    // The last hit was a smash
+    Q_PROPERTY(bool smashed READ isSmashed NOTIFY smashedChanged)
+    // The side whose magnetic paddle holds the ball, where on the paddle
+    // and for how many more seconds
+    Q_PROPERTY(Match::Side heldBy READ heldBy NOTIFY holdChanged)
+    Q_PROPERTY(qreal holdOffset READ holdOffset NOTIFY holdChanged)
+    Q_PROPERTY(qreal holdTime READ holdTime NOTIFY holdChanged)
 
 public:
     explicit Ball(bool extra, const QVector2D& spawnPosition, QObject* parent = nullptr);
@@ -272,12 +308,18 @@ public:
     QVector2D spawnPosition() const;
     // Seconds left for an extra ball
     qreal lifetime() const;
+    bool isSmashed() const;
+    Match::Side heldBy() const;
+    qreal holdOffset() const;
+    qreal holdTime() const;
 
 signals:
     void velocityChanged(const QVector2D&);
     void spinChanged(qreal);
     void lastTouchChanged(Match::Side);
     void lifetimeChanged(qreal);
+    void smashedChanged(bool);
+    void holdChanged();
 
 private:
     friend class Match;
@@ -286,6 +328,8 @@ private:
     void setSpin(qreal spin);
     void setLastTouch(Match::Side lastTouch);
     void setLifetime(qreal lifetime);
+    void setSmashed(bool smashed);
+    void setHold(Match::Side heldBy, qreal offset, qreal time);
 
     QVector2D m_velocity;
     qreal m_spin;
@@ -293,6 +337,11 @@ private:
     bool m_extra;
     QVector2D m_spawnPosition;
     qreal m_lifetime;
+    bool m_smashed;
+    Match::Side m_heldBy;
+    qreal m_holdOffset;
+    qreal m_holdTime;
+    qreal m_heldSpeed;
 };
 
 // The extra balls, a model so a new ball doesn't recreate the others

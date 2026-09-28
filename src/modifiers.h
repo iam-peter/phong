@@ -37,7 +37,8 @@ public:
         Shield,         // a barrier behind the paddle stops one goal
         Spin,           // value: degrees per second, for duration seconds
         NarrowField,    // value: how far the walls move in, for duration seconds
-        MultiBall       // value: extra balls, they stay for duration seconds
+        MultiBall,      // value: extra balls, they stay for duration seconds
+        Magnet          // value: balls the paddle catches, for duration seconds
     };
     Q_ENUM(Effect)
 
@@ -169,6 +170,8 @@ private:
         qreal spinTime;
         int spinDefinition;
         int shieldDefinition;
+        qreal magnetTime;
+        int magnetDefinition;
     };
 
     static Effects noEffects();

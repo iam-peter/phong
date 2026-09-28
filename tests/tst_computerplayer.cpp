@@ -1,4 +1,5 @@
 #include "computerplayer.h"
+#include "match.h"
 
 #include <QTest>
 #include <QtMath>
@@ -180,6 +181,54 @@ private slots:
         easy.setPaddleX(12.0);
         easy.update(0.1, QVector2D(7, 0), QVector2D(10, 0), 0.0);
         QVERIFY(!easy.isCharging());
+    }
+
+    void dashesWhenOutOfReach()
+    {
+        ComputerPlayer player;
+        player.setDifficulty(ComputerPlayer::Difficulty::Hard);
+        player.setPaddleX(12.0);
+        player.setPaddleReach(2.8);
+        player.setFieldTop(8.0);
+        player.setFieldBottom(-8.0);
+        player.setPaddleSpeed(24.0);
+
+        // Far off and arriving soon
+        player.update(0.1, QVector2D(4, 7), QVector2D(30, 0), -7.0);
+        player.update(0.1, QVector2D(7, 7), QVector2D(30, 0), -7.0);
+        QVERIFY(player.wantsDash());
+
+        // Close enough to make it without
+        player.update(0.1, QVector2D(7, 7), QVector2D(30, 0), 5.5);
+        QVERIFY(!player.wantsDash());
+
+        // Easy never dashes
+        ComputerPlayer easy;
+        easy.setDifficulty(ComputerPlayer::Difficulty::Easy);
+        easy.setPaddleX(12.0);
+        easy.setFieldTop(8.0);
+        easy.setFieldBottom(-8.0);
+        for (int i = 0; i < 5; ++i)
+            easy.update(0.1, QVector2D(7, 7), QVector2D(30, 0), -7.0);
+        QVERIFY(!easy.wantsDash());
+    }
+
+    void holdAimsAtTargets()
+    {
+        ComputerPlayer player;
+        player.setPaddleX(12.0);
+        player.setFieldTop(8.0);
+        player.setFieldBottom(-8.0);
+
+        // Through the target when there is one
+        player.setTargets({ QVector2D(0, 12) });
+        const qreal offset = player.holdAim(0.0);
+        QVERIFY(qAbs(offset - 45.0 / Match::maxBounceAngle) < 1e-3);
+
+        // Otherwise away from the opponent at the top
+        player.setTargets({});
+        player.setOpponentY(6.0);
+        QVERIFY(player.holdAim(0.0) < 0.0);
     }
 
     void reactsWithDelay()

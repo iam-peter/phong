@@ -20,7 +20,8 @@ const QHash<QString, Modifiers::Effect> effectNames = {
     { QStringLiteral("shield"), Modifiers::Effect::Shield },
     { QStringLiteral("spin"), Modifiers::Effect::Spin },
     { QStringLiteral("narrowField"), Modifiers::Effect::NarrowField },
-    { QStringLiteral("multiBall"), Modifiers::Effect::MultiBall }
+    { QStringLiteral("multiBall"), Modifiers::Effect::MultiBall },
+    { QStringLiteral("magnet"), Modifiers::Effect::Magnet }
 };
 
 const QHash<QString, Modifiers::Target> targetNames = {
@@ -49,6 +50,8 @@ ValueRange valueRange(Modifiers::Effect effect)
             return { 3.0, 0.5, 5.0 };
         case Modifiers::Effect::MultiBall:
             return { 1.0, 1.0, 3.0 };
+        case Modifiers::Effect::Magnet:
+            return { 3.0, 1.0, 5.0 };
         case Modifiers::Effect::Shield:
         default:
             return { 0.0, 0.0, 0.0 };
@@ -286,6 +289,8 @@ QVariantList Modifiers::activeEffects(Match::Side side) const
         active.append(definition(effects.shieldDefinition));
     if (effects.spinTime > 0.0)
         active.append(definition(effects.spinDefinition));
+    if (effects.magnetTime > 0.0)
+        active.append(definition(effects.magnetDefinition));
     return active;
 }
 
@@ -313,6 +318,7 @@ void Modifiers::reset()
             player->setPaddleScale(1.0);
             player->setSpinSpeed(0.0);
             player->setShielded(false);
+            player->setCatches(0);
         }
     }
 
@@ -343,6 +349,16 @@ void Modifiers::advance(qreal dt)
             effects.spinTime -= dt;
             if (effects.spinTime <= 0.0) {
                 player->setSpinSpeed(0.0);
+                changed = true;
+            }
+        }
+
+        // The magnet is gone after its time or its catches
+        if (effects.magnetTime > 0.0) {
+            effects.magnetTime -= dt;
+            if (effects.magnetTime <= 0.0 || player->catches() <= 0) {
+                effects.magnetTime = 0.0;
+                player->setCatches(0);
                 changed = true;
             }
         }
@@ -532,7 +548,7 @@ qreal Modifiers::maxFieldInset() const
 
 Modifiers::Effects Modifiers::noEffects()
 {
-    return { 0.0, -1, 0.0, -1, -1 };
+    return { 0.0, -1, 0.0, -1, -1, 0.0, -1 };
 }
 
 void Modifiers::spawnRandom()
@@ -623,6 +639,11 @@ void Modifiers::apply(int index, Match::Side collector, Ball* ball, const QVecto
                 player->setSpinSpeed(definition.value);
                 effects.spinTime = definition.duration;
                 effects.spinDefinition = index;
+                break;
+            case Effect::Magnet:
+                player->setCatches(int(definition.value));
+                effects.magnetTime = definition.duration;
+                effects.magnetDefinition = index;
                 break;
             default:
                 break;
