@@ -82,6 +82,12 @@ Rallies heat up: every hit climbs a musical scale, the walls and the grid glow
 hotter, and every fifth hit gets a cheer. When a ball is about to decide the
 match, the game slows down and moves in closer.
 
+Callouts cheer the big moments: a shield stopping a goal is a save, a hard
+smash returned with a hard smash a double smash, and levelling the score
+after trailing by three a comeback. The rally that decided the match is
+replayed before the results, its last second in slow motion, any key skips
+it.
+
 ## Game modes
 
 - **1 Player** against the computer, the level is set in the settings.

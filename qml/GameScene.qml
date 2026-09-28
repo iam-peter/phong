@@ -139,7 +139,112 @@ Scene {
     function countPoint(scorer) {
         if (scorer === Match.RightSide)
             ++leftConceded
-        leftDeficit = Math.max(leftDeficit, match.right.score - match.left.score)
+        const left = match.left.score
+        const right = match.right.score
+        leftDeficit = Math.max(leftDeficit, right - left)
+        lastSmash = Match.NoSide
+        doubleSmashCalled = false
+
+        // Level again after trailing by three
+        behind = [Math.max(behind[0], right - left), Math.max(behind[1], left - right)]
+        if (!solo && left === right && behind[scorer] >= 3 && !comebackCalled[scorer]) {
+            const called = comebackCalled
+            called[scorer] = true
+            comebackCalled = called
+            callout(qsTr("Comeback!"))
+        }
+    }
+
+    // Callouts: how far each side was behind in this set, whether its
+    // comeback was called, who smashed hard last in the rally and whether
+    // a double smash was called in it
+    property var behind: [0, 0]
+    property var comebackCalled: [false, false]
+    property int lastSmash: Match.NoSide
+    property bool doubleSmashCalled: false
+
+    function callout(text) {
+        SoundEffects.play(SoundEffects.RallyMilestone, 1.3)
+        calloutBanner.show(text, Theme.accent, 1.2)
+    }
+
+    // The last seconds of play, replayed when the match is decided
+    readonly property real replayLength: 3.0
+    // The end of the replay runs slower
+    readonly property real replaySlowTime: 1.0
+    readonly property real replaySlowSpeed: 0.35
+    property var recording: []
+    property real recordedTime: 0.0
+    property bool replaying: false
+    property real replayTime: 0.0
+    property var replayFrame: null
+    property int replayIndex: 0
+
+    function record(dt) {
+        const balls = []
+        for (const body of ballBodies())
+            balls.push({ x: body.x, y: body.y, extra: body.ball.extra, shown: body.visibility })
+        recording.push({
+            dt: dt, balls: balls,
+            leftY: leftPaddleY, rightY: rightPaddleY,
+            leftAngle: leftPaddleAngle, rightAngle: rightPaddleAngle,
+            leftLength: leftPaddleLength, rightLength: rightPaddleLength
+        })
+        recordedTime += dt
+        while (recording.length > 1 && recordedTime - recording[0].dt > replayLength)
+            recordedTime -= recording.shift().dt
+    }
+
+    function clearRecording() {
+        recording = []
+        recordedTime = 0.0
+    }
+
+    function startReplay() {
+        if (recordedTime < 0.6) {
+            resultsDelay.start()
+            return
+        }
+        replayTime = 0.0
+        replayIndex = 0
+        replayFrame = recording[0]
+        replaying = true
+        viewOffset = Qt.vector3d(0, 0, -3)
+        viewRotation = Qt.vector3d(0, 0, 0)
+    }
+
+    // Plays the recording on, returns false at its end
+    function advanceReplay(dt) {
+        const slow = replayTime > recordedTime - replaySlowTime
+        replayTime += dt * (slow ? replaySlowSpeed : 1.0)
+        let time = 0.0
+        for (let index = 0; index < recording.length; ++index) {
+            time += recording[index].dt
+            if (time >= replayTime) {
+                replayIndex = index
+                replayFrame = recording[index]
+                return true
+            }
+        }
+        return false
+    }
+
+    function endReplay() {
+        if (!replaying)
+            return
+        replaying = false
+        replayFrame = null
+        viewOffset = Qt.vector3d(0, 0, 0)
+
+        // The deciding goal once more
+        const leftWon = match.winner === match.left
+        SoundEffects.play(SoundEffects.Goal)
+        sparks.burst(Qt.vector3d(leftWon ? goalLine : -goalLine, 0, 0.5), Theme.text, 60)
+        if (leftWon)
+            rightGoalFlash.restart()
+        else
+            leftGoalFlash.restart()
+        resultsDelay.start()
     }
 
     // Camera shake, applied through viewOffset
@@ -189,6 +294,12 @@ Scene {
         arenaTime = 0.0
         newHighScore = false
         leftPerfects = leftDeficit = leftConceded = 0
+        behind = [0, 0]
+        comebackCalled = [false, false]
+        lastSmash = Match.NoSide
+        doubleSmashCalled = false
+        replaying = false
+        clearRecording()
         newAchievements = []
         releaseInput()
         chooseArena()
@@ -503,6 +614,7 @@ Scene {
                 SoundEffects.play(SoundEffects.ShieldHit)
                 sparks.burst(Qt.vector3d(body.x, body.y, 0.5), Theme.shield, 30)
                 shake(0.35)
+                callout(qsTr("What a save!"))
             }
         }
         else if (other === squashWall) {
@@ -695,6 +807,8 @@ Scene {
         const follow = Math.min(1.0, 3.0 * realDt)
         viewRotation = viewRotation.plus(Qt.vector3d(0.07 * mainBall.y, -0.05 * mainBall.x, 0)
                                          .minus(viewRotation).times(follow))
+
+        record(realDt)
     }
 
     // Letting go of the smash key throws a held ball
@@ -775,6 +889,12 @@ Scene {
         if (event.isAutoRepeat)
             return
 
+        // Any key skips the replay
+        if (replaying) {
+            endReplay()
+            return
+        }
+
         if (match.state === Match.Paused) {
             switch (event.key) {
                 // Esc opened the pause menu, Esc closes it again
@@ -824,6 +944,11 @@ Scene {
     }
 
     onPointerPressed: (id, x, y) => {
+        if (replaying) {
+            endReplay()
+            return
+        }
+
         const clickable = phong.clickableAt(x, y)
         if (clickable) {
             clickable.clicked()
@@ -867,7 +992,11 @@ Scene {
                     : root.againstComputer ? qsTr("CPU") : qsTr("Pong")
         right.computer: root.againstComputer
 
-        onServed: SoundEffects.play(SoundEffects.Serve)
+        // The replay shows the deciding rally only
+        onServed: {
+            SoundEffects.play(SoundEffects.Serve)
+            root.clearRecording()
+        }
 
         onServeCountdownChanged: {
             const second = Math.ceil(match.serveCountdown)
@@ -890,6 +1019,19 @@ Scene {
                 sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.text, 30)
                 perfectPopup.show(qsTr("Perfect!"), Theme.text,
                                   Qt.vector3d(side === Match.LeftSide ? sparkX + 3.5 : sparkX - 3.5, paddle.y, 0))
+            }
+
+            // A hard smash returned with a hard smash, once a rally
+            if (smash >= 0.5) {
+                if (root.lastSmash === (side === Match.LeftSide ? Match.RightSide : Match.LeftSide)
+                    && !root.doubleSmashCalled) {
+                    root.doubleSmashCalled = true
+                    root.callout(qsTr("Double smash!"))
+                }
+                root.lastSmash = side
+            }
+            else {
+                root.lastSmash = Match.NoSide
             }
 
             if (smash >= 0.25) {
@@ -960,6 +1102,8 @@ Scene {
 
         // Not for the set that wins the match, the results say that
         onSetFinished: (winner) => {
+            root.behind = [0, 0]
+            root.comebackCalled = [false, false]
             const player = winner === Match.LeftSide ? match.left : match.right
             if (player.sets < match.setsToWin)
                 banner.show(qsTr("Set %1").arg(player.name), Theme.title)
@@ -1014,8 +1158,8 @@ Scene {
                     root.achieve("purist")
             }
 
-            // Let the last point sink in before showing the results
-            resultsDelay.start()
+            // The deciding rally once more, then the results
+            root.startReplay()
         }
     }
 
@@ -1153,7 +1297,7 @@ Scene {
 
     // Soft shadows on the floor, the key light comes from above in front
     Node {
-        visible: GraphicsSettings.floor && GraphicsSettings.shadows
+        visible: GraphicsSettings.floor && GraphicsSettings.shadows && !root.replaying
         z: -0.6
 
         component Shadow: Model {
@@ -1400,6 +1544,7 @@ Scene {
 
     PaddleBody {
         id: leftPaddle
+        visible: !root.replaying
         color: Theme.leftPlayer
         charge: root.leftCharge
         dash: leftDash.direction
@@ -1416,7 +1561,7 @@ Scene {
     PaddleBody {
         id: rightPaddle
         // Squash has a wall instead
-        visible: !root.squash
+        visible: !root.squash && !root.replaying
         color: Theme.rightPlayer
         charge: root.rightCharge
         dash: rightDash.direction
@@ -1616,6 +1761,7 @@ Scene {
     // where they bounce to
     BallBody {
         id: mainBall
+        visible: !root.replaying
         ball: match.ball
         timeScale: root.timeScale
         radius: root.ballRadius
@@ -1629,6 +1775,7 @@ Scene {
 
         delegate: BallBody {
             id: extraBall
+            visible: !root.replaying
             timeScale: root.timeScale
             radius: root.ballRadius
             trailSpeed: match.serveSpeed
@@ -1794,6 +1941,121 @@ Scene {
         id: sparks
     }
 
+    // Instant replay of the deciding rally, from the recorded positions
+    FrameAnimation {
+        running: root.replaying
+        // The first frame after a start may report the time since the
+        // last run
+        onTriggered: {
+            if (!root.advanceReplay(Math.min(frameTime, 0.05)))
+                root.endReplay()
+        }
+    }
+
+    Node {
+        id: replay
+
+        readonly property var frame: root.replayFrame
+
+        visible: root.replaying && frame !== null
+
+        Repeater3D {
+            model: 4
+
+            delegate: Node {
+                id: replayBall
+
+                required property int index
+                readonly property var ball: replay.frame?.balls[index]
+
+                visible: ball !== undefined
+                position: ball ? Qt.vector3d(ball.x, ball.y, 0) : Qt.vector3d(0, 0, 0)
+                opacity: ball?.shown ?? 1.0
+
+                Disc {
+                    sphere: true
+                    radius: root.ballRadius
+                    color: replayBall.ball?.extra ? Theme.extraBall : Theme.ball
+                    glow: 0.35
+                    shininess: 1.0
+                }
+            }
+        }
+
+        // Where the main ball was a moment ago
+        Repeater3D {
+            model: 5
+
+            delegate: Disc {
+                required property int index
+                readonly property var frame: root.recording[root.replayIndex - 2 * (index + 1)]
+                readonly property var ball: frame?.balls[0]
+
+                visible: ball !== undefined
+                position: ball ? Qt.vector3d(ball.x, ball.y, -0.3) : Qt.vector3d(0, 0, 0)
+                opacity: 0.4 * (1.0 - index / 5) * (ball?.shown ?? 1.0)
+                radius: root.ballRadius * (1.0 - 0.1 * index)
+                thickness: 0.1
+                color: Theme.ball
+            }
+        }
+
+        component ReplayPaddle: Model {
+            id: replayPaddle
+            property real length
+            property color color
+            source: "#Cube"
+            scale: Qt.vector3d(root.paddleWidth / 100, length / 100, 0.01)
+            materials: PhongMaterial {
+                color: replayPaddle.color
+                glow: 0.6
+                shininess: 0.7
+            }
+        }
+
+        ReplayPaddle {
+            position: Qt.vector3d(-root.paddleX, replay.frame?.leftY ?? 0, 0)
+            eulerRotation.z: replay.frame?.leftAngle ?? 0
+            length: replay.frame?.leftLength ?? 1
+            color: Theme.leftPlayer
+        }
+
+        ReplayPaddle {
+            visible: !root.squash
+            position: Qt.vector3d(root.paddleX, replay.frame?.rightY ?? 0, 0)
+            eulerRotation.z: replay.frame?.rightAngle ?? 0
+            length: replay.frame?.rightLength ?? 1
+            color: Theme.rightPlayer
+        }
+
+        Text3D {
+            id: replayLabel
+            x: -0.5 * root.stageWidth + 2.0
+            y: 0.5 * root.stageHeight - 2.6
+            z: 1.0
+            color: Theme.accent
+            glow: 0.8
+            text: qsTr("Replay")
+
+            SequentialAnimation on opacity {
+                running: replay.visible
+                loops: Animation.Infinite
+                NumberAnimation { from: 1.0; to: 0.3; duration: 500 }
+                NumberAnimation { from: 0.3; to: 1.0; duration: 500 }
+            }
+        }
+
+        Text3D {
+            x: 0.5 * root.stageWidth - 2.0
+            y: 0.5 * root.stageHeight - 2.6
+            z: 1.0
+            scale: Qt.vector3d(0.5, 0.5, 0.5)
+            horizontalAlignment: Text.AlignRight
+            color: Theme.dimmed
+            text: qsTr("[any key] skip")
+        }
+    }
+
     // Kickoff countdown around the ball and where the ball will go
     Node {
         id: kickoff
@@ -1888,6 +2150,12 @@ Scene {
     Banner {
         id: banner
         y: 3.0
+        z: 1.5
+    }
+
+    Banner {
+        id: calloutBanner
+        y: 6.0
         z: 1.5
     }
 
