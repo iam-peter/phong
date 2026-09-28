@@ -19,7 +19,8 @@ const QHash<QString, Modifiers::Effect> effectNames = {
     { QStringLiteral("paddleSize"), Modifiers::Effect::PaddleSize },
     { QStringLiteral("shield"), Modifiers::Effect::Shield },
     { QStringLiteral("spin"), Modifiers::Effect::Spin },
-    { QStringLiteral("narrowField"), Modifiers::Effect::NarrowField }
+    { QStringLiteral("narrowField"), Modifiers::Effect::NarrowField },
+    { QStringLiteral("multiBall"), Modifiers::Effect::MultiBall }
 };
 
 const QHash<QString, Modifiers::Target> targetNames = {
@@ -46,6 +47,8 @@ ValueRange valueRange(Modifiers::Effect effect)
             return { 150.0, 10.0, 720.0 };
         case Modifiers::Effect::NarrowField:
             return { 3.0, 0.5, 5.0 };
+        case Modifiers::Effect::MultiBall:
+            return { 1.0, 1.0, 3.0 };
         case Modifiers::Effect::Shield:
         default:
             return { 0.0, 0.0, 0.0 };
@@ -73,6 +76,7 @@ Modifiers::Modifiers(QObject* parent):
     m_match(nullptr),
     m_enabled(true),
     m_spawnArea(-8.0, -4.5, 16.0, 9.0),
+    m_obstacles(),
     m_definitions(),
     m_spawn(defaultSpawnSettings()),
     m_items(),
@@ -285,6 +289,14 @@ QVariantList Modifiers::activeEffects(Match::Side side) const
     return active;
 }
 
+QVariantList Modifiers::itemPositions() const
+{
+    QVariantList positions;
+    for (const Item& item : m_items)
+        positions.append(item.position);
+    return positions;
+}
+
 void Modifiers::reset()
 {
     beginResetModel();
@@ -368,7 +380,12 @@ void Modifiers::advance(qreal dt)
 
 bool Modifiers::collect(int itemId)
 {
-    if (!m_match || m_match->lastTouch() == Match::Side::NoSide)
+    return collect(itemId, m_match ? m_match->ball() : nullptr);
+}
+
+bool Modifiers::collect(int itemId, Ball* ball)
+{
+    if (!m_match || !ball || ball->lastTouch() == Match::Side::NoSide)
         return false;
 
     const auto it = std::find_if(m_items.cbegin(), m_items.cend(),
@@ -379,8 +396,8 @@ bool Modifiers::collect(int itemId)
     const Item item = *it;
     removeItem(int(it - m_items.cbegin()));
 
-    const Match::Side collector = m_match->lastTouch();
-    apply(item.definition, collector);
+    const Match::Side collector = ball->lastTouch();
+    apply(item.definition, collector, ball, item.position);
 
     Match::Side affected = collector;
     switch (m_definitions.at(item.definition).target) {
@@ -400,11 +417,16 @@ bool Modifiers::collect(int itemId)
 
 bool Modifiers::shieldHit(Match::Side side)
 {
+    return shieldHit(m_match ? m_match->ball() : nullptr, side);
+}
+
+bool Modifiers::shieldHit(Ball* ball, Match::Side side)
+{
     Player* player = m_match ? m_match->player(side) : nullptr;
     if (!player || !player->isShielded())
         return false;
 
-    if (!m_match->shieldHit(side))
+    if (!m_match->shieldHit(ball, side))
         return false;
 
     player->setShielded(false);
@@ -472,6 +494,27 @@ QRectF Modifiers::spawnArea() const
     return m_spawnArea;
 }
 
+void Modifiers::setObstacles(const QVariantList& obstacles)
+{
+    QList<QRectF> rects;
+    for (const QVariant& obstacle : obstacles)
+        rects.append(obstacle.toRectF());
+
+    if (m_obstacles == rects)
+        return;
+
+    m_obstacles = rects;
+    emit obstaclesChanged();
+}
+
+QVariantList Modifiers::obstacles() const
+{
+    QVariantList obstacles;
+    for (const QRectF& rect : m_obstacles)
+        obstacles.append(rect);
+    return obstacles;
+}
+
 qreal Modifiers::fieldInset() const
 {
     return m_fieldInset;
@@ -515,6 +558,9 @@ void Modifiers::spawnRandom()
 
         const bool free = std::all_of(m_items.cbegin(), m_items.cend(), [&](const Item& item) {
             return item.position.distanceToPoint(position) >= m_spawn.minDistance;
+        }) && std::none_of(m_obstacles.cbegin(), m_obstacles.cend(), [&](const QRectF& rect) {
+            // Leave room for the item itself
+            return rect.adjusted(-1.2, -1.2, 1.2, 1.2).contains(position.toPointF());
         });
 
         if (free) {
@@ -524,7 +570,7 @@ void Modifiers::spawnRandom()
     }
 }
 
-void Modifiers::apply(int index, Match::Side collector)
+void Modifiers::apply(int index, Match::Side collector, Ball* ball, const QVector2D& position)
 {
     const Definition& definition = m_definitions.at(index);
 
@@ -544,7 +590,12 @@ void Modifiers::apply(int index, Match::Side collector)
     // Effects on the ball and the field don't care about the target
     switch (definition.effect) {
         case Effect::BallSpeed:
-            m_match->scaleBallSpeed(definition.value);
+            m_match->scaleBallSpeed(ball, definition.value);
+            return;
+        case Effect::MultiBall:
+            // The new balls fly at the collector's opponent
+            for (int i = 0; i < int(definition.value); ++i)
+                m_match->addBall(position, Match::opponent(collector), definition.duration, collector);
             return;
         case Effect::NarrowField:
             m_narrowTime = definition.duration;

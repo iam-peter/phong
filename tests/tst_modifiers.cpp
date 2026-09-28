@@ -40,7 +40,7 @@ private slots:
         QVERIFY(modifiers.load(QStringLiteral(PHONG_SOURCE_DIR "/config/modifiers.json")));
 
         const QStringList ids = { "fastBall", "bigPaddle", "shield",
-                                  "smallPaddle", "spin", "narrowField" };
+                                  "smallPaddle", "spin", "narrowField", "multiBall" };
         QCOMPARE(modifiers.definitions().size(), ids.size());
         for (const QString& id : ids)
             QVERIFY2(modifiers.findDefinition(id) >= 0, qPrintable(id));
@@ -325,6 +325,78 @@ private slots:
         match.goal(Match::Side::LeftSide);
         modifiers.advance(60.0);
         QVERIFY(match.right()->isShielded());
+    }
+
+    void multiBallFromTheItem()
+    {
+        Match match;
+        Modifiers modifiers;
+        modifiers.setMatch(&match);
+        const Modifiers::Definition& multi = definition(modifiers, "multiBall");
+
+        touch(match, Match::Side::LeftSide);
+        const int id = modifiers.spawn(modifiers.findDefinition("multiBall"), QVector2D(2, 3));
+        QVERIFY(modifiers.collect(id));
+
+        // The new balls come from the item and fly at the opponent
+        QCOMPARE(match.extraBalls()->rowCount(), int(multi.value));
+        for (Ball* ball : match.extraBalls()->balls()) {
+            QCOMPARE(ball->spawnPosition(), QVector2D(2, 3));
+            QVERIFY(ball->velocity().x() > 0.0f);
+            QCOMPARE(ball->lastTouch(), Match::Side::LeftSide);
+            QCOMPARE(ball->lifetime(), multi.duration);
+        }
+    }
+
+    void extraBallCollectsForItsPlayer()
+    {
+        Match match;
+        Modifiers modifiers;
+        modifiers.setMatch(&match);
+
+        touch(match, Match::Side::LeftSide);
+        Ball* extra = match.addBall(QVector2D(0, 0), Match::Side::LeftSide, 10.0,
+                                    Match::Side::RightSide);
+
+        // The main ball was touched by left, the extra one by right
+        modifiers.collect(spawn(modifiers, "bigPaddle"), extra);
+        QCOMPARE(match.right()->paddleScale(), definition(modifiers, "bigPaddle").value);
+        QCOMPARE(match.left()->paddleScale(), 1.0);
+
+        // A fast ball speeds up the ball that collected it
+        const float main = match.ballVelocity().length();
+        const float speed = extra->velocity().length();
+        modifiers.collect(spawn(modifiers, "fastBall"), extra);
+        QCOMPARE(extra->velocity().length(), speed * float(definition(modifiers, "fastBall").value));
+        QCOMPARE(match.ballVelocity().length(), main);
+    }
+
+    void itemsAvoidObstacles()
+    {
+        Match match;
+        Modifiers modifiers;
+        modifiers.setMatch(&match);
+        modifiers.setSeed(3);
+        QVERIFY(modifiers.loadJson(R"({
+            "spawn": { "minDelay": 0.5, "maxDelay": 0.5, "maxItems": 8, "lifetime": 100,
+                       "minDistance": 0 },
+            "modifiers": [ { "id": "any", "effect": "ballSpeed" } ]
+        })"));
+
+        // Most of the spawn area is blocked
+        const QRectF obstacle(-8.0, -4.5, 12.0, 9.0);
+        modifiers.setObstacles({ obstacle });
+
+        match.start();
+        match.advance(match.serveDelay());
+        for (int i = 0; i < 60; ++i)
+            modifiers.advance(0.1);
+
+        QVERIFY(modifiers.rowCount() > 0);
+        const QVariantList positions = modifiers.itemPositions();
+        QCOMPARE(positions.size(), modifiers.rowCount());
+        for (const QVariant& position : positions)
+            QVERIFY(!obstacle.adjusted(-1.2, -1.2, 1.2, 1.2).contains(position.value<QVector2D>().toPointF()));
     }
 
     void resetClearsEverything()

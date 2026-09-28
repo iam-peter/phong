@@ -12,6 +12,7 @@ class Player : public QObject
     QML_UNCREATABLE("Players are owned by a Match")
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
     Q_PROPERTY(int score READ score NOTIFY scoreChanged)
+    Q_PROPERTY(int sets READ sets NOTIFY setsChanged)
     Q_PROPERTY(bool computer READ isComputer WRITE setComputer NOTIFY computerChanged)
 
     // Modifier effects, set by Modifiers
@@ -29,6 +30,9 @@ public:
     void setScore(int score);
     int score() const;
 
+    void setSets(int sets);
+    int sets() const;
+
     void setComputer(bool computer);
     bool isComputer() const;
 
@@ -44,6 +48,7 @@ public:
 signals:
     void nameChanged(const QString&);
     void scoreChanged(int);
+    void setsChanged(int);
     void computerChanged(bool);
     void paddleScaleChanged(qreal);
     void spinSpeedChanged(qreal);
@@ -52,6 +57,7 @@ signals:
 private:
     QString m_name;
     int m_score;
+    int m_sets;
     bool m_computer;
     qreal m_paddleScale;
     qreal m_spinSpeed;

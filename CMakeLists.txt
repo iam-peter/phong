@@ -6,7 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Qt Quick 3D Helpers provide ExtrudedTextGeometry since 6.9
-find_package(Qt6 6.9 REQUIRED COMPONENTS Core Gui Qml Quick Quick3D Quick3DPhysics)
+find_package(Qt6 6.9 REQUIRED COMPONENTS Core Gui Qml Quick Quick3D Quick3DPhysics Quick3DParticles)
+# Sound on the desktop, the browser uses Web Audio
+if(NOT EMSCRIPTEN)
+    find_package(Qt6 QUIET COMPONENTS Multimedia)
+endif()
 
 qt_standard_project_setup(REQUIRES 6.9)
 
@@ -25,6 +29,11 @@ qt_add_qml_module(phong
         qml/Text3D.qml
         qml/Disc.qml
         qml/ModifierItem.qml
+        qml/BallBody.qml
+        qml/PaddleBody.qml
+        qml/Sparks.qml
+        qml/Banner.qml
+        qml/StatsScene.qml
         qml/MenuScene.qml
         qml/GameScene.qml
         qml/SettingsScene.qml
@@ -34,9 +43,13 @@ qt_add_qml_module(phong
         src/match.h src/match.cpp
         src/computerplayer.h src/computerplayer.cpp
         src/modifiers.h src/modifiers.cpp
+        src/arenas.h src/arenas.cpp
+        src/soundeffects.h src/soundeffects.cpp
+        src/stats.h src/stats.cpp
         src/gamesettings.h src/gamesettings.cpp
     RESOURCES
         config/modifiers.json
+        config/arenas.json
 )
 
 # The generated QML type registration includes the headers by name
@@ -49,6 +62,11 @@ target_link_libraries(phong PRIVATE
     Qt6::Quick
     Qt6::Quick3D
 )
+
+if(TARGET Qt6::Multimedia)
+    target_link_libraries(phong PRIVATE Qt6::Multimedia)
+    target_compile_definitions(phong PRIVATE PHONG_HAVE_MULTIMEDIA)
+endif()
 
 set_target_properties(phong PROPERTIES
     WIN32_EXECUTABLE TRUE

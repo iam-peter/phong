@@ -10,11 +10,17 @@ Scene {
 
     enum Mode {
         OnePlayer,
-        TwoPlayers
+        TwoPlayers,
+        Ladder
     }
 
     property int mode: GameScene.OnePlayer
+    // Ladder level, the computer's difficulty
+    property int ladderStage: 0
     property alias match: match
+
+    readonly property bool againstComputer: mode !== GameScene.TwoPlayers
+    readonly property int difficulty: mode === GameScene.Ladder ? ladderStage : GameSettings.difficulty
 
     // Playing field, the ball stays in the plane z = 0
     readonly property real stageWidth: 34.0
@@ -54,6 +60,9 @@ Scene {
     property real rightPaddleY: 0.0
     property real leftPaddleAngle: 0.0
     property real rightPaddleAngle: 0.0
+    // Paddle speed of the last step, puts spin on the ball
+    property real leftPaddleVelocity: 0.0
+    property real rightPaddleVelocity: 0.0
 
     // Held keys
     property bool leftUp: false
@@ -66,14 +75,22 @@ Scene {
     property real rightPointerY: NaN
     property var pointerSides: ({})
 
-    readonly property bool running: match.state === Match.Serving || match.state === Match.Playing
-
-    // Items the ball flew through, collected after the physics step
+    // Items balls flew through and goals, handled after the physics step
     property var pendingItems: []
+    property var pendingGoals: []
 
     // Definitions of the active effects, for the icons next to the names
     property var leftEffects: []
     property var rightEffects: []
+
+    // Obstacles of the current arena
+    property string arenaId: "classic"
+    property var arena: ({})
+
+    // Camera shake, applied through viewOffset
+    property real shakeAmount: 0.0
+
+    readonly property bool running: match.state === Match.Serving || match.state === Match.Playing
 
     property int currentPauseItem: 0
     readonly property var pauseItems: [
@@ -82,15 +99,24 @@ Scene {
     ]
 
     function startMatch() {
-        leftPaddleY = 0.0
-        rightPaddleY = 0.0
-        leftPaddleAngle = 0.0
-        rightPaddleAngle = 0.0
+        leftPaddleY = rightPaddleY = 0.0
+        leftPaddleAngle = rightPaddleAngle = 0.0
         releaseInput()
+        chooseArena()
         resetBall()
         computer.reset()
         modifiers.reset()
         match.start()
+        banner.show(arena.name ?? "", Theme.title)
+    }
+
+    function chooseArena() {
+        let id = GameSettings.arena
+        if (id === "random" || Arenas.arena(id).id === undefined)
+            id = Arenas.randomId()
+        arenaId = id
+        arena = Arenas.arena(id)
+        modifiers.obstacles = Arenas.obstacleRects(id)
     }
 
     function leave() {
@@ -113,8 +139,13 @@ Scene {
     }
 
     function resetBall() {
-        ball.reset(Qt.vector3d(0, 0, 0), Qt.vector3d(0, 0, 0))
-        ball.setLinearVelocity(Qt.vector3d(0, 0, 0))
+        mainBall.reset(Qt.vector3d(0, 0, 0), Qt.vector3d(0, 0, 0))
+        mainBall.setLinearVelocity(Qt.vector3d(0, 0, 0))
+        mainBall.clearTrail()
+    }
+
+    function shake(amount) {
+        shakeAmount = Math.max(shakeAmount, amount)
     }
 
     function humanInput(up, down, pointerY, paddleY) {
@@ -142,34 +173,107 @@ Scene {
         return upright > Math.floor(angle / 180) ? (upright * 180) % 360 : next
     }
 
+    function ballBodies() {
+        const bodies = [mainBall]
+        for (let i = 0; i < extraBalls.count; ++i) {
+            const body = extraBalls.objectAt(i)
+            if (body)
+                bodies.push(body)
+        }
+        return bodies
+    }
+
+    // The ball that reaches the computer's paddle first, otherwise the main one
+    function urgentBall() {
+        let urgent = mainBall
+        let soonest = Infinity
+        for (const body of ballBodies()) {
+            const vx = body.ball.velocity.x
+            if (vx <= 0.0)
+                continue
+            const time = (paddleX - body.x) / vx
+            if (time >= 0.0 && time < soonest) {
+                soonest = time
+                urgent = body
+            }
+        }
+        return urgent
+    }
+
     // Upright paddles use the arcade bounce, turned ones reflect the ball
     // off their surface
-    function paddleContact(side, paddle, angle, length, normals) {
+    function paddleContact(body, side, paddle, angle, length, velocity, normals) {
         if (angle % 180 === 0 || normals.length === 0) {
-            match.paddleHit(side, (ball.y - paddle.y) / (0.5 * length + ballRadius))
+            match.paddleHit(body.ball, side, (body.y - paddle.y) / (0.5 * length + ballRadius), velocity)
             return
         }
 
         // The contact normal points from the paddle to the ball
         let normal = Qt.vector2d(normals[0].x, normals[0].y)
-        if (normal.dotProduct(Qt.vector2d(ball.x - paddle.x, ball.y - paddle.y)) < 0)
+        if (normal.dotProduct(Qt.vector2d(body.x - paddle.x, body.y - paddle.y)) < 0)
             normal = normal.times(-1)
-        match.deflect(side, normal)
+        match.deflect(body.ball, side, normal)
+    }
+
+    function ballContact(body, other, normals) {
+        const normal = normals.length ? Qt.vector2d(normals[0].x, normals[0].y) : Qt.vector2d(0, 0)
+
+        if (other === leftPaddle) {
+            paddleContact(body, Match.LeftSide, leftPaddle, leftPaddleAngle, leftPaddleLength,
+                          leftPaddleVelocity, normals)
+        }
+        else if (other === rightPaddle) {
+            paddleContact(body, Match.RightSide, rightPaddle, rightPaddleAngle, rightPaddleLength,
+                          rightPaddleVelocity, normals)
+        }
+        else if (other === topWall || other === bottomWall) {
+            const before = body.ball.velocity.y
+            match.wallHit(body.ball, other === topWall)
+            if (body.ball.velocity.y !== before)
+                SoundEffects.play(SoundEffects.WallHit)
+        }
+        else if (other === leftShield || other === rightShield) {
+            if (modifiers.shieldHit(body.ball, other === leftShield ? Match.LeftSide : Match.RightSide)) {
+                SoundEffects.play(SoundEffects.ShieldHit)
+                sparks.burst(Qt.vector3d(body.x, body.y, 0.5), Theme.shield, 30)
+                shake(0.35)
+            }
+        }
+        else if (other.obstacle === true) {
+            if (match.bounce(body.ball, normal)) {
+                other.flash()
+                SoundEffects.play(SoundEffects.Bounce)
+                sparks.burst(Qt.vector3d(body.x, body.y, 0.5), Theme.bumper, 14)
+                shake(0.12)
+            }
+        }
     }
 
     // Removing an item destroys its trigger body, not while it reports
-    function queueCollect(itemId) {
-        pendingItems.push(itemId)
+    function queueCollect(itemId, ball) {
+        pendingItems.push({ itemId: itemId, ball: ball })
         Qt.callLater(collectPending)
     }
 
-    function collectPending() {
-        const itemIds = pendingItems
-        pendingItems = []
-        for (const itemId of itemIds)
-            modifiers.collect(itemId)
+    // A goal can remove the ball's body, not while the triggers report
+    function queueGoal(ball, scorer) {
+        pendingGoals.push({ ball: ball, scorer: scorer })
+        Qt.callLater(scorePending)
     }
 
+    function scorePending() {
+        const goals = pendingGoals
+        pendingGoals = []
+        for (const goal of goals)
+            match.goal(goal.ball, goal.scorer)
+    }
+
+    function collectPending() {
+        const items = pendingItems
+        pendingItems = []
+        for (const item of items)
+            modifiers.collect(item.itemId, item.ball)
+    }
 
     // Called after every physics step
     function step(dt) {
@@ -179,24 +283,42 @@ Scene {
 
         modifiers.advance(dt)
 
-        const onePlayer = mode === GameScene.OnePlayer
+        const onePlayer = mode !== GameScene.TwoPlayers
         const leftInput = onePlayer
                 ? humanInput(leftUp || rightUp, leftDown || rightDown, leftPointerY, leftPaddleY)
                 : humanInput(leftUp, leftDown, leftPointerY, leftPaddleY)
 
         let rightInput
         if (onePlayer) {
-            computer.update(dt, Qt.vector2d(ball.x, ball.y), match.ballVelocity, rightPaddleY)
+            const urgent = urgentBall()
+            computer.targets = modifiers.itemPositions()
+            computer.opponentY = leftPaddleY
+            computer.update(dt, Qt.vector2d(urgent.x, urgent.y), urgent.ball.velocity, rightPaddleY)
             rightInput = computer.direction
         }
         else {
             rightInput = humanInput(rightUp, rightDown, rightPointerY, rightPaddleY)
         }
 
-        leftPaddleY = movePaddle(leftPaddleY, leftInput, leftPaddleLength, dt)
-        rightPaddleY = movePaddle(rightPaddleY, rightInput, rightPaddleLength, dt)
+        const leftY = movePaddle(leftPaddleY, leftInput, leftPaddleLength, dt)
+        const rightY = movePaddle(rightPaddleY, rightInput, rightPaddleLength, dt)
+        leftPaddleVelocity = (leftY - leftPaddleY) / dt
+        rightPaddleVelocity = (rightY - rightPaddleY) / dt
+        leftPaddleY = leftY
+        rightPaddleY = rightY
         leftPaddleAngle = turnPaddle(leftPaddleAngle, match.left.spinSpeed, dt)
         rightPaddleAngle = turnPaddle(rightPaddleAngle, match.right.spinSpeed, dt)
+
+        for (const body of ballBodies())
+            body.advance(dt)
+
+        // The camera shakes on impacts and leans a little towards the ball
+        shakeAmount *= Math.exp(-7.0 * dt)
+        viewOffset = Qt.vector3d((Math.random() - 0.5) * shakeAmount,
+                                 (Math.random() - 0.5) * shakeAmount, 0)
+        const follow = Math.min(1.0, 3.0 * dt)
+        viewRotation = viewRotation.plus(Qt.vector3d(0.07 * mainBall.y, -0.05 * mainBall.x, 0)
+                                         .minus(viewRotation).times(follow))
     }
 
     function setKey(key, pressed) {
@@ -210,7 +332,7 @@ Scene {
     }
 
     function pointerSide(x) {
-        return mode === GameScene.OnePlayer || x < 0 ? Match.LeftSide : Match.RightSide
+        return mode !== GameScene.TwoPlayers || x < 0 ? Match.LeftSide : Match.RightSide
     }
 
     function setPointer(id, x, y) {
@@ -222,8 +344,10 @@ Scene {
     }
 
     onActiveChanged: {
-        if (!active)
+        if (!active) {
             releaseInput()
+            viewOffset = viewRotation = Qt.vector3d(0, 0, 0)
+        }
     }
 
     onFocusLost: {
@@ -240,12 +364,15 @@ Scene {
             switch (event.key) {
                 case Qt.Key_Up:
                     currentPauseItem = 0
+                    SoundEffects.play(SoundEffects.MenuMove)
                     return
                 case Qt.Key_Down:
                     currentPauseItem = pauseItems.length - 1
+                    SoundEffects.play(SoundEffects.MenuMove)
                     return
                 case Qt.Key_Enter:
                 case Qt.Key_Return:
+                    SoundEffects.play(SoundEffects.MenuSelect)
                     pauseItems[currentPauseItem].activate()
                     return
             }
@@ -304,22 +431,49 @@ Scene {
         id: match
 
         pointsToWin: GameSettings.pointsToWin
+        setsToWin: root.mode === GameScene.Ladder ? 1 : GameSettings.setsToWin
+        winByTwo: GameSettings.winByTwo
         serveSpeed: GameSettings.serveSpeed
         maxSpeed: GameSettings.maxSpeed
+        paddleSpeed: root.paddleSpeed
 
-        left.name: root.mode === GameScene.OnePlayer ? qsTr("You") : qsTr("Ping")
-        right.name: root.mode === GameScene.OnePlayer ? qsTr("CPU") : qsTr("Pong")
-        right.computer: root.mode === GameScene.OnePlayer
+        left.name: root.againstComputer ? qsTr("You") : qsTr("Ping")
+        right.name: root.againstComputer ? qsTr("CPU") : qsTr("Pong")
+        right.computer: root.againstComputer
 
-        onBallVelocityChanged: (velocity) => ball.setLinearVelocity(Qt.vector3d(velocity.x, velocity.y, 0))
+        onServed: SoundEffects.play(SoundEffects.Serve)
 
-        onPointScored: (scorer) => {
-            root.resetBall()
-            computer.reset()
+        onPaddleHitBall: (ball, side) => {
+            const paddle = side === Match.LeftSide ? leftPaddle : rightPaddle
+            const speed = ball.velocity.length() / match.serveSpeed
+            paddle.flash()
+            SoundEffects.play(SoundEffects.PaddleHit, Math.min(0.9 + 0.35 * (speed - 1.0), 1.6))
+            sparks.burst(Qt.vector3d(paddle.x + (side === Match.LeftSide ? 0.6 : -0.6), paddle.y, 0.5),
+                         Theme.ball, Math.round(6 + 6 * speed))
+            if (speed > 1.5)
+                root.shake(0.08 * speed)
+        }
+
+        onPointScored: (scorer, ball) => {
+            const goalX = scorer === Match.LeftSide ? root.goalLine : -root.goalLine
+            SoundEffects.play(SoundEffects.Goal)
+            sparks.burst(Qt.vector3d(goalX, 0, 0.5), Theme.text, 60)
+            root.shake(0.7)
             if (scorer === Match.LeftSide)
                 rightGoalFlash.restart()
             else
                 leftGoalFlash.restart()
+
+            if (!ball.extra) {
+                root.resetBall()
+                computer.reset()
+            }
+        }
+
+        onSetFinished: (winner) => {
+            if (match.state !== Match.Finished)
+                banner.show(qsTr("Set %1").arg((winner === Match.LeftSide ? match.left : match.right).name),
+                            Theme.title)
         }
 
         // Every pause starts on resume
@@ -328,14 +482,22 @@ Scene {
                 root.currentPauseItem = 0
         }
 
-        // Let the last point sink in before showing the results
-        onFinished: resultsDelay.start()
+        onFinished: {
+            const won = match.winner === match.left
+            SoundEffects.play(root.againstComputer && !won ? SoundEffects.Lose : SoundEffects.Win)
+            Stats.recordMatch(root.againstComputer, root.difficulty, won, match.longestRally)
+            if (root.mode === GameScene.Ladder && won)
+                Stats.recordLadder(root.ladderStage + 1)
+
+            // Let the last point sink in before showing the results
+            resultsDelay.start()
+        }
     }
 
     ComputerPlayer {
         id: computer
 
-        difficulty: GameSettings.difficulty
+        difficulty: root.difficulty
         paddleX: root.paddleX - 0.5 * root.paddleWidth - root.ballRadius
         paddleReach: 0.5 * root.rightPaddleLength + root.ballRadius
         fieldTop: root.ballLimit
@@ -352,7 +514,18 @@ Scene {
                                             - 2.0 * maxFieldInset - 3.0
         spawnArea: Qt.rect(-8.0, -0.5 * spawnHeight, 16.0, spawnHeight)
 
-        onCollected: (definition, side, position) => pickupPopup.show(modifiers.definition(definition), position)
+        onCollected: (index, side, position) => {
+            const definition = modifiers.definition(index)
+            pickupPopup.show(definition, position)
+            sparks.burst(Qt.vector3d(position.x, position.y, 0.5), definition.color, 24)
+
+            if (definition.effect === Modifiers.MultiBall)
+                SoundEffects.play(SoundEffects.MultiBall)
+            else if (definition.target === Modifiers.Opponent)
+                SoundEffects.play(SoundEffects.Curse)
+            else
+                SoundEffects.play(SoundEffects.Pickup)
+        }
         onEffectsChanged: {
             root.leftEffects = activeEffects(Match.LeftSide)
             root.rightEffects = activeEffects(Match.RightSide)
@@ -361,7 +534,7 @@ Scene {
 
     Timer {
         id: resultsDelay
-        interval: 800
+        interval: 900
         onTriggered: root.phong.showResults()
     }
 
@@ -428,8 +601,9 @@ Scene {
             extents: Qt.vector3d(10.0, root.stageHeight + 10.0, 2.0)
         }
         onBodyEntered: (body) => {
-            if (body === ball)
-                match.goal(Match.RightSide)
+            const ballBody = body as BallBody
+            if (ballBody)
+                root.queueGoal(ballBody.ball, Match.RightSide)
         }
     }
 
@@ -440,8 +614,9 @@ Scene {
             extents: Qt.vector3d(10.0, root.stageHeight + 10.0, 2.0)
         }
         onBodyEntered: (body) => {
-            if (body === ball)
-                match.goal(Match.LeftSide)
+            const ballBody = body as BallBody
+            if (ballBody)
+                root.queueGoal(ballBody.ball, Match.LeftSide)
         }
     }
 
@@ -490,53 +665,104 @@ Scene {
         }
     }
 
-    // Paddles, moved by the players and pushed around by nothing
-    DynamicRigidBody {
-        id: leftPaddle
-        isKinematic: true
-        // Created at the target, not at the origin on top of the ball. Only
-        // the start, the engine writes the simulated pose back to position.
-        position: kinematicPosition
-        kinematicPosition: Qt.vector3d(-root.paddleX, root.leftPaddleY, 0)
-        kinematicEulerRotation: Qt.vector3d(0, 0, root.leftPaddleAngle)
-        physicsMaterial: bouncy
-        sendContactReports: true
-        collisionShapes: BoxShape {
-            extents: Qt.vector3d(root.paddleWidth, root.leftPaddleLength, 1.0)
-        }
+    // Arena obstacles, round bumpers and blocks
+    Repeater3D {
+        model: root.arena.bumpers ?? []
 
-        Model {
-            source: "#Cube"
-            scale: Qt.vector3d(root.paddleWidth / 100, root.leftPaddleLength / 100, 0.01)
-            materials: DefaultMaterial {
-                diffuseColor: Theme.paddle
-                specularAmount: 0.0
+        delegate: StaticRigidBody {
+            id: bumper
+
+            required property var modelData
+            readonly property bool obstacle: true
+            property real glow: 0.0
+
+            function flash() {
+                bumperGlow.restart()
+            }
+
+            position: Qt.vector3d(modelData.x, modelData.y, 0)
+            physicsMaterial: bouncy
+            sendContactReports: true
+            collisionShapes: SphereShape {
+                diameter: 2.0 * bumper.modelData.radius
+            }
+
+            Disc {
+                radius: bumper.modelData.radius * (1.0 + 0.15 * bumper.glow)
+                thickness: 1.0
+                color: Qt.tint(Theme.bumper, Qt.rgba(1, 1, 1, 0.7 * bumper.glow))
+            }
+
+            NumberAnimation {
+                id: bumperGlow
+                target: bumper
+                property: "glow"
+                from: 1.0
+                to: 0.0
+                duration: 300
+                easing.type: Easing.OutQuad
             }
         }
     }
 
-    DynamicRigidBody {
-        id: rightPaddle
-        isKinematic: true
-        // Created at the target, not at the origin on top of the ball. Only
-        // the start, the engine writes the simulated pose back to position.
-        position: kinematicPosition
-        kinematicPosition: Qt.vector3d(root.paddleX, root.rightPaddleY, 0)
-        kinematicEulerRotation: Qt.vector3d(0, 0, root.rightPaddleAngle)
-        physicsMaterial: bouncy
-        sendContactReports: true
-        collisionShapes: BoxShape {
-            extents: Qt.vector3d(root.paddleWidth, root.rightPaddleLength, 1.0)
-        }
+    Repeater3D {
+        model: root.arena.blocks ?? []
 
-        Model {
-            source: "#Cube"
-            scale: Qt.vector3d(root.paddleWidth / 100, root.rightPaddleLength / 100, 0.01)
-            materials: DefaultMaterial {
-                diffuseColor: Theme.paddle
-                specularAmount: 0.0
+        delegate: StaticRigidBody {
+            id: block
+
+            required property var modelData
+            readonly property bool obstacle: true
+            property real glow: 0.0
+
+            function flash() {
+                blockGlow.restart()
+            }
+
+            position: Qt.vector3d(modelData.x, modelData.y, 0)
+            physicsMaterial: bouncy
+            sendContactReports: true
+            collisionShapes: BoxShape {
+                extents: Qt.vector3d(block.modelData.width, block.modelData.height, 1.0)
+            }
+
+            Model {
+                source: "#Cube"
+                scale: Qt.vector3d(block.modelData.width / 100, block.modelData.height / 100, 0.01)
+                materials: DefaultMaterial {
+                    diffuseColor: Qt.tint(Theme.block, Qt.rgba(1, 1, 1, 0.7 * block.glow))
+                    specularAmount: 0.0
+                }
+            }
+
+            NumberAnimation {
+                id: blockGlow
+                target: block
+                property: "glow"
+                from: 1.0
+                to: 0.0
+                duration: 300
+                easing.type: Easing.OutQuad
             }
         }
+    }
+
+    PaddleBody {
+        id: leftPaddle
+        paddleX: -root.paddleX
+        paddleY: root.leftPaddleY
+        angle: root.leftPaddleAngle
+        length: root.leftPaddleLength
+        width: root.paddleWidth
+    }
+
+    PaddleBody {
+        id: rightPaddle
+        paddleX: root.paddleX
+        paddleY: root.rightPaddleY
+        angle: root.rightPaddleAngle
+        length: root.rightPaddleLength
+        width: root.paddleWidth
     }
 
     // Shields, parked far away while the player has none
@@ -586,7 +812,7 @@ Scene {
         }
     }
 
-    // Collectible modifiers, the ball picks them up by flying through
+    // Collectible modifiers, a ball picks them up by flying through
     Repeater3D {
         model: modifiers
 
@@ -604,8 +830,9 @@ Scene {
                 diameter: 1.8
             }
             onBodyEntered: (body) => {
-                if (body === ball)
-                    root.queueCollect(item.itemId)
+                const ballBody = body as BallBody
+                if (ballBody)
+                    root.queueCollect(item.itemId, ballBody.ball)
             }
 
             ModifierItem {
@@ -620,6 +847,32 @@ Scene {
                 }
             }
         }
+    }
+
+    // The engine detects the hits and moves the balls, the match decides
+    // where they bounce to
+    BallBody {
+        id: mainBall
+        ball: match.ball
+        radius: root.ballRadius
+        trailSpeed: match.serveSpeed
+        onContact: (body, normals) => root.ballContact(mainBall, body, normals)
+    }
+
+    Repeater3D {
+        id: extraBalls
+        model: match.extraBalls
+
+        delegate: BallBody {
+            id: extraBall
+            radius: root.ballRadius
+            trailSpeed: match.serveSpeed
+            onContact: (body, normals) => root.ballContact(extraBall, body, normals)
+        }
+    }
+
+    Sparks {
+        id: sparks
     }
 
     // Name of the collected modifier, rising and fading
@@ -659,41 +912,11 @@ Scene {
         }
     }
 
-    // The engine detects the hits and moves the ball, the match decides
-    // where it bounces to
-    DynamicRigidBody {
-        id: ball
-        gravityEnabled: false
-        linearAxisLock: DynamicRigidBody.LockZ
-        angularAxisLock: DynamicRigidBody.LockX | DynamicRigidBody.LockY | DynamicRigidBody.LockZ
-        physicsMaterial: bouncy
-        receiveContactReports: true
-        sendTriggerReports: true
-        collisionShapes: SphereShape {
-            diameter: 2.0 * root.ballRadius
-        }
-
-        onBodyContact: (body, positions, impulses, normals) => {
-            if (body === leftPaddle)
-                root.paddleContact(Match.LeftSide, leftPaddle, root.leftPaddleAngle,
-                                   root.leftPaddleLength, normals)
-            else if (body === rightPaddle)
-                root.paddleContact(Match.RightSide, rightPaddle, root.rightPaddleAngle,
-                                   root.rightPaddleLength, normals)
-            else if (body === topWall)
-                match.wallHit(true)
-            else if (body === bottomWall)
-                match.wallHit(false)
-            else if (body === leftShield)
-                modifiers.shieldHit(Match.LeftSide)
-            else if (body === rightShield)
-                modifiers.shieldHit(Match.RightSide)
-        }
-
-        Disc {
-            radius: root.ballRadius
-            color: Theme.ball
-        }
+    // Arena name at the start, set winners
+    Banner {
+        id: banner
+        y: 3.0
+        z: 1.5
     }
 
     // Scoreboard
@@ -761,6 +984,33 @@ Scene {
             horizontalAlignment: Text.AlignRight
             text: match.right.name
         }
+
+        // Won sets as dots above the scores
+        Repeater3D {
+            model: match.setsToWin > 1 ? match.setsToWin : 0
+
+            delegate: Disc {
+                required property int index
+                x: -2.4 - index * 0.7
+                y: 1.5
+                radius: 0.22
+                thickness: 0.2
+                color: index < match.left.sets ? Theme.title : Theme.goal
+            }
+        }
+
+        Repeater3D {
+            model: match.setsToWin > 1 ? match.setsToWin : 0
+
+            delegate: Disc {
+                required property int index
+                x: 2.4 + index * 0.7
+                y: 1.5
+                radius: 0.22
+                thickness: 0.2
+                color: index < match.right.sets ? Theme.title : Theme.goal
+            }
+        }
     }
 
     // Controls
@@ -771,9 +1021,11 @@ Scene {
         Text3D {
             x: -root.stageWidth
             color: Theme.dimmed
-            text: root.mode === GameScene.OnePlayer
-                  ? qsTr("[W/S] or [Up/Down] move")
-                  : qsTr("[W/S] left   [Up/Down] right")
+            text: root.mode === GameScene.TwoPlayers
+                  ? qsTr("[W/S] left   [Up/Down] right")
+                  : root.mode === GameScene.Ladder
+                  ? qsTr("Ladder %1/3   [W/S] or [Up/Down] move").arg(root.ladderStage + 1)
+                  : qsTr("[W/S] or [Up/Down] move")
         }
 
         Text3D {
@@ -823,7 +1075,10 @@ Scene {
                 horizontalAlignment: Text.AlignHCenter
                 text: modelData.text
                 clickable: pauseOverlay.visible
-                onClicked: pauseItem.modelData.activate()
+                onClicked: {
+                    SoundEffects.play(SoundEffects.MenuSelect)
+                    pauseItem.modelData.activate()
+                }
 
                 Disc {
                     visible: pauseItem.index === root.currentPauseItem

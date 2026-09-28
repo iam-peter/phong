@@ -23,9 +23,28 @@ phong_add_test(tst_computerplayer
     ${PROJECT_SOURCE_DIR}/src/computerplayer.cpp
 )
 
+phong_add_test(tst_arenas
+    ${PROJECT_SOURCE_DIR}/src/arenas.cpp
+)
+
+phong_add_test(tst_stats
+    ${PROJECT_SOURCE_DIR}/src/stats.cpp
+)
+
+# Without an audio backend, the synthesis is what's tested
+phong_add_test(tst_soundeffects
+    ${PROJECT_SOURCE_DIR}/src/soundeffects.cpp
+)
+
 # The built-in configuration, at the path the app has it
 qt_add_resources(tst_modifiers "modifiers_config"
     PREFIX "/qt/qml/Phong"
     BASE ${PROJECT_SOURCE_DIR}
     FILES ${PROJECT_SOURCE_DIR}/config/modifiers.json
+)
+
+qt_add_resources(tst_arenas "arenas_config"
+    PREFIX "/qt/qml/Phong"
+    BASE ${PROJECT_SOURCE_DIR}
+    FILES ${PROJECT_SOURCE_DIR}/config/arenas.json
 )

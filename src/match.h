@@ -3,25 +3,34 @@
 
 #include "player.h"
 
+#include <QAbstractListModel>
 #include <QObject>
 #include <QVector2D>
 #include <QtQml/qqmlregistration.h>
 
-// Rules of a single match: score, serve, win condition and the arcade
-// bounce behaviour of the ball. The physics engine detects the collisions
-// and moves the ball, the match decides where the ball goes next.
+class Ball;
+class BallModel;
+
+// Rules of a single match: score, sets, serve, win condition and the arcade
+// bounce behaviour of the balls. The physics engine detects the collisions
+// and moves the balls, the match decides where they go next.
 class Match : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(Player* left READ left CONSTANT)
     Q_PROPERTY(Player* right READ right CONSTANT)
+    Q_PROPERTY(Ball* ball READ ball CONSTANT)
+    Q_PROPERTY(BallModel* extraBalls READ extraBalls CONSTANT)
     Q_PROPERTY(State state READ state NOTIFY stateChanged)
     Q_PROPERTY(Player* winner READ winner NOTIFY winnerChanged)
     Q_PROPERTY(int pointsToWin READ pointsToWin WRITE setPointsToWin NOTIFY pointsToWinChanged)
+    Q_PROPERTY(int setsToWin READ setsToWin WRITE setSetsToWin NOTIFY setsToWinChanged)
+    Q_PROPERTY(bool winByTwo READ winByTwo WRITE setWinByTwo NOTIFY winByTwoChanged)
     Q_PROPERTY(qreal serveSpeed READ serveSpeed WRITE setServeSpeed NOTIFY serveSpeedChanged)
     Q_PROPERTY(qreal maxSpeed READ maxSpeed WRITE setMaxSpeed NOTIFY maxSpeedChanged)
     Q_PROPERTY(qreal speedUp READ speedUp WRITE setSpeedUp NOTIFY speedUpChanged)
+    Q_PROPERTY(qreal paddleSpeed READ paddleSpeed WRITE setPaddleSpeed NOTIFY paddleSpeedChanged)
     Q_PROPERTY(qreal serveDelay READ serveDelay WRITE setServeDelay NOTIFY serveDelayChanged)
     Q_PROPERTY(qreal serveCountdown READ serveCountdown NOTIFY serveCountdownChanged)
     Q_PROPERTY(QVector2D ballVelocity READ ballVelocity NOTIFY ballVelocityChanged)
@@ -29,7 +38,6 @@ class Match : public QObject
     Q_PROPERTY(int longestRally READ longestRally NOTIFY longestRallyChanged)
     Q_PROPERTY(int totalHits READ totalHits NOTIFY totalHitsChanged)
     Q_PROPERTY(qreal playTime READ playTime NOTIFY playTimeChanged)
-    Q_PROPERTY(Side lastTouch READ lastTouch NOTIFY lastTouchChanged)
 
 public:
     enum State {
@@ -53,6 +61,10 @@ public:
     // Serve angle range (degrees), both up and down
     static constexpr qreal minServeAngle = 10.0;
     static constexpr qreal maxServeAngle = 30.0;
+    // Curve (radians per second) of a ball hit by a paddle at full speed,
+    // and how fast the spin wears off
+    static constexpr qreal maxSpin = 1.2;
+    static constexpr qreal spinDecay = 0.6;
 
     explicit Match(QObject* parent = nullptr);
 
@@ -61,31 +73,61 @@ public:
     Q_INVOKABLE void pause();
     Q_INVOKABLE void resume();
 
-    // Advances serve countdown and play time, call once per simulation step
+    // Advances serve countdown, play time, curves and extra ball lifetimes,
+    // call once per simulation step
     Q_INVOKABLE void advance(qreal dt);
 
-    // offset: where the ball hit the paddle, -1 (bottom edge) to 1 (top edge)
-    Q_INVOKABLE void paddleHit(Match::Side side, qreal offset);
+    // offset: where the ball hit the paddle, -1 (bottom edge) to 1 (top
+    // edge). A moving paddle puts spin on the ball.
+    Q_INVOKABLE void paddleHit(Ball* ball, Match::Side side, qreal offset, qreal paddleVelocity = 0.0);
     // A paddle that isn't upright reflects the ball off its surface, but
     // always away from its own goal. normal points from the paddle to the ball.
-    Q_INVOKABLE void deflect(Match::Side side, const QVector2D& normal);
+    Q_INVOKABLE void deflect(Ball* ball, Match::Side side, const QVector2D& normal);
+    // Plain reflection off an obstacle, normal points from it to the ball.
+    // Returns whether the ball bounced.
+    Q_INVOKABLE bool bounce(Ball* ball, const QVector2D& normal);
     // The shield in front of the goal of side sends the ball back,
     // returns whether it did
-    Q_INVOKABLE bool shieldHit(Match::Side side);
-    Q_INVOKABLE void scaleBallSpeed(qreal factor);
-    Q_INVOKABLE void wallHit(bool top);
-    Q_INVOKABLE void goal(Match::Side scorer);
+    Q_INVOKABLE bool shieldHit(Ball* ball, Match::Side side);
+    Q_INVOKABLE void scaleBallSpeed(Ball* ball, qreal factor);
+    Q_INVOKABLE void wallHit(Ball* ball, bool top);
+    Q_INVOKABLE void goal(Ball* ball, Match::Side scorer);
+
+    // An extra ball flying from position towards side, gone after lifetime
+    // seconds or its goal
+    Q_INVOKABLE Ball* addBall(const QVector2D& position, Match::Side towards, qreal lifetime,
+                              Match::Side lastTouch);
+
+    // The same for the main ball
+    void paddleHit(Side side, qreal offset, qreal paddleVelocity = 0.0);
+    void deflect(Side side, const QVector2D& normal);
+    bool shieldHit(Side side);
+    void scaleBallSpeed(qreal factor);
+    void wallHit(bool top);
+    void goal(Side scorer);
 
     Player* left() const;
     Player* right() const;
     Player* player(Side side) const;
     static Side opponent(Side side);
 
+    Ball* ball() const;
+    BallModel* extraBalls() const;
+    QList<Ball*> balls() const;
+
     State state() const;
     Player* winner() const;
 
     void setPointsToWin(int pointsToWin);
     int pointsToWin() const;
+
+    // Sets a player needs, 2 is best of three
+    void setSetsToWin(int setsToWin);
+    int setsToWin() const;
+
+    // A set needs a lead of two points
+    void setWinByTwo(bool winByTwo);
+    bool winByTwo() const;
 
     void setServeSpeed(qreal serveSpeed);
     qreal serveSpeed() const;
@@ -96,25 +138,32 @@ public:
     void setSpeedUp(qreal speedUp);
     qreal speedUp() const;
 
+    // Paddle speed at which a hit gets the full spin
+    void setPaddleSpeed(qreal paddleSpeed);
+    qreal paddleSpeed() const;
+
     void setServeDelay(qreal serveDelay);
     qreal serveDelay() const;
 
     qreal serveCountdown() const;
     QVector2D ballVelocity() const;
+    Side lastTouch() const;
 
     int rally() const;
     int longestRally() const;
     int totalHits() const;
     qreal playTime() const;
-    Side lastTouch() const;
 
 signals:
     void stateChanged(Match::State);
     void winnerChanged(Player*);
     void pointsToWinChanged(int);
+    void setsToWinChanged(int);
+    void winByTwoChanged(bool);
     void serveSpeedChanged(qreal);
     void maxSpeedChanged(qreal);
     void speedUpChanged(qreal);
+    void paddleSpeedChanged(qreal);
     void serveDelayChanged(qreal);
     void serveCountdownChanged(qreal);
     void ballVelocityChanged(const QVector2D&);
@@ -122,25 +171,29 @@ signals:
     void longestRallyChanged(int);
     void totalHitsChanged(int);
     void playTimeChanged(qreal);
-    void lastTouchChanged(Match::Side);
 
     void served();
-    void pointScored(Match::Side scorer);
+    void paddleHitBall(Ball* ball, Match::Side side);
+    void pointScored(Match::Side scorer, Ball* ball);
+    void setFinished(Match::Side winner);
     void finished();
 
 private:
     void setState(State state);
     void setWinner(Player* winner);
     void setServeCountdown(qreal serveCountdown);
-    void setBallVelocity(const QVector2D& ballVelocity);
     void setRally(int rally);
     void setPlayTime(qreal playTime);
-    void setLastTouch(Side lastTouch);
-    void hit(Side side, const QVector2D& velocity);
+    void hit(Ball* ball, Side side, const QVector2D& velocity, qreal spin);
+    void curve(Ball* ball, qreal dt);
+    void removeExtraBalls();
+    bool isActive(Ball* ball) const;
     void serve();
 
     Player* m_left;
     Player* m_right;
+    Ball* m_ball;
+    BallModel* m_extraBalls;
 
     State m_state;
     State m_pausedState;
@@ -148,19 +201,98 @@ private:
     Side m_serveTo;
 
     int m_pointsToWin;
+    int m_setsToWin;
+    bool m_winByTwo;
     qreal m_serveSpeed;
     qreal m_maxSpeed;
     qreal m_speedUp;
+    qreal m_paddleSpeed;
     qreal m_serveDelay;
     qreal m_serveCountdown;
-
-    QVector2D m_ballVelocity;
 
     int m_rally;
     int m_longestRally;
     int m_totalHits;
     qreal m_playTime;
-    Side m_lastTouch;
+};
+
+// A ball in play. The match owns the balls and changes them.
+class Ball : public QObject
+{
+    Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("Balls are owned by a Match")
+    Q_PROPERTY(QVector2D velocity READ velocity NOTIFY velocityChanged)
+    Q_PROPERTY(qreal spin READ spin NOTIFY spinChanged)
+    Q_PROPERTY(Match::Side lastTouch READ lastTouch NOTIFY lastTouchChanged)
+    Q_PROPERTY(bool extra READ isExtra CONSTANT)
+    Q_PROPERTY(QVector2D spawnPosition READ spawnPosition CONSTANT)
+    Q_PROPERTY(qreal lifetime READ lifetime NOTIFY lifetimeChanged)
+
+public:
+    explicit Ball(bool extra, const QVector2D& spawnPosition, QObject* parent = nullptr);
+
+    QVector2D velocity() const;
+    // Radians per second the flight curves with, positive is counterclockwise
+    qreal spin() const;
+    Match::Side lastTouch() const;
+    bool isExtra() const;
+    QVector2D spawnPosition() const;
+    // Seconds left for an extra ball
+    qreal lifetime() const;
+
+signals:
+    void velocityChanged(const QVector2D&);
+    void spinChanged(qreal);
+    void lastTouchChanged(Match::Side);
+    void lifetimeChanged(qreal);
+
+private:
+    friend class Match;
+
+    void setVelocity(const QVector2D& velocity);
+    void setSpin(qreal spin);
+    void setLastTouch(Match::Side lastTouch);
+    void setLifetime(qreal lifetime);
+
+    QVector2D m_velocity;
+    qreal m_spin;
+    Match::Side m_lastTouch;
+    bool m_extra;
+    QVector2D m_spawnPosition;
+    qreal m_lifetime;
+};
+
+// The extra balls, a model so a new ball doesn't recreate the others
+class BallModel : public QAbstractListModel
+{
+    Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("Owned by a Match")
+    Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
+
+public:
+    enum Role {
+        BallRole = Qt::UserRole + 1
+    };
+
+    explicit BallModel(QObject* parent = nullptr);
+
+    int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
+    QHash<int, QByteArray> roleNames() const override;
+
+    const QList<Ball*>& balls() const;
+    void append(Ball* ball);
+    // Removes and deletes the ball later, it may still be reporting
+    void remove(Ball* ball);
+    void clear();
+
+signals:
+    void countChanged();
+
+private:
+    QList<Ball*> m_balls;
 };
 
 #endif // MATCH_H

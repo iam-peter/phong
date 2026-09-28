@@ -66,7 +66,7 @@ Window {
 
     function transformCamera(position) {
         cameraAnimation.stop()
-        cameraAnimation.from = camera.position
+        cameraAnimation.from = cameraRig.position
         cameraAnimation.to = position.plus(Qt.vector3d(0, 0, cameraDistance))
         cameraAnimation.start()
     }
@@ -77,7 +77,7 @@ Window {
             return
 
         cameraAnimation.stop()
-        camera.position = cameraPosition(currentScene)
+        cameraRig.position = cameraPosition(currentScene)
     }
 
     onWidthChanged: Qt.callLater(snapCamera)
@@ -85,8 +85,15 @@ Window {
 
     function startGame(mode) {
         gameScene.mode = mode
+        gameScene.ladderStage = 0
         nextScene(gameScene)
         gameScene.startMatch()
+    }
+
+    // The next computer level of the ladder
+    function nextLadderLevel() {
+        gameScene.ladderStage = Math.min(gameScene.ladderStage + 1, 2)
+        rematch()
     }
 
     function showResults() {
@@ -138,25 +145,32 @@ Window {
             antialiasingQuality: SceneEnvironment.High
         }
 
-        PerspectiveCamera {
-            id: camera
+        // Flies from scene to scene, the camera on it shakes and leans
+        Node {
+            id: cameraRig
 
-            fieldOfView: 45
-            clipNear: 0.1
-            clipFar: 1000
+            PerspectiveCamera {
+                id: camera
 
-            // The light travels with the camera
-            PointLight {
-                brightness: 1.0
-                constantFade: 1.0
-                linearFade: 0.0
-                quadraticFade: 0.0
+                position: phong.currentScene?.viewOffset ?? Qt.vector3d(0, 0, 0)
+                eulerRotation: phong.currentScene?.viewRotation ?? Qt.vector3d(0, 0, 0)
+                fieldOfView: 45
+                clipNear: 0.1
+                clipFar: 1000
+
+                // The light travels with the camera
+                PointLight {
+                    brightness: 1.0
+                    constantFade: 1.0
+                    linearFade: 0.0
+                    quadraticFade: 0.0
+                }
             }
         }
 
         Vector3dAnimation {
             id: cameraAnimation
-            target: camera
+            target: cameraRig
             property: "position"
             duration: Theme.cameraDuration
             easing.type: Easing.InOutQuad
@@ -167,6 +181,7 @@ Window {
             phong: phong
             position: Qt.vector3d(-phong.sceneSpacingX, 0, 0)
             settingsScene: settingsScene
+            statsScene: statsScene
         }
 
         GameScene {
@@ -181,6 +196,12 @@ Window {
             position: Qt.vector3d(-phong.sceneSpacingX, phong.sceneSpacingY, 0)
         }
 
+        StatsScene {
+            id: statsScene
+            phong: phong
+            position: Qt.vector3d(-phong.sceneSpacingX, -phong.sceneSpacingY, 0)
+        }
+
         ResultScene {
             id: resultScene
             phong: phong
@@ -188,6 +209,7 @@ Window {
             match: gameScene.match
             menuScene: menuScene
             mode: gameScene.mode
+            ladderStage: gameScene.ladderStage
         }
 
         Keys.onPressed: (event) => {
@@ -225,8 +247,14 @@ Window {
         }
     }
 
+    Binding {
+        target: SoundEffects
+        property: "enabled"
+        value: GameSettings.sound
+    }
+
     Component.onCompleted: {
-        camera.position = cameraPosition(menuScene)
+        cameraRig.position = cameraPosition(menuScene)
         nextScene(menuScene)
     }
 }

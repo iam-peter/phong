@@ -19,6 +19,20 @@ Scene {
             set: (value) => GameSettings.pointsToWin = value
         },
         {
+            label: qsTr("Sets"),
+            values: [1, 2, 3],
+            names: [qsTr("Single"), qsTr("Best of 3"), qsTr("Best of 5")],
+            get: () => GameSettings.setsToWin,
+            set: (value) => GameSettings.setsToWin = value
+        },
+        {
+            label: qsTr("Win by two"),
+            values: [false, true],
+            names: [qsTr("Off"), qsTr("On")],
+            get: () => GameSettings.winByTwo,
+            set: (value) => GameSettings.winByTwo = value
+        },
+        {
             label: qsTr("Ball speed"),
             values: [GameSettings.Slow, GameSettings.Medium, GameSettings.Fast],
             names: [qsTr("Slow"), qsTr("Medium"), qsTr("Fast")],
@@ -40,11 +54,25 @@ Scene {
             set: (value) => GameSettings.difficulty = value
         },
         {
+            label: qsTr("Arena"),
+            values: ["random"].concat(Arenas.arenas.map((arena) => arena.id)),
+            names: [qsTr("Random")].concat(Arenas.arenas.map((arena) => arena.name)),
+            get: () => GameSettings.arena,
+            set: (value) => GameSettings.arena = value
+        },
+        {
             label: qsTr("Modifiers"),
             values: [true, false],
             names: [qsTr("On"), qsTr("Off")],
             get: () => GameSettings.modifiers,
             set: (value) => GameSettings.modifiers = value
+        },
+        {
+            label: qsTr("Sound"),
+            values: [true, false],
+            names: [qsTr("On"), qsTr("Off")],
+            get: () => GameSettings.sound,
+            set: (value) => GameSettings.sound = value
         },
         {
             label: qsTr("Restore defaults"),
@@ -66,6 +94,7 @@ Scene {
         const index = values.indexOf(row.get())
         const next = index < 0 ? 0 : (index + step + values.length) % values.length
         row.set(values[next])
+        SoundEffects.play(SoundEffects.MenuSelect)
     }
 
     onKeyPressed: (event) => {
@@ -76,9 +105,11 @@ Scene {
                 break
             case Qt.Key_Up:
                 currentItem = Math.max(currentItem - 1, 0)
+                SoundEffects.play(SoundEffects.MenuMove)
                 break
             case Qt.Key_Down:
                 currentItem = Math.min(currentItem + 1, rows.length - 1)
+                SoundEffects.play(SoundEffects.MenuMove)
                 break
             case Qt.Key_Left:
                 if (rows[currentItem].values.length)
@@ -98,8 +129,8 @@ Scene {
     onPointerPressed: (id, x, y) => phong.clickableAt(x, y)?.clicked()
 
     Text3D {
-        y: 7.5
-        scale: Qt.vector3d(2, 2, 2)
+        y: 8.4
+        scale: Qt.vector3d(1.8, 1.8, 1.8)
         horizontalAlignment: Text.AlignHCenter
         text: qsTr("Settings")
     }
@@ -118,7 +149,8 @@ Scene {
             readonly property var value: {
                 GameSettings.pointsToWin; GameSettings.ballSpeed
                 GameSettings.paddleSize; GameSettings.difficulty
-                GameSettings.modifiers
+                GameSettings.modifiers; GameSettings.setsToWin; GameSettings.winByTwo
+                GameSettings.arena; GameSettings.sound
                 return modelData.get()
             }
             readonly property string valueName: {
@@ -126,7 +158,7 @@ Scene {
                 return index < 0 ? String(value ?? "") : modelData.names[index]
             }
 
-            y: 3.0 - index * 2.0
+            y: 5.6 - index * 1.55
 
             Disc {
                 visible: row.selected
@@ -179,7 +211,7 @@ Scene {
     }
 
     Text3D {
-        y: -11
+        y: -11.4
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
         text: qsTr("[Up/Down] select   [Left/Right] change   [Esc] back")

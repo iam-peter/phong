@@ -16,6 +16,10 @@ QtObject {
     readonly property color wall: Qt.rgba(1.0, 1.0, 1.0, 1.0)
     readonly property color goal: Qt.rgba(100 / 255, 100 / 255, 100 / 255, 1.0)
     readonly property color shield: Qt.rgba(0.2, 0.6, 1.0, 1.0)
+    readonly property color extraBall: Qt.rgba(1.0, 0.8, 0.3, 1.0)
+    readonly property color ballMark: Qt.rgba(0.85, 0.5, 0.0, 1.0)
+    readonly property color bumper: Qt.rgba(1.0, 0.35, 0.2, 1.0)
+    readonly property color block: Qt.rgba(0.7, 0.7, 0.75, 1.0)
 
 
     // Closest camera distance in front of the scene it looks at, Main

@@ -285,6 +285,177 @@ private slots:
         QCOMPARE(match.ballVelocity().length(), before.length() * 1.5f);
     }
 
+    void movingPaddleCurvesTheBall()
+    {
+        Match match;
+        match.setSpeedUp(1.0);
+        serve(match);
+        if (match.ballVelocity().x() > 0.0f)
+            match.paddleHit(Match::Side::RightSide, 0.0);
+
+        // Brushing upwards, the ball dips on its way to the right
+        match.paddleHit(Match::Side::LeftSide, 0.0, match.paddleSpeed());
+        QCOMPARE(match.ball()->spin(), -Match::maxSpin);
+
+        const float speed = match.ballVelocity().length();
+        for (int i = 0; i < 10; ++i)
+            match.advance(0.05);
+        QVERIFY(match.ballVelocity().y() < 0.0f);
+        QVERIFY(match.ballVelocity().x() > 0.0f);
+        QVERIFY(qAbs(match.ballVelocity().length() - speed) < 0.01f);
+
+        // The spin wears off
+        const qreal spin = match.ball()->spin();
+        QVERIFY(spin > -Match::maxSpin && spin < 0.0);
+
+        // Walls take some spin away, a still paddle takes all of it
+        match.wallHit(false);
+        QVERIFY(qAbs(match.ball()->spin() - 0.5 * spin) < 1e-6);
+        match.paddleHit(Match::Side::RightSide, 0.0, 0.0);
+        QCOMPARE(match.ball()->spin(), 0.0);
+    }
+
+    void curveKeepsBallCrossing()
+    {
+        Match match;
+        match.setSpeedUp(1.0);
+        serve(match);
+        if (match.ballVelocity().x() > 0.0f)
+            match.paddleHit(Match::Side::RightSide, 0.0);
+
+        // Steep return with spin turning it further
+        match.paddleHit(Match::Side::LeftSide, 1.0, -match.paddleSpeed());
+        for (int i = 0; i < 100; ++i)
+            match.advance(0.05);
+
+        const QVector2D direction = match.ballVelocity().normalized();
+        QVERIFY(std::abs(direction.x()) >= qCos(qDegreesToRadians(Match::maxBounceAngle)) - 1e-3);
+    }
+
+    void bestOfThree()
+    {
+        Match match;
+        match.setPointsToWin(2);
+        match.setSetsToWin(2);
+        QSignalSpy sets(&match, &Match::setFinished);
+
+        match.start();
+        for (int i = 0; i < 2; ++i) {
+            serve(match);
+            match.goal(Match::Side::LeftSide);
+        }
+        QCOMPARE(sets.count(), 1);
+        QCOMPARE(match.left()->sets(), 1);
+        QCOMPARE(match.left()->score(), 0);
+        QCOMPARE(match.state(), Match::State::Serving);
+
+        for (int i = 0; i < 2; ++i) {
+            serve(match);
+            match.goal(Match::Side::RightSide);
+        }
+        QCOMPARE(match.right()->sets(), 1);
+
+        for (int i = 0; i < 2; ++i) {
+            serve(match);
+            match.goal(Match::Side::LeftSide);
+        }
+        QCOMPARE(match.state(), Match::State::Finished);
+        QCOMPARE(match.winner(), match.left());
+        QCOMPARE(match.left()->sets(), 2);
+        // The final set score stays for the results
+        QCOMPARE(match.left()->score(), 2);
+    }
+
+    void winByTwo()
+    {
+        Match match;
+        match.setPointsToWin(3);
+        match.setWinByTwo(true);
+        match.start();
+
+        const auto point = [&match](Match::Side side) {
+            serve(match);
+            match.goal(side);
+        };
+
+        point(Match::Side::LeftSide);
+        point(Match::Side::LeftSide);
+        point(Match::Side::RightSide);
+        point(Match::Side::RightSide);
+        point(Match::Side::LeftSide);
+        QCOMPARE(match.left()->score(), 3);
+        QCOMPARE(match.state(), Match::State::Serving);
+
+        point(Match::Side::LeftSide);
+        QCOMPARE(match.state(), Match::State::Finished);
+        QCOMPARE(match.winner(), match.left());
+    }
+
+    void extraBalls()
+    {
+        Match match;
+        match.setPointsToWin(3);
+        QVERIFY(!match.addBall(QVector2D(0, 0), Match::Side::LeftSide, 5.0, Match::Side::RightSide));
+
+        serve(match);
+        Ball* extra = match.addBall(QVector2D(1, 2), Match::Side::LeftSide, 5.0,
+                                    Match::Side::RightSide);
+        QVERIFY(extra);
+        QVERIFY(extra->isExtra());
+        QCOMPARE(extra->spawnPosition(), QVector2D(1, 2));
+        QCOMPARE(extra->lastTouch(), Match::Side::RightSide);
+        QVERIFY(extra->velocity().x() < 0.0f);
+        QCOMPARE(match.extraBalls()->rowCount(), 1);
+        QCOMPARE(match.balls().size(), 2);
+
+        // Each ball bounces on its own
+        const QVector2D main = match.ballVelocity();
+        match.paddleHit(extra, Match::Side::LeftSide, 0.0);
+        QVERIFY(extra->velocity().x() > 0.0f);
+        QCOMPARE(match.ballVelocity(), main);
+
+        // An extra goal scores but play goes on
+        QSignalSpy scored(&match, &Match::pointScored);
+        match.goal(extra, Match::Side::LeftSide);
+        QCOMPARE(match.left()->score(), 1);
+        QCOMPARE(match.state(), Match::State::Playing);
+        QCOMPARE(match.extraBalls()->rowCount(), 0);
+        QCOMPARE(scored.count(), 1);
+
+        // Gone after their lifetime
+        match.addBall(QVector2D(0, 0), Match::Side::RightSide, 1.0, Match::Side::LeftSide);
+        match.advance(0.6);
+        QCOMPARE(match.extraBalls()->rowCount(), 1);
+        match.advance(0.6);
+        QCOMPARE(match.extraBalls()->rowCount(), 0);
+
+        // The main ball's goal clears the others
+        match.addBall(QVector2D(0, 0), Match::Side::RightSide, 10.0, Match::Side::LeftSide);
+        match.goal(Match::Side::RightSide);
+        QCOMPARE(match.extraBalls()->rowCount(), 0);
+        QCOMPARE(match.state(), Match::State::Serving);
+    }
+
+    void bounceOffObstacles()
+    {
+        Match match;
+        serve(match);
+        const QVector2D before = match.ballVelocity();
+
+        // Head-on into a bumper
+        const QVector2D normal = QVector2D(before.x() > 0.0f ? -1.0f : 1.0f, 0.0f);
+        match.bounce(match.ball(), normal);
+        QVERIFY(match.ballVelocity().distanceToPoint(QVector2D(-before.x(), before.y())) < 1e-4f);
+        QCOMPARE(match.rally(), 0);
+        QCOMPARE(match.lastTouch(), Match::Side::NoSide);
+
+        // Grazing the top of a block would send it straight up, it keeps crossing
+        match.bounce(match.ball(), QVector2D(0.0f, match.ballVelocity().y() > 0.0f ? -1.0f : 1.0f));
+        const QVector2D direction = match.ballVelocity().normalized();
+        QVERIFY(std::abs(direction.x()) >= qCos(qDegreesToRadians(Match::maxBounceAngle)) - 1e-4);
+        QVERIFY(qAbs(match.ballVelocity().length() - before.length()) < 1e-3f);
+    }
+
     void pauseKeepsState()
     {
         Match match;

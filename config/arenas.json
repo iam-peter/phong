@@ -1,0 +1,94 @@
+{
+    "arenas": [
+        {
+            "id": "classic",
+            "name": "Classic"
+        },
+        {
+            "id": "bumpers",
+            "name": "Bumpers",
+            "bumpers": [
+                {
+                    "x": 0,
+                    "y": 5,
+                    "radius": 1.3
+                },
+                {
+                    "x": 0,
+                    "y": -5,
+                    "radius": 1.3
+                }
+            ]
+        },
+        {
+            "id": "diamond",
+            "name": "Diamond",
+            "bumpers": [
+                {
+                    "x": -5,
+                    "y": 0,
+                    "radius": 1
+                },
+                {
+                    "x": 5,
+                    "y": 0,
+                    "radius": 1
+                },
+                {
+                    "x": 0,
+                    "y": 5.5,
+                    "radius": 1
+                },
+                {
+                    "x": 0,
+                    "y": -5.5,
+                    "radius": 1
+                }
+            ]
+        },
+        {
+            "id": "gates",
+            "name": "Gates",
+            "blocks": [
+                {
+                    "x": 0,
+                    "y": 7,
+                    "width": 1,
+                    "height": 5
+                },
+                {
+                    "x": 0,
+                    "y": -7,
+                    "width": 1,
+                    "height": 5
+                }
+            ]
+        },
+        {
+            "id": "pinball",
+            "name": "Pinball",
+            "bumpers": [
+                {
+                    "x": -6,
+                    "y": 4,
+                    "radius": 0.8
+                },
+                {
+                    "x": -6,
+                    "y": -4,
+                    "radius": 0.8
+                },
+                {
+                    "x": 6,
+                    "y": 4,
+                    "radius": 0.8
+                },
+                {
+                    "x": 6,
+                    "y": -4,
+                    "radius": 0.8
+                }
+            ]
+        }
+    ]
+}

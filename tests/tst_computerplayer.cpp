@@ -1,6 +1,9 @@
 #include "computerplayer.h"
 
 #include <QTest>
+#include <QtMath>
+
+#include <cmath>
 
 class tst_ComputerPlayer : public QObject
 {
@@ -90,6 +93,58 @@ private slots:
             QVERIFY(qAbs(player.target() - expected) <= maxError * reach + 1e-6);
             QVERIFY(qAbs(player.direction()) <= maxInput + 1e-6);
         }
+    }
+
+    void aimOffset()
+    {
+        // Right paddle line at x = 12, field from -8 to 8
+        const QList<QVector2D> ahead = { QVector2D(0, 5) };
+        const qreal offset = ComputerPlayer::aimOffset(0.0, 12.0, ahead);
+        const qreal expected = qRadiansToDegrees(std::atan2(5.0, 12.0)) / 60.0;
+        QVERIFY(qAbs(offset - expected) < 1e-6);
+
+        // Behind the paddle doesn't count
+        QVERIFY(qIsNaN(ComputerPlayer::aimOffset(0.0, 12.0, { QVector2D(14, 0) })));
+
+        // Too steep, and the easier of two targets wins
+        QVERIFY(qIsNaN(ComputerPlayer::aimOffset(6.0, 12.0, { QVector2D(9, -6) })));
+        const qreal easier = ComputerPlayer::aimOffset(0.0, 12.0, { QVector2D(9, -6), QVector2D(0, 5) });
+        QVERIFY(qAbs(easier - expected) < 1e-6);
+
+        // The left paddle aims to the right
+        const qreal left = ComputerPlayer::aimOffset(0.0, -12.0, { QVector2D(0, -5) });
+        QVERIFY(qAbs(left + expected) < 1e-6);
+    }
+
+    void awayFromOpponent()
+    {
+        // Opponent high up, go low, and the other way round
+        QVERIFY(ComputerPlayer::awayOffset(0.0, 12.0, 5.0, 8.0, -8.0) < 0.0);
+        QVERIFY(ComputerPlayer::awayOffset(0.0, 12.0, -5.0, 8.0, -8.0) > 0.0);
+        QVERIFY(std::abs(ComputerPlayer::awayOffset(0.0, 12.0, 5.0, 8.0, -8.0)) <= 40.0 / 60.0);
+    }
+
+    void hardAimsAtTargets()
+    {
+        // With a target high up the paddle meets the ball below its center
+        qreal sum = 0.0;
+        for (quint32 seed = 1; seed <= 40; ++seed) {
+            ComputerPlayer player;
+            player.setSeed(seed);
+            player.setDifficulty(ComputerPlayer::Difficulty::Hard);
+            player.setPaddleX(12.0);
+            player.setPaddleReach(2.8);
+            player.setFieldTop(8.0);
+            player.setFieldBottom(-8.0);
+            player.setTargets({ QVariant::fromValue(QVector2D(0, 5)) });
+
+            for (int frame = 0; frame < 30; ++frame)
+                player.update(1.0 / 60.0, QVector2D(-12, 0), QVector2D(12, 0), 0.0);
+            sum += player.target();
+        }
+
+        const qreal offset = qRadiansToDegrees(std::atan2(5.0, 12.0)) / 60.0;
+        QVERIFY(qAbs(sum / 40.0 + offset * 2.8) < 0.5);
     }
 
     void reactsWithDelay()

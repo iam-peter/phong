@@ -1,6 +1,7 @@
 #include "computerplayer.h"
+#include "match.h"
 
-#include <QRandomGenerator>
+#include <QtMath>
 
 #include <algorithm>
 #include <cmath>
@@ -16,7 +17,11 @@ ComputerPlayer::ComputerPlayer(QObject* parent):
     m_direction(0.0),
     m_sincePlan(0.0),
     m_approaching(false),
-    m_aimError(0.0)
+    m_aimError(0.0),
+    m_aiming(false),
+    m_targets(),
+    m_opponentY(0.0),
+    m_random(QRandomGenerator::global()->generate())
 {}
 
 qreal ComputerPlayer::predictY(const QVector2D& position, const QVector2D& velocity,
@@ -42,6 +47,36 @@ qreal ComputerPlayer::predictY(const QVector2D& position, const QVector2D& veloc
     return bottom + folded;
 }
 
+qreal ComputerPlayer::aimOffset(qreal hitY, qreal lineX, const QList<QVector2D>& targets)
+{
+    // Aim no steeper than this, the paddle edges are risky
+    constexpr qreal maxAim = 50.0;
+
+    qreal best = qQNaN();
+    for (const QVector2D& target : targets) {
+        // Only targets in front of the paddle
+        const qreal distance = (lineX - target.x()) * (lineX > 0.0 ? 1.0 : -1.0);
+        if (distance <= 0.0)
+            continue;
+
+        const qreal angle = qRadiansToDegrees(std::atan2(target.y() - hitY, distance));
+        if (std::abs(angle) <= maxAim && (qIsNaN(best) || std::abs(angle) < std::abs(best)))
+            best = angle;
+    }
+
+    return qIsNaN(best) ? best : best / Match::maxBounceAngle;
+}
+
+qreal ComputerPlayer::awayOffset(qreal hitY, qreal lineX, qreal opponentY, qreal top, qreal bottom)
+{
+    // Towards the half of the far side the opponent is not in
+    const qreal middle = 0.5 * (top + bottom);
+    const qreal y = opponentY > middle ? bottom + 0.2 * (top - bottom)
+                                       : top - 0.2 * (top - bottom);
+    const qreal angle = qRadiansToDegrees(std::atan2(y - hitY, 2.0 * std::abs(lineX)));
+    return std::clamp(angle, -40.0, 40.0) / Match::maxBounceAngle;
+}
+
 void ComputerPlayer::reset()
 {
     m_sincePlan = 0.0;
@@ -65,7 +100,8 @@ void ComputerPlayer::update(qreal dt, const QVector2D& ballPosition,
     if (approaching != m_approaching) {
         m_approaching = approaching;
         m_sincePlan = 0.0;
-        m_aimError = QRandomGenerator::global()->bounded(2.0) - 1.0;
+        m_aimError = m_random.bounded(2.0) - 1.0;
+        m_aiming = m_random.bounded(1.0) < profile.aimChance;
     }
     else {
         m_sincePlan += dt;
@@ -156,6 +192,46 @@ qreal ComputerPlayer::fieldBottom() const
     return m_fieldBottom;
 }
 
+void ComputerPlayer::setTargets(const QVariantList& targets)
+{
+    QList<QVector2D> points;
+    for (const QVariant& target : targets)
+        points.append(target.value<QVector2D>());
+
+    if (m_targets == points)
+        return;
+
+    m_targets = points;
+    emit targetsChanged();
+}
+
+QVariantList ComputerPlayer::targets() const
+{
+    QVariantList targets;
+    for (const QVector2D& point : m_targets)
+        targets.append(point);
+    return targets;
+}
+
+void ComputerPlayer::setOpponentY(qreal opponentY)
+{
+    if (m_opponentY == opponentY)
+        return;
+
+    m_opponentY = opponentY;
+    emit opponentYChanged(opponentY);
+}
+
+qreal ComputerPlayer::opponentY() const
+{
+    return m_opponentY;
+}
+
+void ComputerPlayer::setSeed(quint32 seed)
+{
+    m_random.seed(seed);
+}
+
 qreal ComputerPlayer::target() const
 {
     return m_target;
@@ -170,12 +246,12 @@ ComputerPlayer::Profile ComputerPlayer::profile() const
 {
     switch (m_difficulty) {
         case Difficulty::Easy:
-            return { 0.35, 1.6, 0.5, false };
+            return { 0.35, 1.6, 0.5, false, 0.0, false };
         case Difficulty::Hard:
-            return { 0.08, 0.6, 1.0, true };
+            return { 0.08, 0.6, 1.0, true, 1.0, true };
         case Difficulty::Normal:
         default:
-            return { 0.2, 1.15, 0.75, true };
+            return { 0.2, 1.15, 0.75, true, 0.5, false };
     }
 }
 
@@ -191,7 +267,22 @@ void ComputerPlayer::plan(const QVector2D& ballPosition, const QVector2D& ballVe
     const qreal y = profile.predicts
         ? predictY(ballPosition, ballVelocity, m_paddleX, m_fieldTop, m_fieldBottom)
         : std::clamp(qreal(ballPosition.y()), m_fieldBottom, m_fieldTop);
-    setTarget(y + m_aimError * profile.aimError * m_paddleReach);
+
+    // Meet the ball off center to send it where it should go. Aiming
+    // players concentrate, their aim is steadier.
+    qreal offset = qQNaN();
+    if (m_aiming) {
+        offset = aimOffset(y, m_paddleX, m_targets);
+        if (qIsNaN(offset) && profile.tactics)
+            offset = awayOffset(y, m_paddleX, m_opponentY, m_fieldTop, m_fieldBottom);
+    }
+
+    if (qIsNaN(offset)) {
+        setTarget(y + m_aimError * profile.aimError * m_paddleReach);
+        return;
+    }
+
+    setTarget(y - offset * m_paddleReach + 0.5 * m_aimError * profile.aimError * m_paddleReach);
 }
 
 void ComputerPlayer::setTarget(qreal target)

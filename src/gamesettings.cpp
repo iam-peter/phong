@@ -8,6 +8,10 @@ constexpr auto defaultBallSpeed = GameSettings::BallSpeed::Medium;
 constexpr auto defaultPaddleSize = GameSettings::PaddleSize::Regular;
 constexpr auto defaultDifficulty = ComputerPlayer::Difficulty::Normal;
 constexpr bool defaultModifiers = true;
+constexpr int defaultSetsToWin = 1;
+constexpr bool defaultWinByTwo = false;
+const QString defaultArena = QStringLiteral("random");
+constexpr bool defaultSound = true;
 
 template<typename Enum>
 Enum readEnum(const QSettings& settings, const char* key, Enum fallback, Enum last)
@@ -24,7 +28,11 @@ GameSettings::GameSettings(QObject* parent):
     m_ballSpeed(defaultBallSpeed),
     m_paddleSize(defaultPaddleSize),
     m_difficulty(defaultDifficulty),
-    m_modifiers(defaultModifiers)
+    m_modifiers(defaultModifiers),
+    m_setsToWin(defaultSetsToWin),
+    m_winByTwo(defaultWinByTwo),
+    m_arena(defaultArena),
+    m_sound(defaultSound)
 {
     m_pointsToWin = std::clamp(m_settings.value("pointsToWin", defaultPointsToWin).toInt(),
                                minPointsToWin, maxPointsToWin);
@@ -33,6 +41,10 @@ GameSettings::GameSettings(QObject* parent):
     m_difficulty = readEnum(m_settings, "difficulty", defaultDifficulty,
                             ComputerPlayer::Difficulty::Hard);
     m_modifiers = m_settings.value("modifiers", defaultModifiers).toBool();
+    m_setsToWin = std::clamp(m_settings.value("setsToWin", defaultSetsToWin).toInt(), 1, maxSetsToWin);
+    m_winByTwo = m_settings.value("winByTwo", defaultWinByTwo).toBool();
+    m_arena = m_settings.value("arena", defaultArena).toString();
+    m_sound = m_settings.value("sound", defaultSound).toBool();
 }
 
 void GameSettings::restoreDefaults()
@@ -42,6 +54,10 @@ void GameSettings::restoreDefaults()
     setPaddleSize(defaultPaddleSize);
     setDifficulty(defaultDifficulty);
     setModifiers(defaultModifiers);
+    setSetsToWin(defaultSetsToWin);
+    setWinByTwo(defaultWinByTwo);
+    setArena(defaultArena);
+    setSound(defaultSound);
 }
 
 void GameSettings::setPointsToWin(int pointsToWin)
@@ -118,6 +134,67 @@ void GameSettings::setModifiers(bool modifiers)
 bool GameSettings::modifiers() const
 {
     return m_modifiers;
+}
+
+void GameSettings::setSetsToWin(int setsToWin)
+{
+    setsToWin = std::clamp(setsToWin, 1, maxSetsToWin);
+    if (m_setsToWin == setsToWin)
+        return;
+
+    m_setsToWin = setsToWin;
+    m_settings.setValue("setsToWin", setsToWin);
+    emit setsToWinChanged(setsToWin);
+}
+
+int GameSettings::setsToWin() const
+{
+    return m_setsToWin;
+}
+
+void GameSettings::setWinByTwo(bool winByTwo)
+{
+    if (m_winByTwo == winByTwo)
+        return;
+
+    m_winByTwo = winByTwo;
+    m_settings.setValue("winByTwo", winByTwo);
+    emit winByTwoChanged(winByTwo);
+}
+
+bool GameSettings::winByTwo() const
+{
+    return m_winByTwo;
+}
+
+void GameSettings::setArena(const QString& arena)
+{
+    if (m_arena == arena)
+        return;
+
+    m_arena = arena;
+    m_settings.setValue("arena", arena);
+    emit arenaChanged(arena);
+}
+
+QString GameSettings::arena() const
+{
+    return m_arena;
+}
+
+void GameSettings::setSound(bool sound)
+{
+    if (m_sound == sound)
+        return;
+
+    m_sound = sound;
+    m_settings.setValue("sound", sound);
+    emit soundChanged(sound);
+}
+
+bool GameSettings::sound() const
+{
+    return m_sound;
 }
 
 qreal GameSettings::serveSpeed() const

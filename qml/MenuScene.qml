@@ -2,18 +2,22 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick3D
+import Phong
 
 Scene {
     id: root
 
     property Scene settingsScene
+    property Scene statsScene
     property int currentItem: 0
 
     readonly property var items: {
         const items = [
             { text: qsTr("1 Player"), activate: () => phong.startGame(GameScene.OnePlayer) },
             { text: qsTr("2 Players"), activate: () => phong.startGame(GameScene.TwoPlayers) },
-            { text: qsTr("Settings"), activate: () => phong.nextScene(root.settingsScene) }
+            { text: qsTr("Ladder"), activate: () => phong.startGame(GameScene.Ladder) },
+            { text: qsTr("Settings"), activate: () => phong.nextScene(root.settingsScene) },
+            { text: qsTr("Stats"), activate: () => phong.nextScene(root.statsScene) }
         ]
         // Closing the tab is how you quit a web page
         if (Qt.platform.os !== "wasm")
@@ -29,13 +33,16 @@ Scene {
                 break
             case Qt.Key_Up:
                 currentItem = Math.max(currentItem - 1, 0)
+                SoundEffects.play(SoundEffects.MenuMove)
                 break
             case Qt.Key_Down:
                 currentItem = Math.min(currentItem + 1, items.length - 1)
+                SoundEffects.play(SoundEffects.MenuMove)
                 break
             case Qt.Key_Enter:
             case Qt.Key_Return:
             case Qt.Key_Space:
+                SoundEffects.play(SoundEffects.MenuSelect)
                 items[currentItem].activate()
                 break
         }
@@ -73,11 +80,12 @@ Scene {
             required property var modelData
             required property int index
 
-            y: index * -2
+            y: 1.0 - index * 1.8
             horizontalAlignment: Text.AlignHCenter
             text: modelData.text
             clickable: true
             onClicked: {
+                SoundEffects.play(SoundEffects.MenuSelect)
                 root.currentItem = item.index
                 item.modelData.activate()
             }

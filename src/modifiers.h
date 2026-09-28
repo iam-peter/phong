@@ -25,6 +25,8 @@ class Modifiers : public QAbstractListModel
     Q_PROPERTY(Match* match READ match WRITE setMatch NOTIFY matchChanged)
     Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY enabledChanged)
     Q_PROPERTY(QRectF spawnArea READ spawnArea WRITE setSpawnArea NOTIFY spawnAreaChanged)
+    // Rectangles items keep clear of, e.g. the bumpers of an arena
+    Q_PROPERTY(QVariantList obstacles READ obstacles WRITE setObstacles NOTIFY obstaclesChanged)
     Q_PROPERTY(qreal fieldInset READ fieldInset NOTIFY fieldInsetChanged)
     Q_PROPERTY(qreal maxFieldInset READ maxFieldInset NOTIFY definitionsChanged)
 
@@ -34,7 +36,8 @@ public:
         PaddleSize,     // value: length factor, for duration seconds
         Shield,         // a barrier behind the paddle stops one goal
         Spin,           // value: degrees per second, for duration seconds
-        NarrowField     // value: how far the walls move in, for duration seconds
+        NarrowField,    // value: how far the walls move in, for duration seconds
+        MultiBall       // value: extra balls, they stay for duration seconds
     };
     Q_ENUM(Effect)
 
@@ -99,6 +102,9 @@ public:
     // Definitions of the effects active on the player of side
     Q_INVOKABLE QVariantList activeEffects(Match::Side side) const;
 
+    // Where the items are, e.g. for the computer player to aim at
+    Q_INVOKABLE QVariantList itemPositions() const;
+
     // Removes all items and effects, call when a match starts
     Q_INVOKABLE void reset();
 
@@ -107,11 +113,14 @@ public:
     Q_INVOKABLE void advance(qreal dt);
 
     // The ball flew through the item, returns whether it was collected.
-    // Nobody gets it before the ball was touched after the serve.
-    Q_INVOKABLE bool collect(int itemId);
+    // The player who touched that ball last gets it, nobody before the
+    // ball was touched after the serve.
+    Q_INVOKABLE bool collect(int itemId, Ball* ball);
+    bool collect(int itemId);
 
     // The ball hit the shield in front of the goal of side
-    Q_INVOKABLE bool shieldHit(Match::Side side);
+    Q_INVOKABLE bool shieldHit(Ball* ball, Match::Side side);
+    bool shieldHit(Match::Side side);
 
     // Places an item, for tests and debugging
     Q_INVOKABLE int spawn(int definition, const QVector2D& position);
@@ -127,6 +136,9 @@ public:
     void setSpawnArea(const QRectF& spawnArea);
     QRectF spawnArea() const;
 
+    void setObstacles(const QVariantList& obstacles);
+    QVariantList obstacles() const;
+
     qreal fieldInset() const;
     qreal maxFieldInset() const;
 
@@ -134,6 +146,7 @@ signals:
     void matchChanged(Match*);
     void enabledChanged(bool);
     void spawnAreaChanged(const QRectF&);
+    void obstaclesChanged();
     void fieldInsetChanged(qreal);
     void definitionsChanged();
     void effectsChanged();
@@ -161,7 +174,7 @@ private:
     static Effects noEffects();
 
     void spawnRandom();
-    void apply(int definition, Match::Side collector);
+    void apply(int definition, Match::Side collector, Ball* ball, const QVector2D& position);
     void removeItem(int row);
     void resetSpawnCountdown();
     void setFieldInset(qreal fieldInset);
@@ -171,6 +184,7 @@ private:
     QPointer<Match> m_match;
     bool m_enabled;
     QRectF m_spawnArea;
+    QList<QRectF> m_obstacles;
 
     QList<Definition> m_definitions;
     SpawnSettings m_spawn;

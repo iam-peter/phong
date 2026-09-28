@@ -8,6 +8,7 @@ C++, the scenes are QML.
 
 - Qt 6.9 or newer (`ExtrudedTextGeometry`) with the Qt Quick 3D and
   Qt Quick 3D Physics modules
+- Qt Multimedia for sound on the desktop, optional
 - CMake 3.21 or newer
 - For WebAssembly: the Qt `wasm_singlethread` kit and the Emscripten version
   it was built with (Qt 6.11: 4.0.7, Qt 6.12: 5.0.5)
@@ -53,6 +54,22 @@ browser's local storage.
 `Esc` pauses, `Esc` again goes back to the menu, `Space` or `P` toggles the
 pause. Menus take arrow keys, `Enter` and clicks.
 
+Moving the paddle while it hits the ball puts spin on it: brushed upwards the
+ball dips on its way over, brushed downwards it rises.
+
+## Game modes
+
+- **1 Player** against the computer, the level is set in the settings.
+- **2 Players** on one keyboard, or with two fingers on a touch screen.
+- **Ladder** against Easy, Normal and Hard in a row, a loss can be retried.
+
+On Normal and Hard the computer aims its returns through modifiers it wants,
+Hard also plays the ball away from your paddle.
+
+A match is a single set or best of three or five, optionally won by two
+points. The stats screen keeps the record against every computer level, the
+best ladder run and the longest rally.
+
 ## Modifiers
 
 Now and then a modifier appears on the field. The ball collects it by flying
@@ -67,6 +84,7 @@ after a serve the ball flies through without collecting anything.
 | `-` | Small paddle | curse, the opponent's paddle shrinks for 12 s |
 | `@` | Spin curse | curse, the opponent's paddle rotates for 7 s and the ball bounces off its surface |
 | `=` | Narrow field | the walls move in for 12 s |
+| `oo` | Multi ball | two extra balls fly at the opponent for 12 s, their goals count |
 
 Active effects show next to the player names. Modifiers can be switched off
 in the settings.
@@ -91,10 +109,10 @@ use them:
 | `spawn.lifetime` | seconds until an item that nobody collected disappears |
 | `spawn.minDistance` | minimum distance between two items |
 | `id`, `name`, `glyph`, `color` | identity and look |
-| `effect` | `ballSpeed`, `paddleSize`, `shield`, `spin` or `narrowField` |
+| `effect` | `ballSpeed`, `paddleSize`, `shield`, `spin`, `narrowField` or `multiBall` |
 | `target` | `collector` (default), `opponent` for curses, or `both` |
-| `value` | speed or length factor, spin in degrees per second, inset of the walls |
-| `duration` | seconds the effect lasts, for `paddleSize`, `spin` and `narrowField` |
+| `value` | speed or length factor, spin in degrees per second, inset of the walls, number of extra balls |
+| `duration` | seconds the effect lasts, for `paddleSize`, `spin`, `narrowField` and `multiBall` |
 | `weight` | relative spawn chance, `0` never spawns |
 | `enabled` | `false` skips the entry |
 
@@ -105,6 +123,29 @@ warning. A slow ball, for example, is the ball speed effect below 1:
 { "id": "slowBall", "name": "Slow ball", "glyph": "<<", "color": "#ffff66",
   "effect": "ballSpeed", "value": 0.6 }
 ```
+
+## Arenas
+
+Every match picks an arena with round bumpers or blocks in the middle of the
+field, or plays the one chosen in the settings. They are defined in
+[config/arenas.json](config/arenas.json) and can be tried without rebuilding
+with `--arenas my-arenas.json`:
+
+```json
+{ "id": "bumpers", "name": "Bumpers",
+  "bumpers": [ { "x": 0, "y": 5, "radius": 1.3 } ],
+  "blocks": [ { "x": 0, "y": -7, "width": 1, "height": 5 } ] }
+```
+
+Obstacles outside the field or on the serve spot in the middle are skipped
+with a warning.
+
+## Sound
+
+The sound effects are synthesized from a few tones, there are no audio files.
+The desktop plays them with Qt Multimedia, the browser with the Web Audio API,
+which starts after the first key press or click. Sound can be switched off in
+the settings.
 
 ## Physics
 

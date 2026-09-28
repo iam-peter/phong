@@ -2,12 +2,15 @@
 #define COMPUTERPLAYER_H
 
 #include <QObject>
+#include <QRandomGenerator>
+#include <QVariantList>
 #include <QVector2D>
 #include <QtQml/qqmlregistration.h>
 
 // Steers a paddle towards where the ball will cross the paddle line.
 // The difficulty decides whether bounces are foreseen, how often the plan
-// is refreshed, how accurate it is and how fast the paddle may move.
+// is refreshed, how accurate it is, how fast the paddle may move and
+// whether the return is aimed at a target or away from the opponent.
 class ComputerPlayer : public QObject
 {
     Q_OBJECT
@@ -17,6 +20,9 @@ class ComputerPlayer : public QObject
     Q_PROPERTY(qreal paddleReach READ paddleReach WRITE setPaddleReach NOTIFY paddleReachChanged)
     Q_PROPERTY(qreal fieldTop READ fieldTop WRITE setFieldTop NOTIFY fieldTopChanged)
     Q_PROPERTY(qreal fieldBottom READ fieldBottom WRITE setFieldBottom NOTIFY fieldBottomChanged)
+    // Points worth sending the ball through, e.g. modifiers
+    Q_PROPERTY(QVariantList targets READ targets WRITE setTargets NOTIFY targetsChanged)
+    Q_PROPERTY(qreal opponentY READ opponentY WRITE setOpponentY NOTIFY opponentYChanged)
     Q_PROPERTY(qreal target READ target NOTIFY targetChanged)
     Q_PROPERTY(qreal direction READ direction NOTIFY directionChanged)
 
@@ -35,6 +41,14 @@ public:
     // them are folded in.
     static qreal predictY(const QVector2D& position, const QVector2D& velocity,
                           qreal lineX, qreal top, qreal bottom);
+
+    // Paddle offset (see Match::paddleHit) that sends a ball leaving the
+    // paddle line at hitY straight through the easiest of the targets. NaN
+    // if none can be reached. A shot off a wall is always steeper.
+    static qreal aimOffset(qreal hitY, qreal lineX, const QList<QVector2D>& targets);
+
+    // Offset that sends the ball to the wall away from the opponent
+    static qreal awayOffset(qreal hitY, qreal lineX, qreal opponentY, qreal top, qreal bottom);
 
     // Forget the current plan, e.g. after a point was scored
     Q_INVOKABLE void reset();
@@ -59,6 +73,14 @@ public:
     void setFieldBottom(qreal fieldBottom);
     qreal fieldBottom() const;
 
+    void setTargets(const QVariantList& targets);
+    QVariantList targets() const;
+
+    void setOpponentY(qreal opponentY);
+    qreal opponentY() const;
+
+    void setSeed(quint32 seed);
+
     qreal target() const;
 
     // Paddle input from -1 (full speed down) to 1 (full speed up)
@@ -70,6 +92,8 @@ signals:
     void paddleReachChanged(qreal);
     void fieldTopChanged(qreal);
     void fieldBottomChanged(qreal);
+    void targetsChanged();
+    void opponentYChanged(qreal);
     void targetChanged(qreal);
     void directionChanged(qreal);
 
@@ -79,6 +103,8 @@ private:
         qreal aimError;     // random aim error, fraction of the paddle reach
         qreal maxInput;     // fraction of the paddle speed
         bool predicts;      // plans for bounces or just chases the ball
+        qreal aimChance;    // share of returns aimed at a target
+        bool tactics;       // otherwise plays away from the opponent
     };
 
     Profile profile() const;
@@ -97,6 +123,10 @@ private:
     qreal m_sincePlan;
     bool m_approaching;
     qreal m_aimError; // -1 to 1, rolled once per approach
+    bool m_aiming;    // rolled once per approach
+    QList<QVector2D> m_targets;
+    qreal m_opponentY;
+    QRandomGenerator m_random;
 };
 
 #endif // COMPUTERPLAYER_H

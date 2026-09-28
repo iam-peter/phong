@@ -10,6 +10,10 @@ Node {
     property bool active: false
     property var phong
 
+    // Added to the camera while the scene is active, e.g. for shaking
+    property vector3d viewOffset: Qt.vector3d(0, 0, 0)
+    property vector3d viewRotation: Qt.vector3d(0, 0, 0)
+
     signal keyPressed(var event)
     signal keyReleased(var event)
 
