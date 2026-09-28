@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Phong
+Comment=Pong in a neon 3D world
+Exec=phong
+Icon=phong
+Categories=Game;ArcadeGame;

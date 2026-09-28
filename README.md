@@ -11,6 +11,19 @@ C++, the scenes are QML.
 | ![A rally heating up](docs/screenshots/rally.png) | ![Kickoff countdown and direction](docs/screenshots/kickoff.png) |
 | ![Main menu](docs/screenshots/menu.png) | ![Graphics settings](docs/screenshots/graphics.png) |
 
+## Play
+
+The browser version is at <https://iam-peter.github.io/phong/>, ready-made
+downloads for Linux (AppImage), Windows and macOS are on the
+[nightly release](https://github.com/iam-peter/phong/releases/tag/nightly).
+Both are built every night from the latest commit, nights without a new
+commit are skipped. The macOS app isn't signed, it opens with a right click
+and Open the first time.
+
+The [workflow](.github/workflows/nightly.yml) also runs the tests on all
+three systems. It can be started by hand under Actions, Nightly, Run
+workflow. The pages need Settings, Pages, Source set to GitHub Actions once.
+
 ## Requirements
 
 - Qt 6.9 or newer (`ExtrudedTextGeometry`) with the Qt Quick 3D,

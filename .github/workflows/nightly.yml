@@ -1,0 +1,271 @@
+# Every night: build and test on Linux, Windows and macOS, put the browser
+# version on GitHub Pages and replace the nightly release with the new
+# downloads. Nights without new commits are skipped, a run by hand builds
+# anyway.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  QT_VERSION: "6.11.3"
+  QT_MODULES: "qtquick3d qtquick3dphysics qtquicktimeline qtshadertools qtmultimedia qtwebsockets"
+  # The Emscripten version the Qt 6.11 wasm kit is built with
+  EMSDK_VERSION: "4.0.7"
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - id: check
+        name: Anything new since the last nightly?
+        run: |
+          last=$(git rev-parse -q --verify "refs/tags/nightly^{commit}" || true)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$last" != "$GITHUB_SHA" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing new since $last"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  linux:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    # The oldest runner, an AppImage runs on systems at least as new
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-shape0 libxcb-xinerama0 libfontconfig1 libudev-dev libfuse2
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          modules: ${{ env.QT_MODULES }}
+          cache: true
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: AppImage
+        run: |
+          base=https://github.com/linuxdeploy
+          wget -q $base/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q $base/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-*.AppImage
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          export QMAKE="$QT_ROOT_DIR/bin/qmake"
+          export QML_SOURCES_PATHS="$GITHUB_WORKSPACE/qml"
+          export LD_LIBRARY_PATH="$QT_ROOT_DIR/lib:$LD_LIBRARY_PATH"
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable build/phong \
+            --desktop-file packaging/phong.desktop --icon-file packaging/phong.png \
+            --plugin qt --output appimage
+          ls -la Phong-*.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phong-linux
+          path: Phong-*.AppImage
+
+  windows:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: ${{ env.QT_MODULES }}
+          cache: true
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory Phong | Out-Null
+          Copy-Item build/Release/phong.exe Phong/
+          windeployqt --release --qmldir qml Phong/phong.exe
+          Compress-Archive -Path Phong -DestinationPath Phong-windows-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phong-windows
+          path: Phong-windows-x64.zip
+
+  macos:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: mac
+          target: desktop
+          arch: clang_64
+          modules: ${{ env.QT_MODULES }}
+          cache: true
+
+      - name: Build
+        run: |
+          # Apple silicon and Intel in one app, like the Qt it builds on
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
+          cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Disk image
+        run: |
+          macdeployqt build/phong.app -qmldir="$GITHUB_WORKSPACE/qml" -dmg
+          mv build/phong.dmg Phong-macos.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phong-macos
+          path: Phong-macos.dmg
+
+  wasm:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      # The wasm kit builds with the tools of a desktop Qt of the same version
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          modules: ${{ env.QT_MODULES }}
+          dir: ${{ runner.temp }}/qt-host
+          set-env: false
+          cache: true
+          cache-key-prefix: qt-host
+
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: all_os
+          target: wasm
+          arch: wasm_singlethread
+          modules: ${{ env.QT_MODULES }}
+          cache: true
+
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EMSDK_VERSION }}
+
+      - name: Build
+        run: |
+          "$QT_ROOT_DIR/bin/qt-cmake" -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DQT_HOST_PATH="${{ runner.temp }}/qt-host/Qt/$QT_VERSION/gcc_64"
+          cmake --build build
+
+      - name: Site
+        run: |
+          mkdir site
+          cp build/phong.html build/phong.js build/phong.wasm build/qtloader.js build/qtlogo.svg site/
+          printf '<!doctype html>\n<meta http-equiv="refresh" content="0; url=phong.html">\n' > site/index.html
+          (cd site && zip -r ../Phong-web.zip .)
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phong-web
+          path: Phong-web.zip
+
+  pages:
+    needs: wasm
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  release:
+    needs: [linux, windows, macos, wasm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # The downloads, not the site for the pages
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phong-*
+          path: artifacts
+          merge-multiple: true
+
+      # One rolling pre-release, its tag moves to the commit it was built from
+      - name: Replace the nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete nightly --cleanup-tag --yes || true
+          gh release create nightly artifacts/* --prerelease --target "$GITHUB_SHA" \
+            --title "Nightly $(date -u +%Y-%m-%d)" \
+            --notes "Built from $GITHUB_SHA. The macOS app isn't signed: open it with a right click and Open the first time."
