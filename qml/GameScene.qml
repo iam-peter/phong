@@ -366,6 +366,11 @@ Scene {
 
         if (match.state === Match.Paused) {
             switch (event.key) {
+                // Esc opened the pause menu, Esc closes it again
+                case Qt.Key_Escape:
+                    SoundEffects.play(SoundEffects.MenuSelect)
+                    match.resume()
+                    return
                 case Qt.Key_Up:
                     currentPauseItem = 0
                     SoundEffects.play(SoundEffects.MenuMove)
@@ -389,7 +394,7 @@ Scene {
             case Qt.Key_Escape:
                 if (running)
                     match.pause()
-                else
+                else if (match.state !== Match.Paused)
                     leave()
                 break
             case Qt.Key_P:

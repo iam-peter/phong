@@ -155,16 +155,18 @@ Window {
                                                                                 : SceneEnvironment.Medium
             fxaaEnabled: antialiasing === GraphicsSettings.FastAntialiasing
 
+            // Higher glow spreads wider, only high blurs at full quality
             glowEnabled: glow !== GraphicsSettings.NoGlow
             glowQualityHigh: glow === GraphicsSettings.HighGlow
             glowBlendMode: ExtendedSceneEnvironment.Additive
             glowStrength: 1.0
-            glowIntensity: glow === GraphicsSettings.HighGlow ? 1.0 : 0.8
+            glowIntensity: glow === GraphicsSettings.HighGlow ? 1.0
+                           : glow === GraphicsSettings.MediumGlow ? 0.9 : 0.8
             glowBloom: 0.0
             glowHDRMinimumValue: 0.9
-            glowLevel: glow === GraphicsSettings.HighGlow
-                       ? ExtendedSceneEnvironment.One | ExtendedSceneEnvironment.Two | ExtendedSceneEnvironment.Three
-                       : ExtendedSceneEnvironment.One | ExtendedSceneEnvironment.Two
+            glowLevel: glow === GraphicsSettings.LowGlow
+                       ? ExtendedSceneEnvironment.One | ExtendedSceneEnvironment.Two
+                       : ExtendedSceneEnvironment.One | ExtendedSceneEnvironment.Two | ExtendedSceneEnvironment.Three
         }
 
         // Key light from above in front, gives the Phong highlights and

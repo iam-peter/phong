@@ -51,8 +51,9 @@ browser's local storage.
 | Right paddle | computer | `Up`/`Down` |
 | Mouse / touch | drag anywhere | drag on your half |
 
-`Esc` pauses, `Esc` again goes back to the menu, `Space` or `P` toggles the
-pause. Menus take arrow keys, `Enter` and clicks.
+`Esc` pauses and resumes, the pause menu also leads back to the main menu.
+`Space` or `P` toggles the pause as well. Menus take arrow keys, `Enter` and
+clicks.
 
 Moving the paddle while it hits the ball puts spin on it: brushed upwards the
 ball dips on its way over, brushed downwards it rises.

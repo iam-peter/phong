@@ -28,10 +28,12 @@ public:
     };
     Q_ENUM(Shading)
 
+    // Medium came later, the stored values of the others stay
     enum Glow {
         NoGlow = 0,
         LowGlow,
-        HighGlow
+        HighGlow,
+        MediumGlow
     };
     Q_ENUM(Glow)
 

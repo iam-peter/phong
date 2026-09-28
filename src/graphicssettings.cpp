@@ -33,7 +33,7 @@ GraphicsSettings::GraphicsSettings(QObject* parent):
 {
     m_settings.beginGroup(QStringLiteral("graphics"));
     m_shading = readEnum(m_settings, "shading", defaultShading, Shading::Flat);
-    m_glow = readEnum(m_settings, "glow", defaultGlow, Glow::HighGlow);
+    m_glow = readEnum(m_settings, "glow", defaultGlow, Glow::MediumGlow);
     m_antialiasing = readEnum(m_settings, "antialiasing", defaultAntialiasing,
                               Antialiasing::Multisample4x);
     m_stars = m_settings.value("stars", true).toBool();

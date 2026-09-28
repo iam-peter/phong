@@ -17,8 +17,9 @@ OptionsScene {
         },
         {
             label: qsTr("Glow"),
-            values: [GraphicsSettings.NoGlow, GraphicsSettings.LowGlow, GraphicsSettings.HighGlow],
-            names: [qsTr("Off"), qsTr("Low"), qsTr("High")],
+            values: [GraphicsSettings.NoGlow, GraphicsSettings.LowGlow, GraphicsSettings.MediumGlow,
+                     GraphicsSettings.HighGlow],
+            names: [qsTr("Off"), qsTr("Low"), qsTr("Medium"), qsTr("High")],
             get: () => GraphicsSettings.glow,
             set: (value) => GraphicsSettings.glow = value
         },
