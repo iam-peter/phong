@@ -38,8 +38,11 @@ Node {
         x: root.horizontalAlignment === Text.AlignRight ? -root.textWidth
            : root.horizontalAlignment === Text.AlignHCenter ? -0.5 * root.textWidth
            : 0.0
-        y: root.verticalAlignment === Text.AlignTop ? -root.textHeight
-           : root.verticalAlignment === Text.AlignVCenter ? -0.5 * root.textHeight
+        // Vertical alignment follows the ink, the baseline is the default
+        y: root.verticalAlignment === Text.AlignTop
+           ? metrics.tightBoundingRect.y / geometry.font.pointSize
+           : root.verticalAlignment === Text.AlignVCenter
+           ? (metrics.tightBoundingRect.y + 0.5 * metrics.tightBoundingRect.height) / geometry.font.pointSize
            : 0.0
 
         geometry: ExtrudedTextGeometry {

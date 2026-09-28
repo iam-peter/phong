@@ -4,6 +4,7 @@
 #include <QtMath>
 
 #include <algorithm>
+#include <cmath>
 
 Match::Match(QObject* parent):
     QObject(parent),
@@ -23,7 +24,8 @@ Match::Match(QObject* parent):
     m_rally(0),
     m_longestRally(0),
     m_totalHits(0),
-    m_playTime(0.0)
+    m_playTime(0.0),
+    m_lastTouch(Side::NoSide)
 {}
 
 void Match::start()
@@ -34,6 +36,7 @@ void Match::start()
     setBallVelocity(QVector2D());
     setRally(0);
     setPlayTime(0.0);
+    setLastTouch(Side::NoSide);
 
     m_longestRally = 0;
     emit longestRallyChanged(m_longestRally);
@@ -94,11 +97,56 @@ void Match::paddleHit(Side side, qreal offset)
     const qreal speed = std::min(qreal(m_ballVelocity.length()) * m_speedUp, m_maxSpeed);
     const qreal angle = qDegreesToRadians(std::clamp(offset, -1.0, 1.0) * maxBounceAngle);
 
-    setBallVelocity(QVector2D(direction * speed * qCos(angle), speed * qSin(angle)));
+    hit(side, QVector2D(direction * speed * qCos(angle), speed * qSin(angle)));
+}
 
-    setRally(m_rally + 1);
-    ++m_totalHits;
-    emit totalHitsChanged(m_totalHits);
+void Match::deflect(Side side, const QVector2D& normal)
+{
+    if (m_state != State::Playing || normal.isNull())
+        return;
+
+    // Only balls running into the paddle surface bounce
+    const QVector2D n = normal.normalized();
+    const float into = QVector2D::dotProduct(m_ballVelocity, n);
+    if (into >= 0.0f)
+        return;
+
+    const QVector2D reflected = (m_ballVelocity - 2.0f * into * n).normalized();
+
+    // The surface decides the angle, but a paddle never scores against its
+    // own player, and the ball keeps crossing the field instead of bouncing
+    // between the walls
+    const float awayFromGoal = side == Side::LeftSide ? 1.0f : -1.0f;
+    const float minX = qCos(qDegreesToRadians(maxBounceAngle));
+    const float x = std::max(std::abs(reflected.x()), minX);
+    const float y = std::copysign(std::sqrt(1.0f - x * x),
+                                  reflected.y() == 0.0f ? 1.0f : reflected.y());
+    const QVector2D direction(awayFromGoal * x, y);
+
+    const qreal speed = std::min(qreal(m_ballVelocity.length()) * m_speedUp, m_maxSpeed);
+    hit(side, direction * float(speed));
+}
+
+bool Match::shieldHit(Side side)
+{
+    if (m_state != State::Playing || side == Side::NoSide)
+        return false;
+
+    // The left shield guards against balls moving left and vice versa
+    const float towardsGoal = side == Side::LeftSide ? -1.0f : 1.0f;
+    if (m_ballVelocity.x() * towardsGoal <= 0.0f)
+        return false;
+
+    setBallVelocity(QVector2D(-m_ballVelocity.x(), m_ballVelocity.y()));
+    return true;
+}
+
+void Match::scaleBallSpeed(qreal factor)
+{
+    if (m_state != State::Playing || factor <= 0.0)
+        return;
+
+    setBallVelocity(m_ballVelocity * float(factor));
 }
 
 void Match::wallHit(bool top)
@@ -112,10 +160,10 @@ void Match::wallHit(bool top)
 
 void Match::goal(Side scorer)
 {
-    if (m_state != State::Playing)
+    Player* player = this->player(scorer);
+    if (m_state != State::Playing || !player)
         return;
 
-    Player* player = this->player(scorer);
     player->setScore(player->score() + 1);
 
     setBallVelocity(QVector2D());
@@ -148,7 +196,26 @@ Player* Match::right() const
 
 Player* Match::player(Side side) const
 {
-    return side == Side::LeftSide ? m_left : m_right;
+    switch (side) {
+        case Side::LeftSide:
+            return m_left;
+        case Side::RightSide:
+            return m_right;
+        default:
+            return nullptr;
+    }
+}
+
+Match::Side Match::opponent(Side side)
+{
+    switch (side) {
+        case Side::LeftSide:
+            return Side::RightSide;
+        case Side::RightSide:
+            return Side::LeftSide;
+        default:
+            return Side::NoSide;
+    }
 }
 
 Match::State Match::state() const
@@ -262,6 +329,11 @@ qreal Match::playTime() const
     return m_playTime;
 }
 
+Match::Side Match::lastTouch() const
+{
+    return m_lastTouch;
+}
+
 void Match::setState(State state)
 {
     if (m_state == state)
@@ -321,6 +393,25 @@ void Match::setPlayTime(qreal playTime)
     emit playTimeChanged(playTime);
 }
 
+void Match::setLastTouch(Side lastTouch)
+{
+    if (m_lastTouch == lastTouch)
+        return;
+
+    m_lastTouch = lastTouch;
+    emit lastTouchChanged(lastTouch);
+}
+
+void Match::hit(Side side, const QVector2D& velocity)
+{
+    setBallVelocity(velocity);
+    setLastTouch(side);
+
+    setRally(m_rally + 1);
+    ++m_totalHits;
+    emit totalHitsChanged(m_totalHits);
+}
+
 void Match::serve()
 {
     QRandomGenerator* random = QRandomGenerator::global();
@@ -332,6 +423,7 @@ void Match::serve()
 
     setBallVelocity(QVector2D(direction * m_serveSpeed * qCos(angle),
                               vertical * m_serveSpeed * qSin(angle)));
+    setLastTouch(Side::NoSide);
     setState(State::Playing);
     emit served();
 }

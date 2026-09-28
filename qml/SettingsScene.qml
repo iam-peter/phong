@@ -40,6 +40,13 @@ Scene {
             set: (value) => GameSettings.difficulty = value
         },
         {
+            label: qsTr("Modifiers"),
+            values: [true, false],
+            names: [qsTr("On"), qsTr("Off")],
+            get: () => GameSettings.modifiers,
+            set: (value) => GameSettings.modifiers = value
+        },
+        {
             label: qsTr("Restore defaults"),
             values: [],
             names: [],
@@ -111,6 +118,7 @@ Scene {
             readonly property var value: {
                 GameSettings.pointsToWin; GameSettings.ballSpeed
                 GameSettings.paddleSize; GameSettings.difficulty
+                GameSettings.modifiers
                 return modelData.get()
             }
             readonly property string valueName: {

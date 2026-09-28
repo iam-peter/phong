@@ -24,6 +24,7 @@ qt_add_qml_module(phong
         qml/Scene.qml
         qml/Text3D.qml
         qml/Disc.qml
+        qml/ModifierItem.qml
         qml/MenuScene.qml
         qml/GameScene.qml
         qml/SettingsScene.qml
@@ -32,6 +33,7 @@ qt_add_qml_module(phong
         src/player.h src/player.cpp
         src/match.h src/match.cpp
         src/computerplayer.h src/computerplayer.cpp
+        src/modifiers.h src/modifiers.cpp
         src/gamesettings.h src/gamesettings.cpp
 )
 

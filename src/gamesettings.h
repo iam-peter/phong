@@ -17,6 +17,7 @@ class GameSettings : public QObject
     Q_PROPERTY(BallSpeed ballSpeed READ ballSpeed WRITE setBallSpeed NOTIFY ballSpeedChanged)
     Q_PROPERTY(PaddleSize paddleSize READ paddleSize WRITE setPaddleSize NOTIFY paddleSizeChanged)
     Q_PROPERTY(ComputerPlayer::Difficulty difficulty READ difficulty WRITE setDifficulty NOTIFY difficultyChanged)
+    Q_PROPERTY(bool modifiers READ modifiers WRITE setModifiers NOTIFY modifiersChanged)
 
     Q_PROPERTY(qreal serveSpeed READ serveSpeed NOTIFY ballSpeedChanged)
     Q_PROPERTY(qreal maxSpeed READ maxSpeed NOTIFY ballSpeedChanged)
@@ -56,6 +57,9 @@ public:
     void setDifficulty(ComputerPlayer::Difficulty difficulty);
     ComputerPlayer::Difficulty difficulty() const;
 
+    void setModifiers(bool modifiers);
+    bool modifiers() const;
+
     qreal serveSpeed() const;
     qreal maxSpeed() const;
     qreal paddleLength() const;
@@ -65,6 +69,7 @@ signals:
     void ballSpeedChanged(GameSettings::BallSpeed);
     void paddleSizeChanged(GameSettings::PaddleSize);
     void difficultyChanged(ComputerPlayer::Difficulty);
+    void modifiersChanged(bool);
 
 private:
     QSettings m_settings;
@@ -73,6 +78,7 @@ private:
     BallSpeed m_ballSpeed;
     PaddleSize m_paddleSize;
     ComputerPlayer::Difficulty m_difficulty;
+    bool m_modifiers;
 };
 
 #endif // GAMESETTINGS_H

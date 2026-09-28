@@ -53,6 +53,24 @@ browser's local storage.
 `Esc` pauses, `Esc` again goes back to the menu, `Space` or `P` toggles the
 pause. Menus take arrow keys, `Enter` and clicks.
 
+## Modifiers
+
+Now and then a modifier appears on the field. The ball collects it by flying
+through, and the player who touched the ball last gets the effect. Right
+after a serve the ball flies through without collecting anything.
+
+| | Modifier | Effect |
+|---|---|---|
+| `>>` | Fast ball | the ball speeds up towards the opponent |
+| `+` | Big paddle | the collector's paddle grows for 12 s |
+| `\|\|` | Shield | a barrier behind the collector's paddle stops one goal, it stays until hit |
+| `-` | Small paddle | curse, the opponent's paddle shrinks for 12 s |
+| `@` | Spin curse | curse, the opponent's paddle rotates for 7 s and the ball bounces off its surface |
+| `=` | Narrow field | the walls move in for 12 s |
+
+Active effects show next to the player names. Modifiers can be switched off
+in the settings.
+
 ## Physics
 
 Qt 3D, which the first version was built on, is not available for

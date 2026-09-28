@@ -187,6 +187,104 @@ private slots:
         QCOMPARE(match.totalHits(), 0);
     }
 
+    void lastTouch()
+    {
+        Match match;
+        serve(match);
+        QCOMPARE(match.lastTouch(), Match::Side::NoSide);
+
+        const Match::Side side = match.ballVelocity().x() < 0.0f ? Match::Side::LeftSide
+                                                                 : Match::Side::RightSide;
+        match.paddleHit(side, 0.0);
+        QCOMPARE(match.lastTouch(), side);
+
+        // A new serve belongs to nobody
+        match.goal(side);
+        match.advance(match.serveDelay());
+        QCOMPARE(match.lastTouch(), Match::Side::NoSide);
+    }
+
+    void deflectReflects()
+    {
+        Match match;
+        match.setSpeedUp(1.0);
+        serve(match);
+
+        // Towards the left paddle, tilted by 45 degrees
+        if (match.ballVelocity().x() > 0.0f)
+            match.paddleHit(Match::Side::RightSide, 0.0);
+        const QVector2D before = match.ballVelocity();
+        const int rally = match.rally();
+        const QVector2D normal = QVector2D(1, 1).normalized();
+
+        match.deflect(Match::Side::LeftSide, normal);
+        const QVector2D after = match.ballVelocity();
+        QCOMPARE(after.length(), before.length());
+        QVERIFY(QVector2D::dotProduct(after, normal) > 0.0f);
+        QCOMPARE(match.lastTouch(), Match::Side::LeftSide);
+        QCOMPARE(match.rally(), rally + 1);
+
+        // Moving away from the surface already, repeated reports change nothing
+        match.deflect(Match::Side::LeftSide, normal);
+        QCOMPARE(match.ballVelocity(), after);
+    }
+
+    void deflectKeepsBallCrossing()
+    {
+        Match match;
+        match.setSpeedUp(1.0);
+        serve(match);
+        if (match.ballVelocity().x() > 0.0f)
+            match.paddleHit(Match::Side::RightSide, 0.0);
+
+        // A paddle lying flat would send the ball straight up
+        const QVector2D v = match.ballVelocity();
+        match.deflect(Match::Side::LeftSide, v.y() < 0.0f ? QVector2D(0, 1) : QVector2D(0, -1));
+
+        const QVector2D after = match.ballVelocity().normalized();
+        QVERIFY(std::abs(after.x()) >= qCos(qDegreesToRadians(Match::maxBounceAngle)) - 1e-4);
+    }
+
+    void deflectNeverTowardsOwnGoal()
+    {
+        Match match;
+        match.setSpeedUp(1.0);
+
+        for (int i = 0; i < 20; ++i) {
+            match.start();
+            match.advance(match.serveDelay());
+            const Match::Side side = match.ballVelocity().x() < 0.0f ? Match::Side::LeftSide
+                                                                     : Match::Side::RightSide;
+
+            // Glancing off a paddle lying flat, a mirror would keep the ball
+            // flying towards the goal
+            const QVector2D v = match.ballVelocity();
+            match.deflect(side, QVector2D(0.0f, v.y() > 0.0f ? -1.0f : 1.0f));
+
+            const float awayFromGoal = side == Match::Side::LeftSide ? 1.0f : -1.0f;
+            QVERIFY(match.ballVelocity().x() * awayFromGoal > 0.0f);
+            QVERIFY(match.ballVelocity().y() * v.y() < 0.0f);
+            QCOMPARE(match.ballVelocity().length(), v.length());
+        }
+    }
+
+    void shieldAndBoost()
+    {
+        Match match;
+        serve(match);
+
+        const Match::Side goalSide = match.ballVelocity().x() < 0.0f ? Match::Side::LeftSide
+                                                                     : Match::Side::RightSide;
+        QVERIFY(!match.shieldHit(Match::opponent(goalSide)));
+        const QVector2D before = match.ballVelocity();
+        QVERIFY(match.shieldHit(goalSide));
+        QCOMPARE(match.ballVelocity(), QVector2D(-before.x(), before.y()));
+        QCOMPARE(match.rally(), 0);
+
+        match.scaleBallSpeed(1.5);
+        QCOMPARE(match.ballVelocity().length(), before.length() * 1.5f);
+    }
+
     void pauseKeepsState()
     {
         Match match;

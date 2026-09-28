@@ -29,6 +29,7 @@ class Match : public QObject
     Q_PROPERTY(int longestRally READ longestRally NOTIFY longestRallyChanged)
     Q_PROPERTY(int totalHits READ totalHits NOTIFY totalHitsChanged)
     Q_PROPERTY(qreal playTime READ playTime NOTIFY playTimeChanged)
+    Q_PROPERTY(Side lastTouch READ lastTouch NOTIFY lastTouchChanged)
 
 public:
     enum State {
@@ -41,6 +42,7 @@ public:
     Q_ENUM(State)
 
     enum Side {
+        NoSide = -1,
         LeftSide = 0,
         RightSide
     };
@@ -64,12 +66,20 @@ public:
 
     // offset: where the ball hit the paddle, -1 (bottom edge) to 1 (top edge)
     Q_INVOKABLE void paddleHit(Match::Side side, qreal offset);
+    // A paddle that isn't upright reflects the ball off its surface, but
+    // always away from its own goal. normal points from the paddle to the ball.
+    Q_INVOKABLE void deflect(Match::Side side, const QVector2D& normal);
+    // The shield in front of the goal of side sends the ball back,
+    // returns whether it did
+    Q_INVOKABLE bool shieldHit(Match::Side side);
+    Q_INVOKABLE void scaleBallSpeed(qreal factor);
     Q_INVOKABLE void wallHit(bool top);
     Q_INVOKABLE void goal(Match::Side scorer);
 
     Player* left() const;
     Player* right() const;
     Player* player(Side side) const;
+    static Side opponent(Side side);
 
     State state() const;
     Player* winner() const;
@@ -96,6 +106,7 @@ public:
     int longestRally() const;
     int totalHits() const;
     qreal playTime() const;
+    Side lastTouch() const;
 
 signals:
     void stateChanged(Match::State);
@@ -111,6 +122,7 @@ signals:
     void longestRallyChanged(int);
     void totalHitsChanged(int);
     void playTimeChanged(qreal);
+    void lastTouchChanged(Match::Side);
 
     void served();
     void pointScored(Match::Side scorer);
@@ -123,6 +135,8 @@ private:
     void setBallVelocity(const QVector2D& ballVelocity);
     void setRally(int rally);
     void setPlayTime(qreal playTime);
+    void setLastTouch(Side lastTouch);
+    void hit(Side side, const QVector2D& velocity);
     void serve();
 
     Player* m_left;
@@ -146,6 +160,7 @@ private:
     int m_longestRally;
     int m_totalHits;
     qreal m_playTime;
+    Side m_lastTouch;
 };
 
 #endif // MATCH_H

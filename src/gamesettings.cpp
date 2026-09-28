@@ -7,6 +7,7 @@ constexpr int defaultPointsToWin = 5;
 constexpr auto defaultBallSpeed = GameSettings::BallSpeed::Medium;
 constexpr auto defaultPaddleSize = GameSettings::PaddleSize::Regular;
 constexpr auto defaultDifficulty = ComputerPlayer::Difficulty::Normal;
+constexpr bool defaultModifiers = true;
 
 template<typename Enum>
 Enum readEnum(const QSettings& settings, const char* key, Enum fallback, Enum last)
@@ -22,7 +23,8 @@ GameSettings::GameSettings(QObject* parent):
     m_pointsToWin(defaultPointsToWin),
     m_ballSpeed(defaultBallSpeed),
     m_paddleSize(defaultPaddleSize),
-    m_difficulty(defaultDifficulty)
+    m_difficulty(defaultDifficulty),
+    m_modifiers(defaultModifiers)
 {
     m_pointsToWin = std::clamp(m_settings.value("pointsToWin", defaultPointsToWin).toInt(),
                                minPointsToWin, maxPointsToWin);
@@ -30,6 +32,7 @@ GameSettings::GameSettings(QObject* parent):
     m_paddleSize = readEnum(m_settings, "paddleSize", defaultPaddleSize, PaddleSize::Large);
     m_difficulty = readEnum(m_settings, "difficulty", defaultDifficulty,
                             ComputerPlayer::Difficulty::Hard);
+    m_modifiers = m_settings.value("modifiers", defaultModifiers).toBool();
 }
 
 void GameSettings::restoreDefaults()
@@ -38,6 +41,7 @@ void GameSettings::restoreDefaults()
     setBallSpeed(defaultBallSpeed);
     setPaddleSize(defaultPaddleSize);
     setDifficulty(defaultDifficulty);
+    setModifiers(defaultModifiers);
 }
 
 void GameSettings::setPointsToWin(int pointsToWin)
@@ -99,6 +103,21 @@ void GameSettings::setDifficulty(ComputerPlayer::Difficulty difficulty)
 ComputerPlayer::Difficulty GameSettings::difficulty() const
 {
     return m_difficulty;
+}
+
+void GameSettings::setModifiers(bool modifiers)
+{
+    if (m_modifiers == modifiers)
+        return;
+
+    m_modifiers = modifiers;
+    m_settings.setValue("modifiers", modifiers);
+    emit modifiersChanged(modifiers);
+}
+
+bool GameSettings::modifiers() const
+{
+    return m_modifiers;
 }
 
 qreal GameSettings::serveSpeed() const

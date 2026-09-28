@@ -23,14 +23,38 @@ Scene {
     readonly property real wallThickness: 1.0
     readonly property real ballRadius: 0.8
     readonly property real paddleWidth: 1.0
-    readonly property real paddleLength: GameSettings.paddleLength
     readonly property real paddleSpeed: 24.0
     readonly property real paddleX: 0.5 * stageWidth - goalDepth
-    readonly property real paddleLimit: 0.5 * (stageHeight - wallThickness - paddleLength)
-    readonly property real ballLimit: 0.5 * (stageHeight - wallThickness) - ballRadius
+    readonly property real spinSpeed: 150.0 // degrees per second
+
+    // Shields sit a bit behind the paddles, the goal line behind them
+    readonly property real shieldWidth: 0.4
+    readonly property real shieldX: paddleX + 1.6
+    readonly property real goalLine: shieldX + 0.5 * shieldWidth + ballRadius
+
+    // The walls move in while the field is narrowed
+    readonly property real narrowInset: 3.0
+    property real fieldInset: modifiers.fieldNarrowed ? narrowInset : 0.0
+    Behavior on fieldInset {
+        NumberAnimation { duration: 700; easing.type: Easing.InOutQuad }
+    }
+    readonly property real wallY: 0.5 * stageHeight - fieldInset
+    readonly property real innerHeight: 2.0 * wallY - wallThickness
+    readonly property real ballLimit: 0.5 * innerHeight - ballRadius
+
+    property real leftPaddleLength: GameSettings.paddleLength * match.left.paddleScale
+    Behavior on leftPaddleLength {
+        NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
+    }
+    property real rightPaddleLength: GameSettings.paddleLength * match.right.paddleScale
+    Behavior on rightPaddleLength {
+        NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
+    }
 
     property real leftPaddleY: 0.0
     property real rightPaddleY: 0.0
+    property real leftPaddleAngle: 0.0
+    property real rightPaddleAngle: 0.0
 
     // Held keys
     property bool leftUp: false
@@ -45,6 +69,9 @@ Scene {
 
     readonly property bool running: match.state === Match.Serving || match.state === Match.Playing
 
+    // Items the ball flew through, collected after the physics step
+    property var pendingItems: []
+
     property int currentPauseItem: 0
     readonly property var pauseItems: [
         { text: qsTr("Resume"), activate: () => match.resume() },
@@ -54,9 +81,12 @@ Scene {
     function startMatch() {
         leftPaddleY = 0.0
         rightPaddleY = 0.0
+        leftPaddleAngle = 0.0
+        rightPaddleAngle = 0.0
         releaseInput()
         resetBall()
         computer.reset()
+        modifiers.reset()
         match.start()
     }
 
@@ -92,8 +122,62 @@ Scene {
         return 0
     }
 
-    function movePaddle(y, input, dt) {
-        return Math.max(-paddleLimit, Math.min(paddleLimit, y + input * paddleSpeed * dt))
+    function movePaddle(y, input, length, dt) {
+        const limit = 0.5 * (innerHeight - length)
+        return Math.max(-limit, Math.min(limit, y + input * paddleSpeed * dt))
+    }
+
+    // Spins while cursed and then finishes the turn until upright again
+    function turnPaddle(angle, spinning, dt) {
+        if (spinning)
+            return (angle + spinSpeed * dt) % 360
+        if (angle % 180 === 0)
+            return angle
+
+        const next = angle + spinSpeed * dt
+        const upright = Math.floor(next / 180)
+        return upright > Math.floor(angle / 180) ? (upright * 180) % 360 : next
+    }
+
+    // Upright paddles use the arcade bounce, turned ones reflect the ball
+    // off their surface
+    function paddleContact(side, paddle, angle, length, normals) {
+        if (angle % 180 === 0 || normals.length === 0) {
+            match.paddleHit(side, (ball.y - paddle.y) / (0.5 * length + ballRadius))
+            return
+        }
+
+        // The contact normal points from the paddle to the ball
+        let normal = Qt.vector2d(normals[0].x, normals[0].y)
+        if (normal.dotProduct(Qt.vector2d(ball.x - paddle.x, ball.y - paddle.y)) < 0)
+            normal = normal.times(-1)
+        match.deflect(side, normal)
+    }
+
+    // Removing an item destroys its trigger body, not while it reports
+    function queueCollect(itemId) {
+        pendingItems.push(itemId)
+        Qt.callLater(collectPending)
+    }
+
+    function collectPending() {
+        const itemIds = pendingItems
+        pendingItems = []
+        for (const itemId of itemIds)
+            modifiers.collect(itemId)
+    }
+
+    function effectsOf(player) {
+        const kinds = []
+        if (player.paddleScale > 1.0)
+            kinds.push(Modifiers.BigPaddle)
+        else if (player.paddleScale < 1.0)
+            kinds.push(Modifiers.SmallPaddle)
+        if (player.shielded)
+            kinds.push(Modifiers.Shield)
+        if (player.spinning)
+            kinds.push(Modifiers.SpinPaddle)
+        return kinds
     }
 
     // Called after every physics step
@@ -101,6 +185,8 @@ Scene {
         match.advance(dt)
         if (!running)
             return
+
+        modifiers.advance(dt)
 
         const onePlayer = mode === GameScene.OnePlayer
         const leftInput = onePlayer
@@ -116,8 +202,10 @@ Scene {
             rightInput = humanInput(rightUp, rightDown, rightPointerY, rightPaddleY)
         }
 
-        leftPaddleY = movePaddle(leftPaddleY, leftInput, dt)
-        rightPaddleY = movePaddle(rightPaddleY, rightInput, dt)
+        leftPaddleY = movePaddle(leftPaddleY, leftInput, leftPaddleLength, dt)
+        rightPaddleY = movePaddle(rightPaddleY, rightInput, rightPaddleLength, dt)
+        leftPaddleAngle = turnPaddle(leftPaddleAngle, match.left.spinning, dt)
+        rightPaddleAngle = turnPaddle(rightPaddleAngle, match.right.spinning, dt)
     }
 
     function setKey(key, pressed) {
@@ -258,9 +346,20 @@ Scene {
 
         difficulty: GameSettings.difficulty
         paddleX: root.paddleX - 0.5 * root.paddleWidth - root.ballRadius
-        paddleReach: 0.5 * root.paddleLength + root.ballRadius
+        paddleReach: 0.5 * root.rightPaddleLength + root.ballRadius
         fieldTop: root.ballLimit
         fieldBottom: -root.ballLimit
+    }
+
+    Modifiers {
+        id: modifiers
+
+        match: match
+        enabled: GameSettings.modifiers
+        // Inside the narrowed field, clear of the paddles
+        spawnArea: Qt.rect(-8.0, -5.0, 16.0, 10.0)
+
+        onCollected: (kind, side, position) => pickupPopup.show(kind, position)
     }
 
     Timer {
@@ -292,7 +391,7 @@ Scene {
     // Goal planes
     Model {
         position: Qt.vector3d(-0.5 * (root.stageWidth - root.goalDepth), 0, -0.5)
-        scale: Qt.vector3d(root.goalDepth / 100, root.stageHeight / 100, 1)
+        scale: Qt.vector3d(root.goalDepth / 100, 2.0 * root.wallY / 100, 1)
         source: "#Rectangle"
         materials: DefaultMaterial {
             id: leftGoalMaterial
@@ -303,7 +402,7 @@ Scene {
 
     Model {
         position: Qt.vector3d(0.5 * (root.stageWidth - root.goalDepth), 0, -0.5)
-        scale: Qt.vector3d(root.goalDepth / 100, root.stageHeight / 100, 1)
+        scale: Qt.vector3d(root.goalDepth / 100, 2.0 * root.wallY / 100, 1)
         source: "#Rectangle"
         materials: DefaultMaterial {
             id: rightGoalMaterial
@@ -324,10 +423,10 @@ Scene {
         ColorAnimation { target: rightGoalMaterial; property: "diffuseColor"; to: Theme.goal; duration: 500 }
     }
 
-    // Goals, a ball whose center passed the paddle line is out
+    // Goals, a ball whose center passed the shield line is out
     TriggerBody {
         id: leftGoal
-        x: -(root.paddleX + root.ballRadius + 5.0)
+        x: -(root.goalLine + 5.0)
         collisionShapes: BoxShape {
             extents: Qt.vector3d(10.0, root.stageHeight + 10.0, 2.0)
         }
@@ -339,7 +438,7 @@ Scene {
 
     TriggerBody {
         id: rightGoal
-        x: root.paddleX + root.ballRadius + 5.0
+        x: root.goalLine + 5.0
         collisionShapes: BoxShape {
             extents: Qt.vector3d(10.0, root.stageHeight + 10.0, 2.0)
         }
@@ -349,10 +448,13 @@ Scene {
         }
     }
 
-    // Walls
-    StaticRigidBody {
+    // Walls, kinematic to move in when the field is narrowed
+    DynamicRigidBody {
         id: topWall
-        y: 0.5 * root.stageHeight
+        isKinematic: true
+        // Created at the target, not at the origin on top of the ball
+        position: kinematicPosition
+        kinematicPosition: Qt.vector3d(0, root.wallY, 0)
         physicsMaterial: bouncy
         sendContactReports: true
         collisionShapes: BoxShape {
@@ -369,9 +471,12 @@ Scene {
         }
     }
 
-    StaticRigidBody {
+    DynamicRigidBody {
         id: bottomWall
-        y: -0.5 * root.stageHeight
+        isKinematic: true
+        // Created at the target, not at the origin on top of the ball
+        position: kinematicPosition
+        kinematicPosition: Qt.vector3d(0, -root.wallY, 0)
         physicsMaterial: bouncy
         sendContactReports: true
         collisionShapes: BoxShape {
@@ -392,17 +497,20 @@ Scene {
     DynamicRigidBody {
         id: leftPaddle
         isKinematic: true
-        // The engine writes the simulated pose back to position
+        // Created at the target, not at the origin on top of the ball. Only
+        // the start, the engine writes the simulated pose back to position.
+        position: kinematicPosition
         kinematicPosition: Qt.vector3d(-root.paddleX, root.leftPaddleY, 0)
+        kinematicEulerRotation: Qt.vector3d(0, 0, root.leftPaddleAngle)
         physicsMaterial: bouncy
         sendContactReports: true
         collisionShapes: BoxShape {
-            extents: Qt.vector3d(root.paddleWidth, root.paddleLength, 1.0)
+            extents: Qt.vector3d(root.paddleWidth, root.leftPaddleLength, 1.0)
         }
 
         Model {
             source: "#Cube"
-            scale: Qt.vector3d(root.paddleWidth / 100, root.paddleLength / 100, 0.01)
+            scale: Qt.vector3d(root.paddleWidth / 100, root.leftPaddleLength / 100, 0.01)
             materials: DefaultMaterial {
                 diffuseColor: Theme.paddle
                 specularAmount: 0.0
@@ -413,20 +521,141 @@ Scene {
     DynamicRigidBody {
         id: rightPaddle
         isKinematic: true
-        // The engine writes the simulated pose back to position
+        // Created at the target, not at the origin on top of the ball. Only
+        // the start, the engine writes the simulated pose back to position.
+        position: kinematicPosition
         kinematicPosition: Qt.vector3d(root.paddleX, root.rightPaddleY, 0)
+        kinematicEulerRotation: Qt.vector3d(0, 0, root.rightPaddleAngle)
         physicsMaterial: bouncy
         sendContactReports: true
         collisionShapes: BoxShape {
-            extents: Qt.vector3d(root.paddleWidth, root.paddleLength, 1.0)
+            extents: Qt.vector3d(root.paddleWidth, root.rightPaddleLength, 1.0)
         }
 
         Model {
             source: "#Cube"
-            scale: Qt.vector3d(root.paddleWidth / 100, root.paddleLength / 100, 0.01)
+            scale: Qt.vector3d(root.paddleWidth / 100, root.rightPaddleLength / 100, 0.01)
             materials: DefaultMaterial {
                 diffuseColor: Theme.paddle
                 specularAmount: 0.0
+            }
+        }
+    }
+
+    // Shields, parked far away while the player has none
+    DynamicRigidBody {
+        id: leftShield
+        isKinematic: true
+        // Created at the target, not at the origin on top of the ball
+        position: kinematicPosition
+        kinematicPosition: Qt.vector3d(-root.shieldX, match.left.shielded ? 0 : 1000, 0)
+        physicsMaterial: bouncy
+        sendContactReports: true
+        collisionShapes: BoxShape {
+            extents: Qt.vector3d(root.shieldWidth, root.innerHeight, 1.0)
+        }
+
+        Model {
+            visible: match.left.shielded
+            source: "#Cube"
+            scale: Qt.vector3d(root.shieldWidth / 100, root.innerHeight / 100, 0.01)
+            materials: DefaultMaterial {
+                diffuseColor: Theme.shield
+                specularAmount: 0.0
+            }
+        }
+    }
+
+    DynamicRigidBody {
+        id: rightShield
+        isKinematic: true
+        // Created at the target, not at the origin on top of the ball
+        position: kinematicPosition
+        kinematicPosition: Qt.vector3d(root.shieldX, match.right.shielded ? 0 : 1000, 0)
+        physicsMaterial: bouncy
+        sendContactReports: true
+        collisionShapes: BoxShape {
+            extents: Qt.vector3d(root.shieldWidth, root.innerHeight, 1.0)
+        }
+
+        Model {
+            visible: match.right.shielded
+            source: "#Cube"
+            scale: Qt.vector3d(root.shieldWidth / 100, root.innerHeight / 100, 0.01)
+            materials: DefaultMaterial {
+                diffuseColor: Theme.shield
+                specularAmount: 0.0
+            }
+        }
+    }
+
+    // Collectible modifiers, the ball picks them up by flying through
+    Repeater3D {
+        model: modifiers
+
+        delegate: TriggerBody {
+            id: item
+
+            required property int kind
+            required property int itemId
+            required property real itemX
+            required property real itemY
+
+            position: Qt.vector3d(itemX, itemY, 0)
+            collisionShapes: SphereShape {
+                diameter: 1.8
+            }
+            onBodyEntered: (body) => {
+                if (body === ball)
+                    root.queueCollect(item.itemId)
+            }
+
+            ModifierItem {
+                kind: item.kind
+
+                Vector3dAnimation on scale {
+                    from: Qt.vector3d(0, 0, 0)
+                    to: Qt.vector3d(1, 1, 1)
+                    duration: 300
+                    easing.type: Easing.OutBack
+                }
+            }
+        }
+    }
+
+    // Name of the collected modifier, rising and fading
+    Node {
+        id: pickupPopup
+
+        property int kind: 0
+        property real startY: 0.0
+
+        function show(kind, position) {
+            pickupPopup.kind = kind
+            x = position.x
+            startY = position.y + 1.2
+            popupAnimation.restart()
+        }
+
+        z: 1.5
+        opacity: 0.0
+
+        Text3D {
+            scale: Qt.vector3d(0.6, 0.6, 0.6)
+            horizontalAlignment: Text.AlignHCenter
+            color: Theme.modifierColors[pickupPopup.kind]
+            text: Theme.modifierNames[pickupPopup.kind]
+        }
+
+        ParallelAnimation {
+            id: popupAnimation
+            NumberAnimation {
+                target: pickupPopup; property: "opacity"
+                from: 1.0; to: 0.0; duration: 1400; easing.type: Easing.InQuad
+            }
+            NumberAnimation {
+                target: pickupPopup; property: "y"
+                from: pickupPopup.startY; to: pickupPopup.startY + 2.0; duration: 1400
             }
         }
     }
@@ -446,15 +675,20 @@ Scene {
         }
 
         onBodyContact: (body, positions, impulses, normals) => {
-            const reach = 0.5 * root.paddleLength + root.ballRadius
             if (body === leftPaddle)
-                match.paddleHit(Match.LeftSide, (ball.y - leftPaddle.y) / reach)
+                root.paddleContact(Match.LeftSide, leftPaddle, root.leftPaddleAngle,
+                                   root.leftPaddleLength, normals)
             else if (body === rightPaddle)
-                match.paddleHit(Match.RightSide, (ball.y - rightPaddle.y) / reach)
+                root.paddleContact(Match.RightSide, rightPaddle, root.rightPaddleAngle,
+                                   root.rightPaddleLength, normals)
             else if (body === topWall)
                 match.wallHit(true)
             else if (body === bottomWall)
                 match.wallHit(false)
+            else if (body === leftShield)
+                modifiers.shieldHit(Match.LeftSide)
+            else if (body === rightShield)
+                modifiers.shieldHit(Match.RightSide)
         }
 
         Disc {
@@ -468,8 +702,40 @@ Scene {
         y: 0.5 * root.stageHeight + 1.4
 
         Text3D {
+            id: leftName
             x: -0.5 * root.stageWidth
             text: match.left.name
+        }
+
+        // Active effects next to the names
+        Repeater3D {
+            model: root.effectsOf(match.left)
+
+            delegate: ModifierItem {
+                required property int modelData
+                required property int index
+
+                x: leftName.x + leftName.textWidth + 1.0 + index * 1.2
+                y: 0.35
+                radius: 0.5
+                wobbling: false
+                kind: modelData
+            }
+        }
+
+        Repeater3D {
+            model: root.effectsOf(match.right)
+
+            delegate: ModifierItem {
+                required property int modelData
+                required property int index
+
+                x: rightName.x - rightName.textWidth - 1.0 - index * 1.2
+                y: 0.35
+                radius: 0.5
+                wobbling: false
+                kind: modelData
+            }
         }
 
         Text3D {
@@ -489,6 +755,7 @@ Scene {
         }
 
         Text3D {
+            id: rightName
             x: 0.5 * root.stageWidth
             horizontalAlignment: Text.AlignRight
             text: match.right.name
