@@ -3,8 +3,8 @@
 
 int main(int argc, char** argv)
 {
-    QGuiApplication::setOrganizationName(QStringLiteral("phong-cpp"));
-    QGuiApplication::setApplicationName(QStringLiteral("Phong C++"));
+    QGuiApplication::setOrganizationName(QStringLiteral("phong"));
+    QGuiApplication::setApplicationName(QStringLiteral("Phong"));
 
     QGuiApplication app(argc, argv);
 

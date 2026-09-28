@@ -15,7 +15,7 @@ C++, the scenes are QML.
 ## Checkout
 
 ```
-git clone https://github.com/iam-peter/phong-cpp.git
+git clone https://github.com/iam-peter/phong.git
 ```
 
 ## Build
@@ -26,7 +26,7 @@ git clone https://github.com/iam-peter/phong-cpp.git
 ~/Qt/6.11.1/gcc_64/bin/qt-cmake -S . -B build/desktop -G Ninja
 cmake --build build/desktop
 ctest --test-dir build/desktop
-./build/desktop/phong-cpp
+./build/desktop/phong
 ```
 
 ### WebAssembly
@@ -39,7 +39,7 @@ cmake --build build/wasm
 python3 -m http.server -d build/wasm
 ```
 
-Then open <http://localhost:8000/phong-cpp.html>. Settings are kept in the
+Then open <http://localhost:8000/phong.html>. Settings are kept in the
 browser's local storage.
 
 ## Controls

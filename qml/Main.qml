@@ -10,7 +10,7 @@ Window {
     minimumHeight: 100
     visible: true
     color: "black"
-    title: qsTr("Phong C++")
+    title: qsTr("Phong")
 
     property var sceneStack: []
     readonly property Scene currentScene: sceneStack.length ? sceneStack[sceneStack.length - 1] : null
