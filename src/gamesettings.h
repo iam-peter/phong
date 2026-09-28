@@ -31,6 +31,8 @@ class GameSettings : public QObject
     Q_PROPERTY(int mode READ mode WRITE setMode NOTIFY modeChanged)
     // Players on the polygon, 3 to 6
     Q_PROPERTY(int partyPlayers READ partyPlayers WRITE setPartyPlayers NOTIFY partyPlayersChanged)
+    // The host last joined by address
+    Q_PROPERTY(QString lanAddress READ lanAddress WRITE setLanAddress NOTIFY lanAddressChanged)
 
     Q_PROPERTY(qreal serveSpeed READ serveSpeed NOTIFY ballSpeedChanged)
     Q_PROPERTY(qreal maxSpeed READ maxSpeed NOTIFY ballSpeedChanged)
@@ -100,6 +102,9 @@ public:
     void setPartyPlayers(int partyPlayers);
     int partyPlayers() const;
 
+    void setLanAddress(const QString& lanAddress);
+    QString lanAddress() const;
+
     qreal serveSpeed() const;
     qreal maxSpeed() const;
     qreal paddleLength() const;
@@ -118,6 +123,7 @@ signals:
     void kickoffTimeChanged(int);
     void modeChanged(int);
     void partyPlayersChanged(int);
+    void lanAddressChanged(const QString&);
 
 private:
     QSettings m_settings;
@@ -135,6 +141,7 @@ private:
     int m_kickoffTime;
     int m_mode;
     int m_partyPlayers;
+    QString m_lanAddress;
 };
 
 #endif // GAMESETTINGS_H

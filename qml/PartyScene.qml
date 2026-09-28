@@ -23,13 +23,182 @@ Scene {
         return controllers[side] ?? { kind: "cpu" }
     }
 
+    // On the network the host runs the game and sends its state, the other
+    // machines show it, their side at the bottom, and send their input
+    property bool remote: false
+    property int localSlot: 0
+    // Names from the host, the same for everybody
+    property var names: []
+    readonly property real fieldRotation: remote ? -localSlot * 360 / players : 0
+    readonly property bool hosting: Lan.role === Lan.Host && controllers.some((c) => c.kind === "remote")
+    // Host: the latest input of every remote player by id
+    property var remoteInputs: ({})
+    // Host: what happened since the last state sent
+    property var netEvents: []
+    // Remote: the latest state from the host, its age and the input sent
+    property vector2d remoteBall: Qt.vector2d(0, 0)
+    property var remoteOffsets: []
+    property real remoteAge: 0.0
+    property real sentInput: 0.0
+    property real sinceSent: 0.0
+    // Remote: asking before leaving
+    property bool askLeave: false
+
     function playerName(side) {
+        if (remote)
+            return side === localSlot ? qsTr("You") : names[side] ?? ""
         const controller = root.controller(side)
         if (controller.kind === "keyboard")
             return qsTr("You")
+        if (controller.kind === "remote")
+            return controller.name
         if (controller.kind === "pad")
             return qsTr("Pad %1").arg(controllers.slice(0, side + 1).filter((c) => c.kind === "pad").length)
         return qsTr("CPU %1").arg(side)
+    }
+
+    // The names as the others see them
+    function sharedNames() {
+        const names = []
+        for (let side = 0; side < players; ++side)
+            names.push(controller(side).kind === "keyboard" ? Lan.machineName : playerName(side))
+        return names
+    }
+
+    function netEvent(event) {
+        if (hosting)
+            netEvents.push(event)
+    }
+
+    function sendState() {
+        if (!hosting)
+            return
+        const offsets = []
+        for (let i = 0; i < sides.count; ++i)
+            offsets.push(sides.objectAt(i)?.offset ?? 0)
+        Lan.sendAll({ t: "state", match: match.snapshot(), ball: [ball.x, ball.y], offsets: offsets,
+                      events: netEvents })
+        netEvents = []
+    }
+
+    // Sounds and sparks of what happened, here or at the host
+    function playEvent(event) {
+        switch (event.e) {
+            case "serve":
+                SoundEffects.play(SoundEffects.Serve)
+                break
+            case "hit":
+                sides.objectAt(event.p)?.paddle.flash()
+                SoundEffects.play(SoundEffects.PaddleHit, 1.0 + 0.04 * Math.min(match.rally, 20))
+                sparks.burst(Qt.vector3d(ball.x, ball.y, 0.5), Theme.ball, 10)
+                break
+            case "wall":
+                SoundEffects.play(SoundEffects.WallHit)
+                break
+            case "goal":
+                SoundEffects.play(SoundEffects.Goal)
+                sparks.burst(Qt.vector3d(ball.x, ball.y, 0.5), root.colors[event.p], 50)
+                ball.clearTrail()
+                break
+            case "out":
+                banner.show(qsTr("%1 out").arg(playerName(event.p)), root.colors[event.p])
+                break
+            case "left":
+                banner.show(qsTr("%1 left").arg(event.name), Theme.dimmed)
+                break
+        }
+    }
+
+    // The game from the host, again after a rematch
+    function startRemote(message) {
+        players = message.players
+        localSlot = message.slot
+        names = message.names
+        place = 0
+        askLeave = false
+        remoteOffsets = []
+        remoteBall = Qt.vector2d(0, 0)
+        for (let i = 0; i < sides.count; ++i)
+            sides.objectAt(i)?.reset()
+        ball.clearTrail()
+        match.applySnapshot(message.match ?? {})
+    }
+
+    function applyRemote(message) {
+        match.applySnapshot(message.match)
+        remoteBall = Qt.vector2d(message.ball[0], message.ball[1])
+        remoteOffsets = message.offsets
+        remoteAge = 0.0
+        for (const event of message.events ?? [])
+            playEvent(event)
+
+        // Out, or the winner
+        if (place === 0 && match.livesLeft.length > localSlot && !match.isAlive(localSlot)) {
+            place = match.alive + 1
+            SoundEffects.play(SoundEffects.Lose)
+        }
+        else if (place === 0 && match.state === PartyMatch.Finished && match.winner === localSlot) {
+            place = 1
+            SoundEffects.play(SoundEffects.Win)
+        }
+    }
+
+    // Remote: the picture follows the host, the input goes there
+    FrameAnimation {
+        running: root.active && root.remote
+        onTriggered: {
+            const dt = Math.min(frameTime, 0.05)
+            root.remoteAge += dt
+
+            // The ball flies on from the last state, a moment at most
+            const age = match.state === PartyMatch.Playing ? Math.min(root.remoteAge, 0.1) : 0.0
+            const v = match.ball.velocity
+            ball.position = Qt.vector3d(root.remoteBall.x + v.x * age, root.remoteBall.y + v.y * age, 0)
+            ball.advance(dt)
+            for (let i = 0; i < sides.count; ++i) {
+                const side = sides.objectAt(i)
+                if (side)
+                    side.offset += ((root.remoteOffsets[i] ?? 0) - side.offset) * Math.min(1.0, 25.0 * dt)
+            }
+
+            // The own side is at the bottom here, right is along it
+            let input = 0
+            if (root.leftKey || root.rightKey)
+                input = (root.rightKey ? 1 : 0) - (root.leftKey ? 1 : 0)
+            else if (Gamepads.count > 0 && Gamepads.pads[0].direction.x !== 0)
+                input = Math.max(-1, Math.min(1, Gamepads.pads[0].direction.x * 1.4))
+            else if (!isNaN(root.pointerX))
+                input = Math.max(-1, Math.min(1, (root.pointerX - (sides.objectAt(root.localSlot)?.offset ?? 0)) / 0.5))
+            root.sinceSent += dt
+            if (input !== root.sentInput || root.sinceSent > 0.2) {
+                Lan.sendToHost({ t: "input", move: input })
+                root.sentInput = input
+                root.sinceSent = 0.0
+            }
+        }
+    }
+
+    Connections {
+        target: Lan
+        enabled: root.active && root.hosting
+        function onReceived(peer, message) {
+            if (message.t === "input") {
+                const inputs = root.remoteInputs
+                inputs[peer] = Math.max(-1, Math.min(1, Number(message.move) || 0))
+                root.remoteInputs = inputs
+            }
+        }
+        function onPeerLeft(peer) {
+            // The computer takes over
+            const side = root.controllers.findIndex((c) => c.kind === "remote" && c.id === peer)
+            if (side < 0)
+                return
+            root.netEvent({ e: "left", name: root.playerName(side) })
+            root.playEvent({ e: "left", name: root.playerName(side) })
+            const controllers = root.controllers.slice()
+            controllers[side] = { kind: "cpu" }
+            root.controllers = controllers
+        }
     }
 
     // Gamepads work the pause menu and the end, not the game
@@ -146,17 +315,29 @@ Scene {
     viewOffset: Qt.vector3d(0, middleY, 0)
 
     function start() {
+        remote = false
         place = 0
         releaseInput()
         for (let i = 0; i < sides.count; ++i)
             sides.objectAt(i)?.reset()
         resetBall()
         match.start()
+
+        // Everybody on the network starts with it
+        if (hosting) {
+            const names = sharedNames()
+            controllers.forEach((controller, side) => {
+                if (controller.kind === "remote")
+                    Lan.send(controller.id, { t: "start", party: true, players: players, slot: side, names: names,
+                                              match: match.snapshot() })
+            })
+        }
     }
 
     function leave() {
         match.stop()
         releaseInput()
+        Lan.leave()
         phong.returnTo(root.menuScene)
     }
 
@@ -194,8 +375,10 @@ Scene {
             let n = Qt.vector2d(normals[0].x, normals[0].y)
             if (n.dotProduct(Qt.vector2d(ball.x - other.x, ball.y - other.y)) < 0)
                 n = n.times(-1)
-            if (match.bounce(n))
-                SoundEffects.play(SoundEffects.WallHit)
+            if (match.bounce(n)) {
+                playEvent({ e: "wall" })
+                netEvent({ e: "wall" })
+            }
         }
     }
 
@@ -219,6 +402,9 @@ Scene {
                 else if (!isNaN(pointerX))
                     input = Math.max(-1, Math.min(1, (pointerX - side.offset) / 0.5))
             }
+            else if (controller.kind === "remote") {
+                input = root.remoteInputs[controller.id] ?? 0
+            }
             else if (controller.kind === "pad") {
                 // Pushed along the side, whichever way it runs on screen
                 if (controller.pad)
@@ -236,6 +422,7 @@ Scene {
         }
 
         ball.advance(dt)
+        sendState()
     }
 
     onActiveChanged: {
@@ -245,15 +432,34 @@ Scene {
         }
     }
 
+    // Others on the network play on
     onFocusLost: {
         releaseInput()
-        match.pause()
+        if (!hosting && !remote)
+            match.pause()
     }
 
     onKeyPressed: (event) => {
         event.accepted = true
         if (event.isAutoRepeat)
             return
+
+        // On the network only the host pauses, the others may leave
+        if (remote) {
+            if (askLeave || place > 0 || match.state === PartyMatch.Paused) {
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                    leave()
+                else if (event.key === Qt.Key_Escape && askLeave)
+                    askLeave = false
+                else if (event.key === Qt.Key_Escape)
+                    leave()
+                return
+            }
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_P) {
+                askLeave = true
+                return
+            }
+        }
 
         if (place > 0) {
             if (event.key === Qt.Key_Escape) {
@@ -339,22 +545,26 @@ Scene {
         maxSpeed: GameSettings.maxSpeed * 0.9
         serveDelay: GameSettings.kickoffTime
 
-        onServed: SoundEffects.play(SoundEffects.Serve)
+        onServed: {
+            root.playEvent({ e: "serve" })
+            root.netEvent({ e: "serve" })
+        }
         onPaddleHitBall: (player) => {
-            const side = sides.objectAt(player)
-            side?.paddle.flash()
-            SoundEffects.play(SoundEffects.PaddleHit, 1.0 + 0.04 * Math.min(match.rally, 20))
-            sparks.burst(Qt.vector3d(ball.x, ball.y, 0.5), Theme.ball, 10)
+            root.playEvent({ e: "hit", p: player })
+            root.netEvent({ e: "hit", p: player })
         }
         onGoalScored: (player) => {
-            SoundEffects.play(SoundEffects.Goal)
-            sparks.burst(Qt.vector3d(ball.x, ball.y, 0.5), root.colors[player], 50)
+            root.playEvent({ e: "goal", p: player })
+            root.netEvent({ e: "goal", p: player })
             root.resetBall()
             for (let i = 0; i < sides.count; ++i)
                 sides.objectAt(i)?.computer.reset()
         }
+        // Paused and ended states need to get out too, no steps run then
+        onStateChanged: root.sendState()
         onPlayerOut: (player) => {
-            banner.show(qsTr("%1 out").arg(sides.objectAt(player)?.name ?? ""), root.colors[player])
+            root.playEvent({ e: "out", p: player })
+            root.netEvent({ e: "out", p: player })
             // The last human out ends it, the place is the players left
             // and them
             const humans = root.controllers.filter((c, side) => c.kind !== "cpu" && match.isAlive(side))
@@ -395,7 +605,7 @@ Scene {
 
     PhysicsWorld {
         scene: root
-        running: root.active && root.running
+        running: root.active && root.running && !root.remote
         gravity: Qt.vector3d(0, 0, 0)
         enableCCD: true
         numThreads: 0
@@ -412,228 +622,239 @@ Scene {
         dynamicFriction: 0.0
     }
 
-    // The floor, a polygon with lines to the corners
-    Model {
-        visible: GraphicsSettings.floor
-        z: -0.7
-        geometry: ProceduralMesh {
-            positions: {
-                const positions = [Qt.vector3d(0, 0, 0)]
-                for (let i = 0; i <= root.players; ++i)
-                    positions.push(root.corner(i % root.players, root.apothem + root.wallThickness))
-                return positions
-            }
-            normals: {
-                const normals = []
-                for (let i = 0; i <= root.players + 1; ++i)
-                    normals.push(Qt.vector3d(0, 0, 1))
-                return normals
-            }
-            indexes: {
-                const indexes = []
-                for (let i = 1; i <= root.players; ++i)
-                    indexes.push(0, i, i + 1)
-                return indexes
-            }
-        }
-        materials: PhongMaterial {
-            color: Theme.floor
-            shininess: 0.15
-        }
-    }
+    // Everything on the field, turned on the network so that each player
+    // has their own side at the bottom. The host doesn't turn it, the
+    // physics doesn't like a turned world.
+    Node {
+        id: field
+        eulerRotation.z: root.fieldRotation
 
-    Repeater3D {
-        model: GraphicsSettings.floor ? root.players : 0
-
-        delegate: Model {
-            required property int index
-            readonly property vector3d end: root.corner(index, root.apothem)
-
-            position: Qt.vector3d(0.5 * end.x, 0.5 * end.y, -0.65)
-            eulerRotation.z: Math.atan2(end.y, end.x) * 180 / Math.PI
-            scale: Qt.vector3d(end.length() / 100, 0.08 / 100, 0.001)
-            source: "#Cube"
+        // The floor, a polygon with lines to the corners
+        Model {
+            visible: GraphicsSettings.floor
+            z: -0.7
+            geometry: ProceduralMesh {
+                positions: {
+                    const positions = [Qt.vector3d(0, 0, 0)]
+                    for (let i = 0; i <= root.players; ++i)
+                        positions.push(root.corner(i % root.players, root.apothem + root.wallThickness))
+                    return positions
+                }
+                normals: {
+                    const normals = []
+                    for (let i = 0; i <= root.players + 1; ++i)
+                        normals.push(Qt.vector3d(0, 0, 1))
+                    return normals
+                }
+                indexes: {
+                    const indexes = []
+                    for (let i = 1; i <= root.players; ++i)
+                        indexes.push(0, i, i + 1)
+                    return indexes
+                }
+            }
             materials: PhongMaterial {
-                color: Theme.grid
-                glow: 0.6
-                lighting: DefaultMaterial.NoLighting
+                color: Theme.floor
+                shininess: 0.15
             }
         }
-    }
 
-    // A side: two posts, the goal and its trigger, a paddle, the name and
-    // the balls left
-    Repeater3D {
-        id: sides
-        model: root.players
+        Repeater3D {
+            model: GraphicsSettings.floor ? root.players : 0
 
-        delegate: Node {
-            id: side
+            delegate: Model {
+                required property int index
+                readonly property vector3d end: root.corner(index, root.apothem)
 
-            required property int index
-            readonly property color color: root.colors[index]
-            readonly property real angle: root.sideAngle(index) * 180 / Math.PI
-            readonly property bool alive: (match.livesLeft[index] ?? 1) > 0
-            readonly property string name: root.playerName(index)
-            property real offset: 0.0
-            property alias paddle: paddle
-            property alias computer: computer
-
-            function reset() {
-                offset = 0.0
-                computer.reset()
-            }
-
-            ComputerPlayer {
-                id: computer
-                difficulty: GameSettings.difficulty
-                paddleSpeed: root.paddleSpeed
-                paddleX: root.paddleDistance - 0.5 * root.paddleWidth - root.ballRadius
-                paddleReach: 0.5 * root.paddleLength + root.ballRadius
-                fieldTop: 100
-                fieldBottom: -100
-            }
-
-            component Wall: DynamicRigidBody {
-                id: wall
-                property int player: 0
-                property real angle: 0.0
-                property real along: 0.0
-                property real length: 1.0
-                property bool parked: false
-                readonly property bool wall: true
-                property color color: Theme.wall
-                property real glow: 0.35
-
-                isKinematic: true
-                position: kinematicPosition
-                kinematicPosition: parked ? Qt.vector3d(1000, 1000 + 10 * player, 0)
-                                          : root.sidePoint(player, root.apothem + 0.5 * root.wallThickness, along)
-                kinematicEulerRotation: Qt.vector3d(0, 0, angle + 90)
-                physicsMaterial: bouncy
-                sendContactReports: true
-                collisionShapes: BoxShape {
-                    extents: Qt.vector3d(wall.length, root.wallThickness, 1.0)
-                }
-
-                Model {
-                    visible: !wall.parked
-                    source: "#Cube"
-                    scale: Qt.vector3d(wall.length / 100, root.wallThickness / 100, 0.01)
-                    materials: PhongMaterial {
-                        color: wall.color
-                        glow: wall.glow
-                        shininess: 0.5
-                    }
-                }
-            }
-
-            // The posts reach past the corner to close it with the next side
-            Wall {
-                player: side.index
-                angle: side.angle
-                along: -(0.5 * root.sideLength - 0.5 * root.postLength) - 0.4
-                length: root.postLength + 0.8
-            }
-
-            Wall {
-                player: side.index
-                angle: side.angle
-                along: 0.5 * root.sideLength - 0.5 * root.postLength + 0.4
-                length: root.postLength + 0.8
-            }
-
-            // A player out of balls gets a wall
-            Wall {
-                player: side.index
-                angle: side.angle
-                parked: side.alive
-                length: root.goalWidth + 0.2
-                color: Qt.tint(Theme.wall, Qt.rgba(side.color.r, side.color.g, side.color.b, 0.3))
-                glow: 0.2
-            }
-
-            // The goal line glows in the player's color
-            Model {
-                visible: side.alive
-                position: root.sidePoint(side.index, root.apothem + 0.2, 0).plus(Qt.vector3d(0, 0, -0.45))
-                eulerRotation.z: side.angle + 90
+                position: Qt.vector3d(0.5 * end.x, 0.5 * end.y, -0.65)
+                eulerRotation.z: Math.atan2(end.y, end.x) * 180 / Math.PI
+                scale: Qt.vector3d(end.length() / 100, 0.08 / 100, 0.001)
                 source: "#Cube"
-                scale: Qt.vector3d(root.goalWidth / 100, 0.15 / 100, 0.001)
                 materials: PhongMaterial {
-                    color: side.color
-                    glow: 0.8
+                    color: Theme.grid
+                    glow: 0.6
                     lighting: DefaultMaterial.NoLighting
                 }
             }
+        }
 
-            TriggerBody {
-                position: root.sidePoint(side.index, root.apothem + root.ballRadius + 2.0, 0)
-                eulerRotation.z: side.angle + 90
-                collisionShapes: BoxShape {
-                    extents: Qt.vector3d(root.goalWidth, 4.0, 2.0)
-                }
-                onBodyEntered: (body) => {
-                    if (body === ball && side.alive)
-                        root.queueGoal(side.index)
-                }
-            }
+        // A side: two posts, the goal and its trigger, a paddle, the name and
+        // the balls left
+        Repeater3D {
+            id: sides
+            model: root.players
 
-            PaddleBody {
-                id: paddle
-                readonly property int paddleOf: side.index
-                visible: side.alive
-                color: side.color
-                // Parked far away when out
-                paddleX: side.alive ? root.sidePoint(side.index, root.paddleDistance, side.offset).x : 1000 + 10 * side.index
-                paddleY: side.alive ? root.sidePoint(side.index, root.paddleDistance, side.offset).y : 1000
-                angle: side.angle
-                length: root.paddleLength
-                width: root.paddleWidth
-            }
+            delegate: Node {
+                id: side
 
-            // Name and balls left, outside the side
-            Node {
-                visible: !root.sideLayout
-                position: root.sidePoint(side.index, root.labelDistance, 0)
+                required property int index
+                readonly property color color: root.colors[index]
+                readonly property real angle: root.sideAngle(index) * 180 / Math.PI
+                readonly property bool alive: (match.livesLeft[index] ?? 1) > 0
+                readonly property string name: root.playerName(index)
+                property real offset: 0.0
+                property alias paddle: paddle
+                property alias computer: computer
 
-                Text3D {
-                    y: -0.3
-                    x: -0.2
-                    scale: Qt.vector3d(0.6, 0.6, 0.6)
-                    horizontalAlignment: Text.AlignRight
-                    verticalAlignment: Text.AlignVCenter
-                    color: side.alive ? side.color : Theme.dimmed
-                    glow: side.alive ? 0.5 : 0.0
-                    text: side.name
+                function reset() {
+                    offset = 0.0
+                    computer.reset()
                 }
 
-                Repeater3D {
-                    model: match.lives
+                ComputerPlayer {
+                    id: computer
+                    difficulty: GameSettings.difficulty
+                    paddleSpeed: root.paddleSpeed
+                    paddleX: root.paddleDistance - 0.5 * root.paddleWidth - root.ballRadius
+                    paddleReach: 0.5 * root.paddleLength + root.ballRadius
+                    fieldTop: 100
+                    fieldBottom: -100
+                }
 
-                    delegate: Disc {
-                        required property int index
-                        x: 0.5 + index * 0.7
-                        radius: 0.24
-                        sphere: true
-                        color: index < (match.livesLeft[side.index] ?? 0) ? side.color : Theme.goal
-                        glow: 0.4
+                component Wall: DynamicRigidBody {
+                    id: wall
+                    property int player: 0
+                    property real angle: 0.0
+                    property real along: 0.0
+                    property real length: 1.0
+                    property bool parked: false
+                    readonly property bool wall: true
+                    property color color: Theme.wall
+                    property real glow: 0.35
+
+                    isKinematic: true
+                    position: kinematicPosition
+                    kinematicPosition: parked ? Qt.vector3d(1000, 1000 + 10 * player, 0)
+                                              : root.sidePoint(player, root.apothem + 0.5 * root.wallThickness, along)
+                    kinematicEulerRotation: Qt.vector3d(0, 0, angle + 90)
+                    // Without physics, on the network, nothing else turns it
+                    eulerRotation: kinematicEulerRotation
+                    physicsMaterial: bouncy
+                    sendContactReports: true
+                    collisionShapes: BoxShape {
+                        extents: Qt.vector3d(wall.length, root.wallThickness, 1.0)
+                    }
+
+                    Model {
+                        visible: !wall.parked
+                        source: "#Cube"
+                        scale: Qt.vector3d(wall.length / 100, root.wallThickness / 100, 0.01)
+                        materials: PhongMaterial {
+                            color: wall.color
+                            glow: wall.glow
+                            shininess: 0.5
+                        }
+                    }
+                }
+
+                // The posts reach past the corner to close it with the next side
+                Wall {
+                    player: side.index
+                    angle: side.angle
+                    along: -(0.5 * root.sideLength - 0.5 * root.postLength) - 0.4
+                    length: root.postLength + 0.8
+                }
+
+                Wall {
+                    player: side.index
+                    angle: side.angle
+                    along: 0.5 * root.sideLength - 0.5 * root.postLength + 0.4
+                    length: root.postLength + 0.8
+                }
+
+                // A player out of balls gets a wall
+                Wall {
+                    player: side.index
+                    angle: side.angle
+                    parked: side.alive
+                    length: root.goalWidth + 0.2
+                    color: Qt.tint(Theme.wall, Qt.rgba(side.color.r, side.color.g, side.color.b, 0.3))
+                    glow: 0.2
+                }
+
+                // The goal line glows in the player's color
+                Model {
+                    visible: side.alive
+                    position: root.sidePoint(side.index, root.apothem + 0.2, 0).plus(Qt.vector3d(0, 0, -0.45))
+                    eulerRotation.z: side.angle + 90
+                    source: "#Cube"
+                    scale: Qt.vector3d(root.goalWidth / 100, 0.15 / 100, 0.001)
+                    materials: PhongMaterial {
+                        color: side.color
+                        glow: 0.8
+                        lighting: DefaultMaterial.NoLighting
+                    }
+                }
+
+                TriggerBody {
+                    position: root.sidePoint(side.index, root.apothem + root.ballRadius + 2.0, 0)
+                    eulerRotation.z: side.angle + 90
+                    collisionShapes: BoxShape {
+                        extents: Qt.vector3d(root.goalWidth, 4.0, 2.0)
+                    }
+                    onBodyEntered: (body) => {
+                        if (body === ball && side.alive)
+                            root.queueGoal(side.index)
+                    }
+                }
+
+                PaddleBody {
+                    id: paddle
+                    readonly property int paddleOf: side.index
+                    visible: side.alive
+                    color: side.color
+                    // Parked far away when out
+                    paddleX: side.alive ? root.sidePoint(side.index, root.paddleDistance, side.offset).x : 1000 + 10 * side.index
+                    paddleY: side.alive ? root.sidePoint(side.index, root.paddleDistance, side.offset).y : 1000
+                    angle: side.angle
+                    length: root.paddleLength
+                    width: root.paddleWidth
+                }
+
+                // Name and balls left, outside the side, upright
+                Node {
+                    visible: !root.sideLayout
+                    position: root.sidePoint(side.index, root.labelDistance, 0)
+                    eulerRotation.z: -root.fieldRotation
+
+                    Text3D {
+                        y: -0.3
+                        x: -0.2
+                        scale: Qt.vector3d(0.6, 0.6, 0.6)
+                        horizontalAlignment: Text.AlignRight
+                        verticalAlignment: Text.AlignVCenter
+                        color: side.alive ? side.color : Theme.dimmed
+                        glow: side.alive ? 0.5 : 0.0
+                        text: side.name
+                    }
+
+                    Repeater3D {
+                        model: match.lives
+
+                        delegate: Disc {
+                            required property int index
+                            x: 0.5 + index * 0.7
+                            radius: 0.24
+                            sphere: true
+                            color: index < (match.livesLeft[side.index] ?? 0) ? side.color : Theme.goal
+                            glow: 0.4
+                        }
                     }
                 }
             }
         }
-    }
 
-    BallBody {
-        id: ball
-        ball: match.ball
-        radius: root.ballRadius
-        trailSpeed: match.serveSpeed
-        onContact: (body, normals) => root.contact(body, normals)
-    }
+        BallBody {
+            id: ball
+            ball: match.ball
+            radius: root.ballRadius
+            trailSpeed: match.serveSpeed
+            onContact: (body, normals) => root.contact(body, normals)
+        }
 
-    Sparks {
-        id: sparks
+        Sparks {
+            id: sparks
+        }
     }
 
     // Kickoff: the seconds and where the ball goes
@@ -643,6 +864,7 @@ Scene {
 
         Node {
             eulerRotation.z: Math.atan2(match.serveDirection.y, match.serveDirection.x) * 180 / Math.PI
+                             + root.fieldRotation
 
             Repeater3D {
                 model: [
@@ -744,7 +966,7 @@ Scene {
     // Pause and the end, over the field
     Node {
         id: overlay
-        visible: match.state === PartyMatch.Paused || root.place > 0
+        visible: match.state === PartyMatch.Paused || root.place > 0 || root.askLeave
         y: root.middleY
         z: 1.5
 
@@ -764,14 +986,17 @@ Scene {
             horizontalAlignment: Text.AlignHCenter
             color: Theme.title
             glow: 0.8
-            text: root.place === 1 ? (root.controller(match.winner).kind === "keyboard" ? qsTr("You win")
-                                                                         : qsTr("%1 wins").arg(root.playerName(match.winner)))
+            readonly property bool youWon: root.remote ? match.winner === root.localSlot
+                                                       : root.controller(match.winner).kind === "keyboard"
+            text: root.place === 1 ? (youWon ? qsTr("You win") : qsTr("%1 wins").arg(root.playerName(match.winner)))
                   : root.place > 1 ? qsTr("Place %1 of %2").arg(root.place).arg(root.players)
+                  : root.askLeave ? qsTr("Leave?")
                   : qsTr("Paused")
         }
 
         Repeater3D {
-            model: root.place > 0 ? [qsTr("Again"), qsTr("Menu")] : [qsTr("Resume"), qsTr("Menu")]
+            model: root.remote ? (root.askLeave ? [qsTr("Stay"), qsTr("Leave")] : ["", qsTr("Leave")])
+                   : root.place > 0 ? [qsTr("Again"), qsTr("Menu")] : [qsTr("Resume"), qsTr("Menu")]
 
             delegate: Text3D {
                 id: item
@@ -787,6 +1012,8 @@ Scene {
                     SoundEffects.play(SoundEffects.MenuSelect)
                     if (index === 1)
                         root.leave()
+                    else if (root.remote)
+                        root.askLeave = false
                     else if (root.place > 0)
                         root.start()
                     else
@@ -794,7 +1021,7 @@ Scene {
                 }
 
                 Disc {
-                    visible: root.place === 0 && item.index === root.currentPauseItem
+                    visible: !root.remote && root.place === 0 && item.index === root.currentPauseItem
                     position: Qt.vector3d(-0.5 * item.textWidth - 1.0, 0.35, 0)
                     radius: 0.35
                     sphere: true
@@ -808,7 +1035,7 @@ Scene {
             scale: Qt.vector3d(0.5, 0.5, 0.5)
             horizontalAlignment: Text.AlignHCenter
             color: Theme.dimmed
-            text: qsTr("[Enter] again   [Esc] menu")
+            text: root.remote ? qsTr("Waiting for the host   [Esc] leave") : qsTr("[Enter] again   [Esc] menu")
         }
     }
 }

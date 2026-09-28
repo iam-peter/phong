@@ -37,6 +37,8 @@ DynamicRigidBody {
     position: kinematicPosition
     kinematicPosition: Qt.vector3d(paddleX, paddleY, 0)
     kinematicEulerRotation: Qt.vector3d(0, 0, angle)
+    // Only the start as well, and where no physics runs
+    eulerRotation: kinematicEulerRotation
     sendContactReports: true
     physicsMaterial: PhysicsMaterial {
         restitution: 1.0

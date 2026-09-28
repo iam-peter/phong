@@ -117,7 +117,7 @@ Window {
 
     // Who plays which side before a game of several players
     function openLobby(party) {
-        lobbyScene.party = party
+        lobbyScene.open(party)
         nextScene(lobbyScene)
     }
 
@@ -129,11 +129,54 @@ Window {
         partyScene.start()
     }
 
-    // The classic field, gamepads for the sides or the keyboard
-    function startTwoPlayers(leftPad, rightPad) {
-        gameScene.leftPadAssigned = leftPad
-        gameScene.rightPadAssigned = rightPad
+    // The classic field, slots from the lobby: keyboard, gamepads, or a
+    // player on the network
+    function startTwoPlayers(left, right) {
+        gameScene.leftPadAssigned = left?.kind === "pad" ? left.pad : null
+        gameScene.rightPadAssigned = right?.kind === "pad" ? right.pad : null
         startGame(GameScene.TwoPlayers)
+    }
+
+    function openJoin() {
+        nextScene(joinScene)
+    }
+
+    // The machine joined a host: its lobby, its games and their states
+    Connections {
+        target: Lan
+        function onJoined() {
+            lobbyScene.remote = true
+            lobbyScene.remoteSlots = []
+            phong.nextScene(lobbyScene)
+        }
+        function onReceivedFromHost(message) {
+            switch (message.t) {
+                case "lobby":
+                    lobbyScene.showRemote(message)
+                    break
+                case "full":
+                    joinScene.error = qsTr("The game is full")
+                    break
+                case "start":
+                    if (message.party) {
+                        partyScene.remote = true
+                        partyScene.startRemote(message)
+                        if (phong.currentScene !== partyScene)
+                            phong.nextScene(partyScene)
+                    }
+                    break
+                case "state":
+                    if (partyScene.remote)
+                        partyScene.applyRemote(message)
+                    break
+            }
+        }
+        function onLeft(reason) {
+            joinScene.error = reason
+            lobbyScene.remote = false
+            partyScene.remote = false
+            phong.returnTo(phong.sceneStack.includes(joinScene) ? joinScene : menuScene)
+        }
     }
 
     // The player's next match of the tournament, from the bracket
@@ -318,6 +361,13 @@ Window {
             id: achievementsScene
             phong: phong
             position: Qt.vector3d(-2 * phong.sceneSpacingX, -phong.sceneSpacingY, 0)
+        }
+
+        JoinScene {
+            id: joinScene
+            phong: phong
+            position: Qt.vector3d(2 * phong.sceneSpacingX, -phong.sceneSpacingY, 0)
+            menuScene: menuScene
         }
 
         LobbyScene {

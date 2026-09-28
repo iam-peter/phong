@@ -56,6 +56,7 @@ GameSettings::GameSettings(QObject* parent):
                                minKickoffTime, maxKickoffTime);
     m_mode = std::max(m_settings.value("mode", 0).toInt(), 0);
     m_partyPlayers = std::clamp(m_settings.value("partyPlayers", 4).toInt(), 3, 6);
+    m_lanAddress = m_settings.value("lanAddress").toString();
 }
 
 void GameSettings::restoreDefaults()
@@ -270,6 +271,21 @@ void GameSettings::setPartyPlayers(int partyPlayers)
 int GameSettings::partyPlayers() const
 {
     return m_partyPlayers;
+}
+
+void GameSettings::setLanAddress(const QString& lanAddress)
+{
+    if (m_lanAddress == lanAddress)
+        return;
+
+    m_lanAddress = lanAddress;
+    m_settings.setValue("lanAddress", lanAddress);
+    emit lanAddressChanged(lanAddress);
+}
+
+QString GameSettings::lanAddress() const
+{
+    return m_lanAddress;
 }
 
 qreal GameSettings::serveSpeed() const

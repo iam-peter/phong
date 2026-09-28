@@ -104,6 +104,38 @@ private slots:
         QVERIFY((match.ball()->velocity() + v).length() < 1e-4f);
     }
 
+    void snapshotTravels()
+    {
+        PartyMatch host;
+        host.setPlayers(5);
+        host.setLives(2);
+        host.start();
+        serve(host);
+        host.goal(3);
+        host.paddleHit(0, 0.0);
+
+        PartyMatch client;
+        QSignalSpy lives(&client, &PartyMatch::livesLeftChanged);
+        client.applySnapshot(host.snapshot());
+        QCOMPARE(client.players(), 5);
+        QCOMPARE(client.state(), host.state());
+        QCOMPARE(client.livesLeft(), host.livesLeft());
+        QCOMPARE(client.alive(), 5);
+        QCOMPARE(client.serveCountdown(), host.serveCountdown());
+        QCOMPARE(client.serveDirection(), host.serveDirection());
+        QCOMPARE(client.rally(), host.rally());
+        QCOMPARE(lives.count(), 1);
+
+        serve(host);
+        client.applySnapshot(host.snapshot());
+        QCOMPARE(client.state(), PartyMatch::State::Playing);
+        QCOMPARE(client.ball()->velocity(), host.ball()->velocity());
+
+        // The same snapshot again changes nothing
+        client.applySnapshot(host.snapshot());
+        QCOMPARE(lives.count(), 1);
+    }
+
     void lastOneLeftWins()
     {
         PartyMatch match;

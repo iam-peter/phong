@@ -152,6 +152,61 @@ void PartyMatch::goal(int player)
     setState(State::Serving);
 }
 
+QVariantMap PartyMatch::snapshot() const
+{
+    const QVector2D velocity = m_ball->velocity();
+    return {
+        { QStringLiteral("players"), m_players },
+        { QStringLiteral("state"), int(m_state) },
+        { QStringLiteral("lives"), livesLeft() },
+        { QStringLiteral("winner"), m_winner },
+        { QStringLiteral("countdown"), m_serveCountdown },
+        { QStringLiteral("serve"), QVariantList{ m_serveDirection.x(), m_serveDirection.y() } },
+        { QStringLiteral("rally"), m_rally },
+        { QStringLiteral("velocity"), QVariantList{ velocity.x(), velocity.y() } }
+    };
+}
+
+void PartyMatch::applySnapshot(const QVariantMap& snapshot)
+{
+    setPlayers(snapshot.value(QStringLiteral("players"), m_players).toInt());
+
+    QList<int> lives;
+    for (const QVariant& left : snapshot.value(QStringLiteral("lives")).toList())
+        lives.append(left.toInt());
+    if (lives != m_livesLeft) {
+        m_livesLeft = lives;
+        emit livesLeftChanged();
+    }
+
+    const int winner = snapshot.value(QStringLiteral("winner"), -1).toInt();
+    if (winner != m_winner) {
+        m_winner = winner;
+        emit winnerChanged(winner);
+    }
+
+    const qreal countdown = snapshot.value(QStringLiteral("countdown")).toDouble();
+    if (countdown != m_serveCountdown) {
+        m_serveCountdown = countdown;
+        emit serveCountdownChanged(countdown);
+    }
+
+    const QVariantList serve = snapshot.value(QStringLiteral("serve")).toList();
+    const QVector2D direction = serve.size() == 2 ? QVector2D(serve.at(0).toFloat(), serve.at(1).toFloat())
+                                                  : QVector2D();
+    if (direction != m_serveDirection) {
+        m_serveDirection = direction;
+        emit serveDirectionChanged();
+    }
+
+    const QVariantList velocity = snapshot.value(QStringLiteral("velocity")).toList();
+    if (velocity.size() == 2)
+        m_ball->setVelocity(QVector2D(velocity.at(0).toFloat(), velocity.at(1).toFloat()));
+
+    setRally(snapshot.value(QStringLiteral("rally")).toInt());
+    setState(State(std::clamp(snapshot.value(QStringLiteral("state")).toInt(), 0, int(State::Finished))));
+}
+
 bool PartyMatch::isAlive(int player) const
 {
     return player >= 0 && player < m_livesLeft.size() && m_livesLeft.at(player) > 0;

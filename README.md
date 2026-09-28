@@ -135,6 +135,17 @@ Both start in a lobby that shows who plays which side. A gamepad joins with
 `A`, leaves with `B` and starts with `Start`. With two players the first
 pad takes the right side, the second one the left, the keyboard plays the
 rest.
+
+### On the LAN
+
+In the lobby of the polygon mode `LAN open` lets players on the local
+network join. The host runs the game, the others send their paddle and get
+the picture back, each with their own side at the bottom. `Join LAN game` in
+the menu lists the games open on the network. The browser build can't look
+for games or open one, but it joins a desktop host by the address the host
+shows in its lobby, e.g. `192.168.1.5:45455`. The game uses TCP port 45455
+for the players and UDP port 45454 to find games, a firewall has to let
+them through. A player who leaves is replaced by the computer.
 - **Ladder** against Easy, Normal and Hard in a row, a loss can be retried.
 - **Endless** against a computer getting harder and faster the longer you
   last, with three balls to lose. Every return scores a point, every ball the

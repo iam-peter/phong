@@ -5,8 +5,10 @@ import QtQuick3D
 import Phong
 
 // Before a game of several players: who plays which side. The keyboard is
-// the first player, a gamepad joins with A and leaves with B, the free
-// sides are played by the computer.
+// the first player, a gamepad joins with A and leaves with B, players on
+// the network join while the game is open on the LAN, the free sides of
+// the polygon are played by the computer. On a joined machine it shows the
+// lobby of the host.
 Scene {
     id: root
 
@@ -15,33 +17,50 @@ Scene {
     property bool party: false
     property int players: party ? GameSettings.partyPlayers : 2
     property int currentItem: 0
-    // The joined gamepads, in the order they joined
-    property var pads: []
+    // Gamepads { kind: "pad", pad } and network players { kind: "remote",
+    // id, name } in the order they joined
+    property var joiners: []
 
+    // Joined to a host: its lobby as it sends it
+    property bool remote: false
+    property var remoteSlots: []
+    property int remoteSlot: -1
+
+    readonly property bool hostingLan: Lan.role === Lan.Host
     readonly property var colors: [Theme.leftPlayer, Theme.rightPlayer, Theme.tint("#ffd24d"),
                                    Theme.tint("#66ff66"), Theme.tint("#ff8c1a"), Theme.tint("#a64dff")]
 
     // The side of every player: with two players the keyboard shares the
-    // field, a pad takes the right side first, then the left one
+    // field, joiners take the right side first, then the left one
     readonly property var slots: {
+        if (remote)
+            return remoteSlots
         const slots = []
         if (!party) {
-            slots.push(pads.length > 1 ? { kind: "pad", pad: pads[1] } : { kind: "keyboard", keys: "left" })
-            slots.push(pads.length > 0 ? { kind: "pad", pad: pads[0] } : { kind: "keyboard", keys: "right" })
+            slots.push(joiners.length > 1 ? joiners[1] : { kind: "keyboard", keys: "left" })
+            slots.push(joiners.length > 0 ? joiners[0] : { kind: "keyboard", keys: "right" })
             return slots
         }
         slots.push({ kind: "keyboard" })
         for (let i = 1; i < players; ++i)
-            slots.push(i - 1 < pads.length ? { kind: "pad", pad: pads[i - 1] } : { kind: "cpu" })
+            slots.push(i - 1 < joiners.length ? joiners[i - 1] : { kind: "cpu" })
         return slots
     }
+    readonly property int capacity: party ? players - 1 : 2
 
     readonly property var items: {
         const items = []
+        if (remote) {
+            items.push({ text: qsTr("Leave"), activate: () => root.back() })
+            return items
+        }
         if (party)
-            items.push({ text: qsTr("Players"), cycles: true })
+            items.push({ text: qsTr("Players"), cycles: true, change: (step) => root.cyclePlayers(step) })
+        if (Lan.canHost)
+            items.push({ text: hostingLan ? qsTr("LAN open") : qsTr("LAN closed"), cycles: true,
+                         change: () => root.toggleLan() })
         items.push({ text: qsTr("Start"), activate: () => root.start() })
-        items.push({ text: qsTr("Back"), activate: () => phong.returnTo(root.menuScene) })
+        items.push({ text: qsTr("Back"), activate: () => root.back() })
         return items
     }
 
@@ -57,60 +76,140 @@ Scene {
                 return qsTr("Keyboard")
             case "pad":
                 return slot.pad?.name ?? qsTr("Gamepad")
+            case "remote":
+                return qsTr("%1 on the LAN").arg(slot.name)
+            case "host":
+                return qsTr("%1, the host").arg(slot.name)
             default:
                 return qsTr("Computer")
         }
     }
 
+    // What the players on the network see of the slots
+    function sharedSlots() {
+        return slots.map((slot) => {
+            if (slot.kind === "remote")
+                return { kind: "remote", name: slot.name, id: slot.id }
+            if (slot.kind === "cpu")
+                return { kind: "cpu" }
+            return { kind: "host", name: Lan.machineName }
+        })
+    }
+
+    function shareLobby() {
+        if (!hostingLan)
+            return
+        const shared = sharedSlots()
+        for (const joiner of joiners) {
+            if (joiner.kind === "remote")
+                Lan.send(joiner.id, { t: "lobby", party: party, players: players, slots: shared,
+                                      slot: slots.indexOf(joiner) })
+        }
+        Lan.setInfo({ mode: party ? "party" : "classic", players: players,
+                      open: capacity - joiners.length })
+    }
+
+    onSlotsChanged: shareLobby()
+
     function cyclePlayers(step) {
         const count = players - 3 + step
         GameSettings.partyPlayers = 3 + ((count % 4) + 4) % 4
+        // Players who no longer fit leave
+        while (joiners.length > capacity)
+            dropJoiner(joiners[joiners.length - 1])
         SoundEffects.play(SoundEffects.MenuMove)
     }
 
+    function toggleLan() {
+        SoundEffects.play(SoundEffects.MenuSelect)
+        if (hostingLan) {
+            for (const joiner of joiners.filter((j) => j.kind === "remote"))
+                dropJoiner(joiner)
+            Lan.leave()
+        }
+        else {
+            Lan.host(Lan.machineName, { mode: party ? "party" : "classic", players: players, open: capacity })
+        }
+    }
+
+    function dropJoiner(joiner) {
+        joiners = joiners.filter((j) => j !== joiner)
+        if (joiner.kind === "remote")
+            Lan.kick(joiner.id)
+    }
+
     function join(pad) {
-        if (pads.includes(pad) || pads.length >= (party ? players - 1 : 2))
+        if (joiners.some((j) => j.pad === pad) || joiners.length >= capacity)
             return
-        pads = pads.concat([pad])
+        joiners = joiners.concat([{ kind: "pad", pad: pad }])
         SoundEffects.play(SoundEffects.Pickup)
     }
 
     function leave(pad) {
-        if (!pads.includes(pad))
+        const joiner = joiners.find((j) => j.pad === pad)
+        if (!joiner)
             return false
-        pads = pads.filter((p) => p !== pad)
+        dropJoiner(joiner)
         SoundEffects.play(SoundEffects.MenuMove)
         return true
     }
 
-    function start() {
+    function back() {
         SoundEffects.play(SoundEffects.MenuSelect)
-        if (party)
+        Lan.leave()
+        joiners = []
+        remote = false
+        phong.returnTo(root.menuScene)
+    }
+
+    function start() {
+        if (remote)
+            return
+        SoundEffects.play(SoundEffects.MenuSelect)
+        if (party) {
             phong.startParty(players, slots)
-        else
-            phong.startTwoPlayers(slots[0].kind === "pad" ? slots[0].pad : null,
-                                  slots[1].kind === "pad" ? slots[1].pad : null)
+            return
+        }
+        phong.startTwoPlayers(slots[0], slots[1])
+    }
+
+    // A lobby on this machine, after one of a host maybe
+    function open(asParty) {
+        remote = false
+        remoteSlots = []
+        joiners = []
+        party = asParty
+        players = Qt.binding(() => root.party ? GameSettings.partyPlayers : 2)
+    }
+
+    // A client gets the lobby of the host
+    function showRemote(message) {
+        remote = true
+        party = message.party
+        players = message.players
+        remoteSlots = message.slots
+        remoteSlot = message.slot
     }
 
     onActiveChanged: {
         if (active)
-            currentItem = party ? 1 : 0
+            currentItem = remote ? 0 : items.findIndex((item) => item.activate !== undefined && !item.cycles)
     }
 
     // Gamepads join, leave and start here instead of navigating
-    menuNavigation: false
+    menuNavigation: remote
 
     Connections {
         target: Gamepads
-        enabled: root.active
+        enabled: root.active && !root.remote
         function onButtonPressed(pad, button) {
             switch (button) {
                 case Gamepad.South:
                     root.join(pad)
                     break
                 case Gamepad.East:
-                    if (!root.leave(pad) && root.pads.length === 0)
-                        phong.returnTo(root.menuScene)
+                    if (!root.leave(pad) && !root.joiners.some((j) => j.kind === "pad"))
+                        root.back()
                     break
                 case Gamepad.Start:
                     root.start()
@@ -124,15 +223,33 @@ Scene {
         }
         function onPadsChanged() {
             // Unplugged pads leave
-            root.pads = root.pads.filter((pad) => Gamepads.pads.includes(pad))
+            root.joiners = root.joiners.filter((j) => j.kind !== "pad" || Gamepads.pads.includes(j.pad))
+        }
+    }
+
+    Connections {
+        target: Lan
+        enabled: root.hostingLan && !root.remote
+        function onPeerJoined(peer, name) {
+            if (root.joiners.length >= root.capacity) {
+                Lan.send(peer, { t: "full" })
+                Lan.kick(peer)
+                return
+            }
+            root.joiners = root.joiners.concat([{ kind: "remote", id: peer, name: name }])
+            SoundEffects.play(SoundEffects.Pickup)
+        }
+        function onPeerLeft(peer) {
+            root.joiners = root.joiners.filter((j) => j.kind !== "remote" || j.id !== peer)
         }
     }
 
     onKeyPressed: (event) => {
         event.accepted = true
+        const item = items[currentItem]
         switch (event.key) {
             case Qt.Key_Escape:
-                phong.returnTo(root.menuScene)
+                back()
                 break
             case Qt.Key_Up:
                 currentItem = Math.max(currentItem - 1, 0)
@@ -144,14 +261,18 @@ Scene {
                 break
             case Qt.Key_Left:
             case Qt.Key_Right:
-                if (items[currentItem].cycles)
-                    cyclePlayers(event.key === Qt.Key_Left ? -1 : 1)
+                if (item?.cycles)
+                    item.change(event.key === Qt.Key_Left ? -1 : 1)
                 break
             case Qt.Key_Enter:
             case Qt.Key_Return:
             case Qt.Key_Space:
-                if (!event.isAutoRepeat && items[currentItem].activate)
-                    items[currentItem].activate()
+                if (event.isAutoRepeat)
+                    break
+                if (item?.activate)
+                    item.activate()
+                else if (item?.cycles)
+                    item.change(1)
                 break
         }
     }
@@ -176,7 +297,7 @@ Scene {
             required property var modelData
             required property int index
 
-            y: 5.6 - index * 1.5
+            y: 5.8 - index * 1.4
 
             Disc {
                 position: Qt.vector3d(-11.0, 0.3, 0)
@@ -188,7 +309,7 @@ Scene {
 
             Text3D {
                 x: -10.0
-                scale: Qt.vector3d(0.8, 0.8, 0.8)
+                scale: Qt.vector3d(0.75, 0.75, 0.75)
                 color: root.colors[slot.index]
                 text: root.party ? qsTr("Player %1").arg(slot.index + 1)
                                  : slot.index === 0 ? qsTr("Left") : qsTr("Right")
@@ -196,16 +317,29 @@ Scene {
 
             Text3D {
                 x: 11.0
-                scale: Qt.vector3d(0.8, 0.8, 0.8)
+                scale: Qt.vector3d(0.75, 0.75, 0.75)
                 horizontalAlignment: Text.AlignRight
-                color: slot.modelData.kind === "cpu" ? Theme.dimmed : Theme.text
-                text: root.slotName(slot.modelData)
+                color: slot.modelData.kind === "cpu" ? Theme.dimmed
+                       : root.remote && slot.index === root.remoteSlot ? Theme.title : Theme.text
+                text: root.remote && slot.index === root.remoteSlot ? qsTr("You") : root.slotName(slot.modelData)
             }
         }
     }
 
     Text3D {
-        y: -4.0
+        y: -2.8
+        scale: Qt.vector3d(0.5, 0.5, 0.5)
+        horizontalAlignment: Text.AlignHCenter
+        color: root.hostingLan ? Theme.title : Theme.dimmed
+        text: root.remote ? qsTr("Waiting for the host to start")
+              : root.hostingLan ? qsTr("Open on the LAN, from a browser join %1").arg(Lan.addresses.slice(0, 2).join(qsTr(" or ")))
+              : Lan.error !== "" ? Lan.error
+              : ""
+    }
+
+    Text3D {
+        y: -3.8
+        visible: !root.remote
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.dimmed
@@ -224,16 +358,16 @@ Scene {
 
             readonly property bool selected: index === root.currentItem
 
-            y: -6.0 - index * 1.8
+            y: -5.4 - index * 1.6
             horizontalAlignment: Text.AlignHCenter
-            text: modelData.cycles ? modelData.text + "  " + root.players : modelData.text
+            text: modelData.text + (modelData.text === qsTr("Players") ? "  " + root.players : "")
             clickable: true
             onClicked: {
                 root.currentItem = item.index
-                if (item.modelData.cycles)
-                    root.cyclePlayers(1)
-                else
+                if (item.modelData.activate)
                     item.modelData.activate()
+                else
+                    item.modelData.change(1)
             }
 
             Disc {

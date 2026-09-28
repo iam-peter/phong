@@ -1,4 +1,4 @@
-find_package(Qt6 REQUIRED COMPONENTS Test)
+find_package(Qt6 REQUIRED COMPONENTS Test Network WebSockets)
 
 function(phong_add_test name)
     qt_add_executable(${name} ${name}.cpp ${ARGN})
@@ -57,6 +57,11 @@ if(TARGET SDL3::SDL3)
     target_link_libraries(tst_gamepads PRIVATE SDL3::SDL3)
     target_compile_definitions(tst_gamepads PRIVATE PHONG_HAVE_SDL3)
 endif()
+
+phong_add_test(tst_lan
+    ${PROJECT_SOURCE_DIR}/src/lan.cpp
+)
+target_link_libraries(tst_lan PRIVATE Qt6::Network Qt6::WebSockets)
 
 phong_add_test(tst_graphicssettings
     ${PROJECT_SOURCE_DIR}/src/graphicssettings.cpp

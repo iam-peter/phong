@@ -74,6 +74,11 @@ public:
 
     Q_INVOKABLE bool isAlive(int player) const;
 
+    // The state for the players on the network, and applying it on their
+    // side, where no rules run
+    Q_INVOKABLE QVariantMap snapshot() const;
+    Q_INVOKABLE void applySnapshot(const QVariantMap& snapshot);
+
     void setPlayers(int players);
     int players() const;
 

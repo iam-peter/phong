@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Qt Quick 3D Helpers provide ExtrudedTextGeometry since 6.9
-find_package(Qt6 6.9 REQUIRED COMPONENTS Core Gui Qml Quick Quick3D Quick3DPhysics Quick3DParticles)
+find_package(Qt6 6.9 REQUIRED COMPONENTS Core Gui Qml Quick Quick3D Quick3DPhysics Quick3DParticles
+                                           Network WebSockets)
 # Sound and gamepads on the desktop, the browser uses Web Audio and the
 # Gamepad API
 if(NOT EMSCRIPTEN)
@@ -43,6 +44,7 @@ qt_add_qml_module(phong
         qml/StatsScene.qml
         qml/GraphicsScene.qml
         qml/OptionsScene.qml
+        qml/JoinScene.qml
         qml/LobbyScene.qml
         qml/ControlsScene.qml
         qml/PartyScene.qml
@@ -68,6 +70,7 @@ qt_add_qml_module(phong
         src/gamesettings.h src/gamesettings.cpp
         src/keysettings.h src/keysettings.cpp
         src/gamepads.h src/gamepads.cpp
+        src/lan.h src/lan.cpp
     RESOURCES
         config/modifiers.json
         config/arenas.json
@@ -82,6 +85,8 @@ target_link_libraries(phong PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::Quick3D
+    Qt6::Network
+    Qt6::WebSockets
 )
 
 if(TARGET Qt6::Multimedia)
