@@ -299,6 +299,12 @@ Active effects show next to the player names. Modifiers can be switched off
 in the settings. Curses get to the computer as well: reversed it reacts
 slower and less accurately, and it can't follow a ghost ball either.
 
+On the polygon of 3-6 Players the modifiers appear around the middle. The
+ones made for two sides stay away there: spin curse, narrow field, multi
+ball and portals. A curse hits every other player still in, the shield
+stands in front of the collector's goal and the ghost ball vanishes in a
+circle around the middle.
+
 ### Configuration
 
 The modifiers are defined in [config/modifiers.json](config/modifiers.json),

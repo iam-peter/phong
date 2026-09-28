@@ -25,6 +25,14 @@ phong_add_test(tst_modifiers
     ${PROJECT_SOURCE_DIR}/src/player.cpp
 )
 
+phong_add_test(tst_partymodifiers
+    ${PROJECT_SOURCE_DIR}/src/partymodifiers.cpp
+    ${PROJECT_SOURCE_DIR}/src/partymatch.cpp
+    ${PROJECT_SOURCE_DIR}/src/modifiers.cpp
+    ${PROJECT_SOURCE_DIR}/src/match.cpp
+    ${PROJECT_SOURCE_DIR}/src/player.cpp
+)
+
 phong_add_test(tst_dash
     ${PROJECT_SOURCE_DIR}/src/dash.cpp
 )
@@ -75,6 +83,12 @@ phong_add_test(tst_soundeffects
 
 # The built-in configuration, at the path the app has it
 qt_add_resources(tst_modifiers "modifiers_config"
+    PREFIX "/qt/qml/Phong"
+    BASE ${PROJECT_SOURCE_DIR}
+    FILES ${PROJECT_SOURCE_DIR}/config/modifiers.json
+)
+
+qt_add_resources(tst_partymodifiers "partymodifiers_config"
     PREFIX "/qt/qml/Phong"
     BASE ${PROJECT_SOURCE_DIR}
     FILES ${PROJECT_SOURCE_DIR}/config/modifiers.json

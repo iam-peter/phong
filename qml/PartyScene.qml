@@ -94,8 +94,8 @@ Scene {
             const side = sides.objectAt(i)
             paddles.push(side ? [side.offset, side.charge, side.dash.direction, side.dash.cooldown] : [0, 0, 0, 0])
         }
-        Lan.sendAll({ t: "state", match: match.snapshot(), ball: [ball.x, ball.y], paddles: paddles,
-                      events: netEvents })
+        Lan.sendAll({ t: "state", match: match.snapshot(), modifiers: modifiers.snapshot(), ball: [ball.x, ball.y],
+                      paddles: paddles, events: netEvents })
         netEvents = []
     }
 
@@ -179,6 +179,23 @@ Scene {
                 SoundEffects.play(SoundEffects.Catch)
                 sparks.burst(Qt.vector3d(ball.x, ball.y, 0.5), Theme.tint(paddle?.magnetColor ?? "#ff3333"), 16)
                 break
+            case "shield":
+                SoundEffects.play(SoundEffects.ShieldHit)
+                sparks.burst(Qt.vector3d(ball.x, ball.y, 0.5), Theme.shield, 30)
+                shake(0.35)
+                break
+            case "pickup": {
+                const definition = modifiers.definition(modifiers.findDefinition(event.def))
+                pickupPopup.show(definition.name, Theme.tint(definition.color), onScreen(event.x, event.y))
+                sparks.burst(Qt.vector3d(event.x, event.y, 0.5), Theme.tint(definition.color), 24)
+                if (definition.effect === Modifiers.Freeze)
+                    SoundEffects.play(SoundEffects.Freeze)
+                else if (definition.target === Modifiers.Opponent || definition.effect === Modifiers.GhostBall)
+                    SoundEffects.play(SoundEffects.Curse)
+                else
+                    SoundEffects.play(SoundEffects.Pickup)
+                break
+            }
             case "dash":
                 SoundEffects.play(SoundEffects.Dash)
                 if (paddle)
@@ -217,10 +234,12 @@ Scene {
             sides.objectAt(i)?.reset()
         ball.clearTrail()
         match.applySnapshot(message.match ?? {})
+        modifiers.applySnapshot({})
     }
 
     function applyRemote(message) {
         match.applySnapshot(message.match)
+        modifiers.applySnapshot(message.modifiers ?? {})
         remoteBall = Qt.vector2d(message.ball[0], message.ball[1])
         remotePaddles = message.paddles ?? []
         remoteAge = 0.0
@@ -251,6 +270,7 @@ Scene {
             const age = match.state === PartyMatch.Playing ? Math.min(root.remoteAge, 0.1) : 0.0
             const v = match.ball.velocity
             ball.position = Qt.vector3d(root.remoteBall.x + v.x * age, root.remoteBall.y + v.y * age, 0)
+            ball.hidden = root.ghosted()
             ball.advance(dt)
             for (let i = 0; i < sides.count; ++i) {
                 const side = sides.objectAt(i)
@@ -551,6 +571,7 @@ Scene {
             sides.objectAt(i)?.reset()
         resetBall()
         match.start()
+        modifiers.reset()
 
         // Everybody on the network starts with it
         if (hosting) {
@@ -600,6 +621,29 @@ Scene {
         ball.clearTrail()
     }
 
+    // The ball flew through an item, collected after the physics step
+    property var pendingItems: []
+
+    function queueCollect(itemId) {
+        pendingItems.push(itemId)
+        Qt.callLater(collectPending)
+    }
+
+    function collectPending() {
+        const items = pendingItems
+        pendingItems = []
+        for (const item of items)
+            modifiers.collect(item)
+    }
+
+    // A ghost ball can't be seen in the middle
+    readonly property real ghostRadius: 0.45 * apothem
+
+    function ghosted() {
+        return modifiers.ghostBall && match.state === PartyMatch.Playing
+               && Qt.vector2d(ball.x, ball.y).length() < ghostRadius
+    }
+
     function queueGoal(player) {
         pendingGoals.push(player)
         Qt.callLater(scorePending)
@@ -613,7 +657,13 @@ Scene {
     }
 
     function contact(other, normals) {
-        if (other.paddleOf !== undefined) {
+        if (other.shieldOf !== undefined && other.shieldOf >= 0) {
+            if (match.shieldHit(other.shieldOf)) {
+                playEvent({ e: "shield" })
+                netEvent({ e: "shield" })
+            }
+        }
+        else if (other.paddleOf !== undefined) {
             // A full power bar spent catches the ball
             const player = other.paddleOf
             const side = sides.objectAt(player)
@@ -648,6 +698,11 @@ Scene {
         if (!running)
             return
 
+        modifiers.advance(dt)
+        // A gravity well bends the flight
+        if (modifiers.gravityStrength > 0.0)
+            match.attract(Qt.vector2d(ball.x, ball.y), modifiers.gravityWell, modifiers.gravityStrength, dt)
+
         const position = Qt.vector2d(ball.x, ball.y)
         const velocity = match.ball.velocity
         for (let i = 0; i < sides.count; ++i) {
@@ -681,6 +736,7 @@ Scene {
                 const n = normal(i)
                 const t = tangent(i)
                 side.computer.confusion = player.reversed ? 1.0 : 0.0
+                side.computer.blind = ghosted()
                 side.computer.update(dt, Qt.vector2d(position.dotProduct(n), position.dotProduct(t)),
                                      Qt.vector2d(velocity.dotProduct(n), velocity.dotProduct(t)), side.offset)
                 input = side.computer.direction
@@ -722,6 +778,7 @@ Scene {
             }
         }
 
+        ball.hidden = ghosted()
         ball.advance(dt)
         sendState()
     }
@@ -962,6 +1019,21 @@ Scene {
         value: 112 + Math.min(40, 1.5 * match.rally)
     }
 
+    PartyModifiers {
+        id: modifiers
+
+        match: match
+        enabled: GameSettings.modifiers
+        // Clear of the paddles
+        spawnRadius: 0.55 * root.apothem
+
+        onCollected: (index, collector, position) => {
+            const event = { e: "pickup", def: modifiers.definition(index).id, x: position.x, y: position.y }
+            root.playEvent(event)
+            root.netEvent(event)
+        }
+    }
+
     PhysicsWorld {
         scene: root
         running: root.active && root.running && !root.remote
@@ -1106,27 +1178,32 @@ Scene {
                     property real along: 0.0
                     property real length: 1.0
                     property bool parked: false
-                    readonly property bool wall: true
+                    // The shield of a player, -1 for a wall
+                    property int shieldOf: -1
+                    readonly property bool wall: shieldOf < 0
                     property color color: Theme.wall
                     property real glow: 0.35
+                    property real thickness: root.wallThickness
+                    // Of the middle from the middle of the polygon
+                    property real distance: root.apothem + 0.5 * root.wallThickness
 
                     isKinematic: true
                     position: kinematicPosition
-                    kinematicPosition: parked ? Qt.vector3d(1000, 1000 + 10 * player, 0)
-                                              : root.sidePoint(player, root.apothem + 0.5 * root.wallThickness, along)
+                    kinematicPosition: parked ? Qt.vector3d(1000 + 10 * shieldOf, (shieldOf >= 0 ? 2000 : 1000) + 10 * player, 0)
+                                              : root.sidePoint(player, distance, along)
                     kinematicEulerRotation: Qt.vector3d(0, 0, angle + 90)
                     // Without physics, on the network, nothing else turns it
                     eulerRotation: kinematicEulerRotation
                     physicsMaterial: bouncy
                     sendContactReports: true
                     collisionShapes: BoxShape {
-                        extents: Qt.vector3d(wall.length, root.wallThickness, 1.0)
+                        extents: Qt.vector3d(wall.length, wall.thickness, 1.0)
                     }
 
                     Model {
                         visible: !wall.parked
                         source: "#Cube"
-                        scale: Qt.vector3d(wall.length / 100, root.wallThickness / 100, 0.01)
+                        scale: Qt.vector3d(wall.length / 100, wall.thickness / 100, 0.01)
                         materials: PhongMaterial {
                             color: wall.color
                             glow: wall.glow
@@ -1158,6 +1235,20 @@ Scene {
                     length: root.goalWidth + 0.2
                     color: Qt.tint(Theme.wall, Qt.rgba(side.color.r, side.color.g, side.color.b, 0.3))
                     glow: 0.2
+                }
+
+                // A shield stops one goal, just in front of the line
+                Wall {
+                    player: side.index
+                    angle: side.angle
+                    shieldOf: side.index
+                    parked: !side.alive || !side.player.shielded
+                    along: 0
+                    length: root.goalWidth + 0.2
+                    color: Theme.shield
+                    glow: 1.0
+                    distance: root.apothem - 0.35
+                    thickness: 0.3
                 }
 
                 // The goal line glows in the player's color
@@ -1249,6 +1340,116 @@ Scene {
             }
         }
 
+        // Collectible modifiers, the ball picks them up by flying through
+        Repeater3D {
+            model: modifiers
+
+            delegate: TriggerBody {
+                id: item
+
+                required property int itemId
+                required property color itemColor
+                required property string itemGlyph
+                required property real itemX
+                required property real itemY
+
+                position: Qt.vector3d(itemX, itemY, 0)
+                collisionShapes: SphereShape {
+                    diameter: 1.8
+                }
+                onBodyEntered: (body) => {
+                    if (body === ball)
+                        root.queueCollect(item.itemId)
+                }
+
+                ModifierItem {
+                    // Upright on a turned field
+                    eulerRotation.z: -root.fieldRotation
+                    color: item.itemColor
+                    glyph: item.itemGlyph
+
+                    Vector3dAnimation on scale {
+                        from: Qt.vector3d(0, 0, 0)
+                        to: Qt.vector3d(1, 1, 1)
+                        duration: 300
+                        easing.type: Easing.OutBack
+                    }
+                }
+            }
+        }
+
+        // A gravity well, arms of dots spiralling into a dark core
+        Node {
+            id: gravityWell
+
+            readonly property color color: Theme.tint("#7a5cff")
+
+            visible: modifiers.gravityStrength > 0.0
+            position: Qt.vector3d(modifiers.gravityWell.x, modifiers.gravityWell.y, -0.2)
+
+            Disc {
+                radius: 0.6
+                sphere: true
+                color: Theme.background
+                glow: 0.0
+                shininess: 1.0
+            }
+
+            Node {
+                NumberAnimation on eulerRotation.z {
+                    running: gravityWell.visible
+                    from: 360
+                    to: 0
+                    duration: 2000
+                    loops: Animation.Infinite
+                }
+
+                Repeater3D {
+                    model: 18
+
+                    delegate: Disc {
+                        required property int index
+                        readonly property real arm: index % 3
+                        readonly property real step: Math.floor(index / 3)
+                        readonly property real angle: arm * 2.0 * Math.PI / 3 + step * 0.45
+                        readonly property real distance: 0.9 + step * 0.45
+                        position: Qt.vector3d(distance * Math.cos(angle), distance * Math.sin(angle), 0)
+                        radius: 0.16 - 0.015 * step
+                        thickness: 0.1
+                        color: gravityWell.color
+                        glow: 1.0 - 0.12 * step
+                    }
+                }
+            }
+        }
+
+        // The fog a ghost ball disappears in, dark with a glowing edge
+        Node {
+            visible: modifiers.ghostBall
+            z: -0.4
+
+            Disc {
+                radius: root.ghostRadius
+                thickness: 0.02
+                color: Theme.background
+                glow: 0.0
+            }
+
+            Repeater3D {
+                model: 40
+
+                delegate: Disc {
+                    required property int index
+                    readonly property real angle: index * 2.0 * Math.PI / 40
+                    position: Qt.vector3d(root.ghostRadius * Math.cos(angle), root.ghostRadius * Math.sin(angle), 0.05)
+                    radius: 0.08
+                    thickness: 0.02
+                    color: Theme.dimmed
+                    glow: 0.6
+                }
+            }
+        }
+
         BallBody {
             id: ball
             ball: match.ball
@@ -1303,6 +1504,10 @@ Scene {
 
     FloatingText {
         id: perfectPopup
+    }
+
+    FloatingText {
+        id: pickupPopup
     }
 
     Banner {

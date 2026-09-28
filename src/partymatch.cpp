@@ -317,10 +317,15 @@ QVariantMap PartyMatch::snapshot() const
     QVariantList power;
     QVariantList catches;
     QVariantList hits;
+    // Paddle size, shield, frozen, reversed: what the modifiers did
+    QVariantList effects;
     for (int player = 0; player < m_players; ++player) {
-        power.append(m_playerObjects.at(player)->power());
-        catches.append(m_playerObjects.at(player)->catches());
-        hits.append(m_playerObjects.at(player)->hits());
+        const Player* object = m_playerObjects.at(player);
+        power.append(object->power());
+        catches.append(object->catches());
+        hits.append(object->hits());
+        effects.append(QVariant(QVariantList{ object->paddleScale(), object->isShielded(), object->isFrozen(),
+                                              object->isReversed() }));
     }
     return {
         { QStringLiteral("players"), m_players },
@@ -338,7 +343,8 @@ QVariantMap PartyMatch::snapshot() const
         { QStringLiteral("hold"), QVariantList{ m_heldBy, m_holdOffset, m_holdTime } },
         { QStringLiteral("power"), power },
         { QStringLiteral("catches"), catches },
-        { QStringLiteral("hits"), hits }
+        { QStringLiteral("hits"), hits },
+        { QStringLiteral("effects"), effects }
     };
 }
 
@@ -388,10 +394,17 @@ void PartyMatch::applySnapshot(const QVariantMap& snapshot)
     const QVariantList power = snapshot.value(QStringLiteral("power")).toList();
     const QVariantList catches = snapshot.value(QStringLiteral("catches")).toList();
     const QVariantList hits = snapshot.value(QStringLiteral("hits")).toList();
+    const QVariantList effects = snapshot.value(QStringLiteral("effects")).toList();
     for (int player = 0; player < m_players; ++player) {
-        m_playerObjects.at(player)->setPower(power.value(player).toDouble());
-        m_playerObjects.at(player)->setCatches(catches.value(player).toInt());
-        m_playerObjects.at(player)->setHits(hits.value(player).toInt());
+        Player* object = m_playerObjects.at(player);
+        object->setPower(power.value(player).toDouble());
+        object->setCatches(catches.value(player).toInt());
+        object->setHits(hits.value(player).toInt());
+        const QVariantList effect = effects.value(player).toList();
+        object->setPaddleScale(effect.value(0, 1.0).toDouble());
+        object->setShielded(effect.value(1).toBool());
+        object->setFrozen(effect.value(2).toBool());
+        object->setReversed(effect.value(3).toBool());
     }
 
     setRally(snapshot.value(QStringLiteral("rally")).toInt());
