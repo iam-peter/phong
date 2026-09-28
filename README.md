@@ -16,7 +16,8 @@ C++, the scenes are QML.
 - Qt 6.9 or newer (`ExtrudedTextGeometry`) with the Qt Quick 3D,
   Qt Quick 3D Physics and Qt WebSockets modules
 - Qt Multimedia for sound on the desktop, optional
-- SDL 3 for gamepads on the desktop, optional, the browser has them anyway
+- SDL 3 for gamepads on the desktop, the build downloads it if it isn't
+  installed, the browser has gamepads anyway
 - CMake 3.21 or newer
 - For WebAssembly: the Qt `wasm_singlethread` kit and the Emscripten version
   it was built with (Qt 6.11: 4.0.7, Qt 6.12: 5.0.5)
@@ -84,9 +85,13 @@ the right paddle, next to the keys:
 | `Start` | pause |
 
 In the menus the stick and the d-pad move, `A` confirms and `B` goes back.
-The browser reads gamepads with the Gamepad API, the desktop with SDL 3 when
-CMake finds it, e.g. with `-DSDL3_DIR=<SDL3>/lib/cmake/SDL3`. Without it the
-desktop build has no gamepads.
+The browser reads gamepads with the Gamepad API, the desktop with SDL 3. An
+installed SDL 3 is used, e.g. with `-DSDL3_DIR=<SDL3>/lib/cmake/SDL3`,
+otherwise the build downloads SDL 3.2.30 and links a static library with
+just the gamepad parts. Few distributions have SDL 3 packages yet, Ubuntu
+since 25.04 as `libsdl3-dev`. `-DPHONG_FETCH_SDL3=OFF` builds without
+gamepads instead of downloading. On Linux SDL finds gamepads plugged in
+later with udev, that needs `libudev-dev` when SDL is built.
 
 Moving the paddle while it hits the ball puts spin on it: brushed upwards the
 ball dips on its way over, brushed downwards it rises.

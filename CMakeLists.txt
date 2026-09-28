@@ -10,9 +10,34 @@ find_package(Qt6 6.9 REQUIRED COMPONENTS Core Gui Qml Quick Quick3D Quick3DPhysi
                                            Network WebSockets)
 # Sound and gamepads on the desktop, the browser uses Web Audio and the
 # Gamepad API
+option(PHONG_FETCH_SDL3 "Download and build SDL 3 for gamepads if it isn't installed" ON)
 if(NOT EMSCRIPTEN)
     find_package(Qt6 QUIET COMPONENTS Multimedia)
     find_package(SDL3 CONFIG QUIET COMPONENTS SDL3)
+
+    # Few distributions package SDL 3 yet. The game only needs its gamepads,
+    # a static library without audio and video.
+    if(NOT TARGET SDL3::SDL3 AND PHONG_FETCH_SDL3)
+        include(FetchContent)
+        FetchContent_Declare(SDL3
+            URL https://github.com/libsdl-org/SDL/releases/download/release-3.2.30/SDL3-3.2.30.tar.gz
+            URL_HASH SHA256=4c3b09330d866dc52eb65b66259a6684ad387252ca8c57901b3a2b534eb42e3d
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+        )
+        set(SDL_SHARED OFF)
+        set(SDL_STATIC ON)
+        set(SDL_TEST_LIBRARY OFF)
+        set(SDL_EXAMPLES OFF)
+        set(SDL_DISABLE_INSTALL ON)
+        # Without video SDL needs to know no windows are wanted
+        set(SDL_UNIX_CONSOLE_BUILD ON)
+        foreach(subsystem AUDIO VIDEO GPU RENDER CAMERA HAPTIC POWER DIALOG)
+            set(SDL_${subsystem} OFF)
+        endforeach()
+        message(STATUS "Fetching SDL 3 for gamepads")
+        FetchContent_MakeAvailable(SDL3)
+        set(SDL3_VERSION 3.2.30)
+    endif()
 endif()
 
 qt_standard_project_setup(REQUIRES 6.9)
@@ -98,7 +123,7 @@ if(TARGET SDL3::SDL3)
     target_link_libraries(phong PRIVATE SDL3::SDL3)
     target_compile_definitions(phong PRIVATE PHONG_HAVE_SDL3)
     message(STATUS "Gamepads with SDL3 ${SDL3_VERSION}")
-else()
+elseif(NOT EMSCRIPTEN)
     message(STATUS "No SDL3, no gamepads on the desktop")
 endif()
 
