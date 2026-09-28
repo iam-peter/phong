@@ -157,12 +157,25 @@ EM_JS(int, phong_gamepad_buttons, (int slot), {
     return mask;
 });
 
+EM_JS(void, phong_gamepad_rumble, (int index, double strength, int duration), {
+    const pad = navigator.getGamepads ? navigator.getGamepads()[index] : null;
+    const actuator = pad && pad.vibrationActuator;
+    if (actuator && actuator.playEffect)
+        actuator.playEffect("dual-rumble", { duration: duration, strongMagnitude: strength,
+                                              weakMagnitude: Math.min(1, strength * 1.5) }).catch(() => {});
+});
+
 class Gamepads::Backend
 {
 public:
     bool isAvailable() const
     {
         return true;
+    }
+
+    void rumble(int id, qreal strength, int duration)
+    {
+        phong_gamepad_rumble(id, strength, duration);
     }
 
     void poll(Gamepads* gamepads)
@@ -220,6 +233,16 @@ public:
     bool isAvailable() const
     {
         return m_available;
+    }
+
+    void rumble(int id, qreal strength, int duration)
+    {
+        // The low frequency motor is the strong one
+        if (SDL_Gamepad* gamepad = SDL_GetGamepadFromID(SDL_JoystickID(id))) {
+            const Uint16 low = Uint16(std::clamp(strength, 0.0, 1.0) * 0xffff);
+            const Uint16 high = Uint16(std::clamp(strength * 1.5, 0.0, 1.0) * 0xffff);
+            SDL_RumbleGamepad(gamepad, low, high, Uint32(std::max(duration, 0)));
+        }
     }
 
     void poll(Gamepads* gamepads)
@@ -312,6 +335,9 @@ public:
         return false;
     }
 
+    void rumble(int, qreal, int)
+    {}
+
     void poll(Gamepads*)
     {}
 };
@@ -321,6 +347,7 @@ public:
 Gamepads::Gamepads(QObject* parent):
     QObject(parent),
     m_pads(),
+    m_rumbleEnabled(true),
     m_backend(std::make_unique<Backend>()),
     m_timer()
 {
@@ -347,6 +374,26 @@ int Gamepads::count() const
 bool Gamepads::isAvailable() const
 {
     return m_backend->isAvailable();
+}
+
+void Gamepads::rumble(Gamepad* pad, qreal strength, int duration)
+{
+    if (m_rumbleEnabled && pad && m_pads.contains(pad) && strength > 0.0 && duration > 0)
+        m_backend->rumble(pad->id(), strength, duration);
+}
+
+void Gamepads::setRumbleEnabled(bool rumbleEnabled)
+{
+    if (m_rumbleEnabled == rumbleEnabled)
+        return;
+
+    m_rumbleEnabled = rumbleEnabled;
+    emit rumbleEnabledChanged(rumbleEnabled);
+}
+
+bool Gamepads::isRumbleEnabled() const
+{
+    return m_rumbleEnabled;
 }
 
 Gamepad* Gamepads::pad(int index) const

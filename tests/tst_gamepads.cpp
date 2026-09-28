@@ -11,6 +11,11 @@ class tst_Gamepads : public QObject
 {
     Q_OBJECT
 
+#if defined(PHONG_HAVE_SDL3)
+    static inline int rumbles = 0;
+    static inline Uint16 lowRumble = 0;
+#endif
+
 private slots:
     void directionFromStickAndDpad()
     {
@@ -100,6 +105,11 @@ private slots:
         desc.naxes = SDL_GAMEPAD_AXIS_COUNT;
         desc.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
         desc.name = "Virtual pad";
+        desc.Rumble = [](void*, Uint16 low, Uint16) {
+            ++rumbles;
+            lowRumble = low;
+            return true;
+        };
         const SDL_JoystickID id = SDL_AttachVirtualJoystick(&desc);
         QVERIFY2(id != 0, SDL_GetError());
         SDL_Joystick* joystick = SDL_OpenJoystick(id);
@@ -115,6 +125,15 @@ private slots:
 
         SDL_SetJoystickVirtualAxis(joystick, SDL_GAMEPAD_AXIS_LEFTY, -32767);
         QTRY_VERIFY(pad->direction().y() > 0.99f);
+
+        // Rumble reaches the pad, unless switched off
+        rumbles = 0;
+        gamepads.rumble(pad, 0.5, 100);
+        QCOMPARE(rumbles, 1);
+        QVERIFY(lowRumble > 0x7000 && lowRumble < 0x9000);
+        gamepads.setRumbleEnabled(false);
+        gamepads.rumble(pad, 1.0, 100);
+        QCOMPARE(rumbles, 1);
 
         SDL_CloseJoystick(joystick);
         SDL_DetachVirtualJoystick(id);

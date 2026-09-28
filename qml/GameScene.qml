@@ -201,6 +201,21 @@ Scene {
             netEvents.push(event)
     }
 
+    // The gamepad playing a side here, if any
+    function padOf(side) {
+        if (remote)
+            return side === localSide && Gamepads.count > 0 ? Gamepads.pads[0] : null
+        if (remotes[side])
+            return null
+        return side === Match.LeftSide ? leftPad : rightPad
+    }
+
+    function rumble(side, strength, duration) {
+        const pad = padOf(side)
+        if (pad)
+            Gamepads.rumble(pad, strength, duration)
+    }
+
     function showEffect(event) {
         const paddle = event.side === Match.LeftSide ? leftPaddle : rightPaddle
         const sparkX = paddle.x + (event.side === Match.LeftSide ? 0.6 : -0.6)
@@ -229,6 +244,10 @@ Scene {
                 break
             case "hit": {
                 paddle.flash()
+                if (event.smash >= 0.25)
+                    rumble(event.side, 0.5 + 0.5 * event.smash, 160)
+                else
+                    rumble(event.side, event.perfect ? 0.45 : 0.25, 70)
                 // Perfect hits ring an octave higher
                 if (event.perfect) {
                     SoundEffects.play(SoundEffects.Perfect, rallyPitch(match.rally))
@@ -250,11 +269,13 @@ Scene {
                 break
             }
             case "special":
+                rumble(event.side, 0.6, 220)
                 SoundEffects.play(SoundEffects.Special)
                 sparks.burst(Qt.vector3d(paddle.x, paddle.y, 0.5), paddle.color, 40)
                 shake(0.2)
                 break
             case "catch":
+                rumble(event.side, 0.4, 120)
                 paddle.flash()
                 SoundEffects.play(SoundEffects.Catch)
                 sparks.burst(Qt.vector3d(sparkX, paddle.y, 0.5), Theme.tint(paddle.magnetColor), 16)
@@ -264,6 +285,9 @@ Scene {
                 sparks.burst(Qt.vector3d(paddle.x, paddle.y, 0.5), paddle.color, 10)
                 break
             case "goal":
+                // The goal hurts the one who let it in
+                rumble(event.scorer === Match.LeftSide ? Match.RightSide : Match.LeftSide, 1.0, 350)
+                rumble(event.scorer, 0.3, 100)
                 SoundEffects.play(SoundEffects.Goal)
                 sparks.burst(Qt.vector3d(event.scorer === Match.LeftSide ? goalLine : -goalLine, 0, 0.5), Theme.text, 60)
                 shake(0.7)

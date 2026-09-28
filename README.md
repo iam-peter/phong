@@ -139,6 +139,9 @@ the right paddle, next to the keys:
 | `Start` | pause |
 
 In the menus the stick and the d-pad move, `A` confirms and `B` goes back.
+Pads that can rumble do on hits, harder on smashes and specials, and most
+on a goal against their player, also on the LAN. `Rumble` in the settings
+switches it off.
 The browser reads gamepads with the Gamepad API, the desktop with SDL 3,
 see [SDL 3 for gamepads](#sdl-3-for-gamepads) for installing it.
 

@@ -81,6 +81,20 @@ Scene {
         netEvents = []
     }
 
+    // The gamepad playing a side here, if any
+    function padOf(side) {
+        if (remote)
+            return side === localSlot && Gamepads.count > 0 ? Gamepads.pads[0] : null
+        const controller = root.controller(side)
+        return controller.kind === "pad" ? controller.pad : null
+    }
+
+    function rumble(side, strength, duration) {
+        const pad = padOf(side)
+        if (pad)
+            Gamepads.rumble(pad, strength, duration)
+    }
+
     // Sounds and sparks of what happened, here or at the host
     function playEvent(event) {
         switch (event.e) {
@@ -88,6 +102,7 @@ Scene {
                 SoundEffects.play(SoundEffects.Serve)
                 break
             case "hit":
+                rumble(event.p, 0.25, 70)
                 sides.objectAt(event.p)?.paddle.flash()
                 SoundEffects.play(SoundEffects.PaddleHit, 1.0 + 0.04 * Math.min(match.rally, 20))
                 sparks.burst(Qt.vector3d(ball.x, ball.y, 0.5), Theme.ball, 10)
@@ -96,6 +111,7 @@ Scene {
                 SoundEffects.play(SoundEffects.WallHit)
                 break
             case "goal":
+                rumble(event.p, 1.0, 350)
                 SoundEffects.play(SoundEffects.Goal)
                 sparks.burst(Qt.vector3d(ball.x, ball.y, 0.5), root.colors[event.p], 50)
                 ball.clearTrail()

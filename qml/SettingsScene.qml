@@ -98,6 +98,13 @@ OptionsScene {
             set: (value) => GameSettings.musicVolume = value
         },
         {
+            label: qsTr("Rumble"),
+            values: [true, false],
+            names: [qsTr("On"), qsTr("Off")],
+            get: () => GameSettings.rumble,
+            set: (value) => GameSettings.rumble = value
+        },
+        {
             label: qsTr("Graphics"),
             values: [],
             names: [],

@@ -14,6 +14,7 @@ const QString defaultArena = QStringLiteral("random");
 constexpr bool defaultSound = true;
 constexpr bool defaultMusic = true;
 constexpr int defaultMusicVolume = 75;
+constexpr bool defaultRumble = true;
 constexpr int defaultKickoffTime = 2;
 
 template<typename Enum>
@@ -38,6 +39,7 @@ GameSettings::GameSettings(QObject* parent):
     m_sound(defaultSound),
     m_music(defaultMusic),
     m_musicVolume(defaultMusicVolume),
+    m_rumble(defaultRumble),
     m_kickoffTime(defaultKickoffTime),
     m_mode(0),
     m_partyPlayers(4)
@@ -55,6 +57,7 @@ GameSettings::GameSettings(QObject* parent):
     m_sound = m_settings.value("sound", defaultSound).toBool();
     m_music = m_settings.value("music", defaultMusic).toBool();
     m_musicVolume = std::clamp(m_settings.value("musicVolume", defaultMusicVolume).toInt(), 0, 100);
+    m_rumble = m_settings.value("rumble", defaultRumble).toBool();
     m_kickoffTime = std::clamp(m_settings.value("kickoffTime", defaultKickoffTime).toInt(),
                                minKickoffTime, maxKickoffTime);
     m_mode = std::max(m_settings.value("mode", 0).toInt(), 0);
@@ -75,6 +78,7 @@ void GameSettings::restoreDefaults()
     setSound(defaultSound);
     setMusic(defaultMusic);
     setMusicVolume(defaultMusicVolume);
+    setRumble(defaultRumble);
     setKickoffTime(defaultKickoffTime);
 }
 
@@ -244,6 +248,21 @@ void GameSettings::setMusicVolume(int musicVolume)
 int GameSettings::musicVolume() const
 {
     return m_musicVolume;
+}
+
+void GameSettings::setRumble(bool rumble)
+{
+    if (m_rumble == rumble)
+        return;
+
+    m_rumble = rumble;
+    m_settings.setValue("rumble", rumble);
+    emit rumbleChanged(rumble);
+}
+
+bool GameSettings::rumble() const
+{
+    return m_rumble;
 }
 
 void GameSettings::setKickoffTime(int kickoffTime)

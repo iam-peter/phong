@@ -27,6 +27,8 @@ class GameSettings : public QObject
     Q_PROPERTY(bool music READ music WRITE setMusic NOTIFY musicChanged)
     // Percent
     Q_PROPERTY(int musicVolume READ musicVolume WRITE setMusicVolume NOTIFY musicVolumeChanged)
+    // Gamepads shake on hits and goals
+    Q_PROPERTY(bool rumble READ rumble WRITE setRumble NOTIFY rumbleChanged)
     // Seconds of countdown before a kickoff
     Q_PROPERTY(int kickoffTime READ kickoffTime WRITE setKickoffTime NOTIFY kickoffTimeChanged)
     // The game mode last chosen in the menu, see GameScene.Mode
@@ -98,6 +100,9 @@ public:
     void setMusicVolume(int musicVolume);
     int musicVolume() const;
 
+    void setRumble(bool rumble);
+    bool rumble() const;
+
     void setKickoffTime(int kickoffTime);
     int kickoffTime() const;
 
@@ -126,6 +131,7 @@ signals:
     void soundChanged(bool);
     void musicChanged(bool);
     void musicVolumeChanged(int);
+    void rumbleChanged(bool);
     void kickoffTimeChanged(int);
     void modeChanged(int);
     void partyPlayersChanged(int);
@@ -145,6 +151,7 @@ private:
     bool m_sound;
     bool m_music;
     int m_musicVolume;
+    bool m_rumble;
     int m_kickoffTime;
     int m_mode;
     int m_partyPlayers;

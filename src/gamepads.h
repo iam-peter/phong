@@ -92,6 +92,7 @@ class Gamepads : public QObject
     Q_PROPERTY(int count READ count NOTIFY padsChanged)
     // Whether gamepads can be used at all
     Q_PROPERTY(bool available READ isAvailable CONSTANT)
+    Q_PROPERTY(bool rumbleEnabled READ isRumbleEnabled WRITE setRumbleEnabled NOTIFY rumbleEnabledChanged)
 
 public:
     explicit Gamepads(QObject* parent = nullptr);
@@ -100,10 +101,17 @@ public:
     QList<Gamepad*> pads() const;
     int count() const;
     bool isAvailable() const;
+
+    void setRumbleEnabled(bool rumbleEnabled);
+    bool isRumbleEnabled() const;
     Q_INVOKABLE Gamepad* pad(int index) const;
 
     // Reads the backend, the timer does it too
     Q_INVOKABLE void poll();
+
+    // Shakes the pad, strength from 0 to 1, for duration milliseconds, if
+    // it can and rumble is enabled
+    Q_INVOKABLE void rumble(Gamepad* pad, qreal strength, int duration);
 
     // For the backends and tests
     Gamepad* add(int id, const QString& name);
@@ -112,6 +120,7 @@ public:
 
 signals:
     void padsChanged();
+    void rumbleEnabledChanged(bool);
     void navigated(Gamepad* pad, int key);
     void buttonPressed(Gamepad* pad, Gamepad::Button button);
     void buttonReleased(Gamepad* pad, Gamepad::Button button);
@@ -120,6 +129,7 @@ private:
     class Backend;
 
     QList<Gamepad*> m_pads;
+    bool m_rumbleEnabled;
     std::unique_ptr<Backend> m_backend;
     QTimer m_timer;
 };

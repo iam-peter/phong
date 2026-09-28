@@ -493,6 +493,12 @@ Window {
         value: GameSettings.musicVolume / 100
     }
 
+    Binding {
+        target: Gamepads
+        property: "rumbleEnabled"
+        value: GameSettings.rumble
+    }
+
     Component.onCompleted: {
         cameraRig.position = cameraPosition(menuScene)
         nextScene(menuScene)
