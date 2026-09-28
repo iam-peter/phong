@@ -33,6 +33,7 @@ qt_add_qml_module(phong
         qml/PaddleBody.qml
         qml/Sparks.qml
         qml/Banner.qml
+        qml/BracketScene.qml
         qml/FloatingText.qml
         qml/StatsScene.qml
         qml/GraphicsScene.qml
@@ -48,6 +49,7 @@ qt_add_qml_module(phong
         src/match.h src/match.cpp
         src/dash.h src/dash.cpp
         src/computerplayer.h src/computerplayer.cpp
+        src/tournament.h src/tournament.cpp
         src/modifiers.h src/modifiers.cpp
         src/arenas.h src/arenas.cpp
         src/soundeffects.h src/soundeffects.cpp

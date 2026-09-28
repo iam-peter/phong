@@ -16,6 +16,7 @@ class ComputerPlayer : public QObject
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(Difficulty difficulty READ difficulty WRITE setDifficulty NOTIFY difficultyChanged)
+    Q_PROPERTY(Personality personality READ personality WRITE setPersonality NOTIFY personalityChanged)
     Q_PROPERTY(qreal paddleX READ paddleX WRITE setPaddleX NOTIFY paddleXChanged)
     Q_PROPERTY(qreal paddleReach READ paddleReach WRITE setPaddleReach NOTIFY paddleReachChanged)
     Q_PROPERTY(qreal fieldTop READ fieldTop WRITE setFieldTop NOTIFY fieldTopChanged)
@@ -43,6 +44,19 @@ public:
         Hard
     };
     Q_ENUM(Difficulty)
+
+    // How the computer plays on top of its difficulty
+    enum Personality {
+        Balanced = 0,
+        Wall,       // returns everything straight and safe, never smashes
+        Spinner,    // brushes every ball to curve it
+        Smasher,    // winds up almost every return
+        Collector   // sends the ball through the modifiers
+    };
+    Q_ENUM(Personality)
+
+    // The spinner starts brushing this long before the ball arrives
+    static constexpr qreal brushTime = 0.12;
 
     explicit ComputerPlayer(QObject* parent = nullptr);
 
@@ -77,6 +91,9 @@ public:
 
     void setDifficulty(Difficulty difficulty);
     Difficulty difficulty() const;
+
+    void setPersonality(Personality personality);
+    Personality personality() const;
 
     void setPaddleX(qreal paddleX);
     qreal paddleX() const;
@@ -119,6 +136,7 @@ public:
 
 signals:
     void difficultyChanged(ComputerPlayer::Difficulty);
+    void personalityChanged(ComputerPlayer::Personality);
     void paddleXChanged(qreal);
     void paddleReachChanged(qreal);
     void fieldTopChanged(qreal);
@@ -158,6 +176,7 @@ private:
     void setWantsDash(bool wantsDash);
 
     Difficulty m_difficulty;
+    Personality m_personality;
     qreal m_paddleX;
     qreal m_paddleReach;
     qreal m_fieldTop;
@@ -170,6 +189,7 @@ private:
     qreal m_aimError; // -1 to 1, rolled once per approach
     bool m_aiming;    // rolled once per approach
     bool m_smashing;  // rolled once per approach
+    int m_brush;      // spinner's brush direction, rolled once per approach
     bool m_charging;
     qreal m_paddleSpeed;
     bool m_wantsDash;

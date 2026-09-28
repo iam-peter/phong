@@ -19,6 +19,7 @@ class Stats : public QObject
     // Ladder levels beaten in one run, 3 is all of them
     Q_PROPERTY(int ladderBest READ ladderBest NOTIFY changed)
     Q_PROPERTY(int endlessBest READ endlessBest NOTIFY changed)
+    Q_PROPERTY(int tournamentsWon READ tournamentsWon NOTIFY changed)
 
 public:
     static constexpr int difficulties = 3;
@@ -29,6 +30,7 @@ public:
     Q_INVOKABLE void recordLadder(int levelsBeaten);
     // Returns whether score is a new high score
     Q_INVOKABLE bool recordEndless(int score);
+    Q_INVOKABLE void recordTournamentWin();
     Q_INVOKABLE void reset();
 
     int wins(int difficulty) const;
@@ -38,6 +40,7 @@ public:
     int longestRally() const;
     int ladderBest() const;
     int endlessBest() const;
+    int tournamentsWon() const;
 
 signals:
     void changed();

@@ -58,6 +58,17 @@ private slots:
         QCOMPARE(stats.endlessBest(), 41);
     }
 
+    void tournamentWins()
+    {
+        Stats stats;
+        QCOMPARE(stats.tournamentsWon(), 0);
+        stats.recordTournamentWin();
+        stats.recordTournamentWin();
+        QCOMPARE(Stats().tournamentsWon(), 2);
+        stats.reset();
+        QCOMPARE(stats.tournamentsWon(), 0);
+    }
+
     void ladderKeepsTheBest()
     {
         Stats stats;

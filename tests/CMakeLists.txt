@@ -27,6 +27,11 @@ phong_add_test(tst_computerplayer
     ${PROJECT_SOURCE_DIR}/src/computerplayer.cpp
 )
 
+phong_add_test(tst_tournament
+    ${PROJECT_SOURCE_DIR}/src/tournament.cpp
+    ${PROJECT_SOURCE_DIR}/src/computerplayer.cpp
+)
+
 phong_add_test(tst_arenas
     ${PROJECT_SOURCE_DIR}/src/arenas.cpp
 )

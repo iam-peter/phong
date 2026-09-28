@@ -275,6 +275,52 @@ private slots:
         QCOMPARE(player.confusion(), 1.0);
     }
 
+    void personalities()
+    {
+        const auto charges = [](ComputerPlayer::Personality personality) {
+            int charged = 0;
+            for (quint32 seed = 1; seed <= 40; ++seed) {
+                ComputerPlayer player;
+                player.setSeed(seed);
+                player.setDifficulty(ComputerPlayer::Difficulty::Hard);
+                player.setPersonality(personality);
+                player.setPaddleX(12.0);
+                player.update(0.1, QVector2D(-12, 0), QVector2D(10, 0), 0.0);
+                player.update(0.1, QVector2D(7, 0), QVector2D(10, 0), 0.0);
+                charged += player.isCharging() ? 1 : 0;
+            }
+            return charged;
+        };
+
+        // The wall never smashes, the smasher nearly always
+        QCOMPARE(charges(ComputerPlayer::Personality::Wall), 0);
+        QVERIFY(charges(ComputerPlayer::Personality::Smasher) >= 32);
+
+        // The spinner waits beside where the ball arrives and sweeps
+        // through it at full speed, the same player otherwise
+        ComputerPlayer players[2];
+        for (int i = 0; i < 2; ++i) {
+            players[i].setSeed(7);
+            players[i].setDifficulty(ComputerPlayer::Difficulty::Hard);
+            players[i].setPersonality(i ? ComputerPlayer::Personality::Spinner
+                                        : ComputerPlayer::Personality::Balanced);
+            players[i].setPaddleX(12.0);
+            players[i].setPaddleReach(2.8);
+            players[i].setFieldTop(8.0);
+            players[i].setFieldBottom(-8.0);
+            players[i].update(0.1, QVector2D(0, 0), QVector2D(20, 0), 0.0);
+            players[i].update(0.1, QVector2D(2, 0), QVector2D(20, 0), 0.0);
+        }
+        ComputerPlayer& spinner = players[1];
+        const qreal lead = players[0].target() - spinner.target();
+        QVERIFY(qAbs(qAbs(lead) - 0.5 * 24.0 * ComputerPlayer::brushTime) < 1e-6);
+
+        spinner.update(0.01, QVector2D(12.0 - 0.5 * 20 * ComputerPlayer::brushTime, 0), QVector2D(20, 0),
+                       spinner.target());
+        QCOMPARE(qAbs(spinner.direction()), 1.0);
+        QVERIFY(spinner.direction() * lead > 0.0);
+    }
+
     void reactsWithDelay()
     {
         ComputerPlayer player;

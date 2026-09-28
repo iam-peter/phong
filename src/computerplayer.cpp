@@ -9,6 +9,7 @@
 ComputerPlayer::ComputerPlayer(QObject* parent):
     QObject(parent),
     m_difficulty(Difficulty::Normal),
+    m_personality(Personality::Balanced),
     m_paddleX(0.0),
     m_paddleReach(1.0),
     m_fieldTop(1.0),
@@ -20,6 +21,7 @@ ComputerPlayer::ComputerPlayer(QObject* parent):
     m_aimError(0.0),
     m_aiming(false),
     m_smashing(false),
+    m_brush(1),
     m_charging(false),
     m_paddleSpeed(24.0),
     m_wantsDash(false),
@@ -124,6 +126,7 @@ void ComputerPlayer::update(qreal dt, const QVector2D& ballPosition,
         m_aimError = m_random.bounded(2.0) - 1.0;
         m_aiming = m_random.bounded(1.0) < profile.aimChance;
         m_smashing = m_random.bounded(1.0) < profile.smashChance;
+        m_brush = m_random.bounded(2) ? 1 : -1;
     }
     else {
         m_sincePlan += dt;
@@ -146,9 +149,14 @@ void ComputerPlayer::update(qreal dt, const QVector2D& ballPosition,
     else
         setDirection(std::clamp(distance / m_paddleReach, -1.0, 1.0) * profile.maxInput);
 
+    // The spinner sweeps the paddle across the ball as it arrives
+    const bool brushing = m_personality == Personality::Spinner && approaching && arrival < brushTime;
+    if (brushing)
+        setDirection(m_brush * profile.maxInput);
+
     // A dash when the ball comes soon and too far away for the paddle
     const qreal reach = arrival * m_paddleSpeed * profile.maxInput + deadZone;
-    setWantsDash(profile.dashes && approaching && arrival < 0.6 && std::abs(distance) > reach);
+    setWantsDash(profile.dashes && !brushing && approaching && arrival < 0.6 && std::abs(distance) > reach);
 }
 
 void ComputerPlayer::setDifficulty(Difficulty difficulty)
@@ -163,6 +171,20 @@ void ComputerPlayer::setDifficulty(Difficulty difficulty)
 ComputerPlayer::Difficulty ComputerPlayer::difficulty() const
 {
     return m_difficulty;
+}
+
+void ComputerPlayer::setPersonality(Personality personality)
+{
+    if (m_personality == personality)
+        return;
+
+    m_personality = personality;
+    emit personalityChanged(personality);
+}
+
+ComputerPlayer::Personality ComputerPlayer::personality() const
+{
+    return m_personality;
 }
 
 void ComputerPlayer::setPaddleX(qreal paddleX)
@@ -354,15 +376,40 @@ ComputerPlayer::Profile ComputerPlayer::profile() const
 
 ComputerPlayer::Profile ComputerPlayer::baseProfile() const
 {
+    Profile profile;
     switch (m_difficulty) {
         case Difficulty::Easy:
-            return { 0.35, 1.6, 0.5, false, 0.0, false, 0.0, false };
+            profile = { 0.35, 1.6, 0.5, false, 0.0, false, 0.0, false };
+            break;
         case Difficulty::Hard:
-            return { 0.08, 0.6, 1.0, true, 1.0, true, 0.5, true };
+            profile = { 0.08, 0.6, 1.0, true, 1.0, true, 0.5, true };
+            break;
         case Difficulty::Normal:
         default:
-            return { 0.2, 1.15, 0.75, true, 0.5, false, 0.25, true };
+            profile = { 0.2, 1.15, 0.75, true, 0.5, false, 0.25, true };
+            break;
     }
+
+    switch (m_personality) {
+        case Personality::Wall:
+            // Meets the ball with the middle, the return goes back straight
+            profile.aimError *= 0.5;
+            profile.aimChance = 0.0;
+            profile.tactics = false;
+            profile.smashChance = 0.0;
+            break;
+        case Personality::Smasher:
+            profile.smashChance = 0.9;
+            break;
+        case Personality::Collector:
+            profile.aimChance = 1.0;
+            profile.tactics = false;
+            break;
+        case Personality::Spinner:
+        case Personality::Balanced:
+            break;
+    }
+    return profile;
 }
 
 void ComputerPlayer::plan(const QVector2D& ballPosition, const QVector2D& ballVelocity)
@@ -374,7 +421,7 @@ void ComputerPlayer::plan(const QVector2D& ballPosition, const QVector2D& ballVe
     }
 
     const Profile profile = this->profile();
-    const qreal y = profile.predicts
+    qreal y = profile.predicts
         ? predictY(ballPosition, ballVelocity, m_paddleX, m_fieldTop, m_fieldBottom)
         : std::clamp(qreal(ballPosition.y()), m_fieldBottom, m_fieldTop);
 
@@ -386,6 +433,10 @@ void ComputerPlayer::plan(const QVector2D& ballPosition, const QVector2D& ballVe
         if (qIsNaN(offset) && profile.tactics)
             offset = awayOffset(y, m_paddleX, m_opponentY, m_fieldTop, m_fieldBottom);
     }
+
+    // The spinner waits a bit behind the ball and sweeps through it
+    if (m_personality == Personality::Spinner)
+        y -= m_brush * 0.5 * m_paddleSpeed * profile.maxInput * brushTime;
 
     if (qIsNaN(offset)) {
         setTarget(y + m_aimError * profile.aimError * m_paddleReach);

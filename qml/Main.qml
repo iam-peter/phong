@@ -88,8 +88,29 @@ Window {
     function startGame(mode) {
         gameScene.mode = mode
         gameScene.ladderStage = 0
+        if (mode === GameScene.Tournament) {
+            Tournament.start()
+            nextScene(bracketScene)
+            return
+        }
         nextScene(gameScene)
         gameScene.startMatch()
+    }
+
+    // The player's next match of the tournament, from the bracket
+    function playTournamentMatch() {
+        nextScene(gameScene)
+        gameScene.startMatch()
+    }
+
+    function showBracket() {
+        returnTo(bracketScene)
+    }
+
+    // A new draw after being knocked out
+    function restartTournament() {
+        Tournament.start()
+        returnTo(bracketScene)
     }
 
     // The next computer level of the ladder
@@ -244,6 +265,13 @@ Window {
             id: statsScene
             phong: phong
             position: Qt.vector3d(-phong.sceneSpacingX, -phong.sceneSpacingY, 0)
+        }
+
+        BracketScene {
+            id: bracketScene
+            phong: phong
+            position: Qt.vector3d(phong.sceneSpacingX, 0, 0)
+            menuScene: menuScene
         }
 
         ResultScene {

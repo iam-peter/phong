@@ -90,6 +90,12 @@ match, the game slows down and moves in closer.
 - **Endless** against a computer getting harder and faster the longer you
   last, with three balls to lose. Every return scores a point, every ball the
   computer misses ten, the best score is kept.
+- **Tournament**, a knockout bracket of eight against computer players with
+  their own ways: the Rookie, the Pro and the Ace play like Easy, Normal and
+  Hard, the Wall returns everything straight and never smashes, the Spinner
+  brushes every ball to curve it, the Smasher winds up almost every return
+  and the Collector sends the ball through the modifiers. The other matches
+  of a round are decided by the strength of the two.
 
 The menu cycles through the modes with `Left`/`Right`, `Enter` plays.
 
@@ -102,7 +108,8 @@ scored against kicks off, the ball flies towards the scorer.
 
 A match is a single set or best of three or five, optionally won by two
 points. The stats screen keeps the record against every computer level, the
-best ladder run, the endless high score and the longest rally.
+best ladder run, the endless high score, the tournaments won and the longest
+rally.
 
 ## Modifiers
 

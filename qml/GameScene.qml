@@ -13,7 +13,8 @@ Scene {
         OnePlayer,
         TwoPlayers,
         Ladder,
-        Endless
+        Endless,
+        Tournament
     }
 
     property int mode: GameScene.OnePlayer
@@ -23,9 +24,14 @@ Scene {
 
     readonly property bool againstComputer: mode !== GameScene.TwoPlayers
     readonly property bool endless: mode === GameScene.Endless
+    readonly property bool tournament: mode === GameScene.Tournament
+    // The tournament opponent of this match, the tournament moves on
+    // while the results show
+    property var opponent: ({})
     // Endless gets harder the longer it lasts
     readonly property int difficulty: mode === GameScene.Ladder ? ladderStage
                                       : endless ? (match.playTime < 30 ? 0 : match.playTime < 90 ? 1 : 2)
+                                      : tournament ? opponent.difficulty ?? GameSettings.difficulty
                                       : GameSettings.difficulty
     readonly property real endlessSpeedUp: endless ? 1.0 + Math.min(0.5, match.playTime / 240) : 1.0
     readonly property int lives: 3
@@ -140,6 +146,7 @@ Scene {
     ]
 
     function startMatch() {
+        opponent = tournament ? Tournament.opponent : {}
         leftPaddleY = rightPaddleY = 0.0
         leftPaddleAngle = rightPaddleAngle = 0.0
         leftCharge = rightCharge = 0.0
@@ -734,7 +741,7 @@ Scene {
         serveDelay: GameSettings.kickoffTime
 
         left.name: root.againstComputer ? qsTr("You") : qsTr("Ping")
-        right.name: root.againstComputer ? qsTr("CPU") : qsTr("Pong")
+        right.name: root.tournament ? root.opponent.name ?? "" : root.againstComputer ? qsTr("CPU") : qsTr("Pong")
         right.computer: root.againstComputer
 
         onServed: SoundEffects.play(SoundEffects.Serve)
@@ -841,6 +848,11 @@ Scene {
                 Stats.recordMatch(root.againstComputer, root.difficulty, won, match.longestRally)
             if (root.mode === GameScene.Ladder && won)
                 Stats.recordLadder(root.ladderStage + 1)
+            if (root.tournament) {
+                Tournament.recordResult(won)
+                if (Tournament.champion)
+                    Stats.recordTournamentWin()
+            }
 
             // Let the last point sink in before showing the results
             resultsDelay.start()
@@ -866,6 +878,7 @@ Scene {
         id: computer
 
         difficulty: root.difficulty
+        personality: root.tournament ? root.opponent.personality ?? ComputerPlayer.Balanced : ComputerPlayer.Balanced
         paddleSpeed: root.paddleSpeed
         paddleX: root.paddleX - 0.5 * root.paddleWidth - root.ballRadius
         paddleReach: 0.5 * root.rightPaddleLength + root.ballRadius
@@ -1733,6 +1746,8 @@ Scene {
                   ? qsTr("[W/S] move [D] smash   [Up/Down] move [Left] smash   tap twice to dash")
                   : root.mode === GameScene.Ladder
                   ? qsTr("Ladder %1/3   [W/S] or [Up/Down] move, twice dashes   [Space] smash").arg(root.ladderStage + 1)
+                  : root.tournament
+                  ? qsTr("Tournament   [W/S] or [Up/Down] move, twice dashes   [Space] smash")
                   : qsTr("[W/S] or [Up/Down] move, twice dashes   [Space] smash")
         }
 

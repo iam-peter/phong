@@ -19,10 +19,18 @@ Scene {
     readonly property bool ladder: mode === GameScene.Ladder
     readonly property bool endless: mode === GameScene.Endless
     readonly property bool champion: ladder && won && ladderStage >= 2
+    readonly property bool tournament: mode === GameScene.Tournament
 
     // The last item always leads back to the menu
     readonly property var items: {
         const menu = { text: qsTr("Menu"), activate: () => phong.returnTo(root.menuScene) }
+        if (tournament) {
+            if (Tournament.champion)
+                return [{ text: qsTr("Bracket"), activate: () => phong.showBracket() }, menu]
+            if (won)
+                return [{ text: qsTr("Next round"), activate: () => phong.showBracket() }, menu]
+            return [{ text: qsTr("Retry"), activate: () => phong.restartTournament() }, menu]
+        }
         if (champion)
             return [menu]
         if (ladder && won)
@@ -38,8 +46,10 @@ Scene {
             return ""
         if (endless)
             return newHighScore ? qsTr("New high score") : qsTr("Game over")
-        if (champion)
+        if (champion || (tournament && Tournament.champion))
             return qsTr("Champion")
+        if (tournament)
+            return won ? qsTr("Round won") : qsTr("Knocked out")
         if (ladder && won)
             return qsTr("Level %1 cleared").arg(ladderStage + 1)
         if (mode !== GameScene.TwoPlayers)

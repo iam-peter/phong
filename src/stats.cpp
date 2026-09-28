@@ -54,6 +54,12 @@ bool Stats::recordEndless(int score)
     return true;
 }
 
+void Stats::recordTournamentWin()
+{
+    setValue(QStringLiteral("stats/tournamentsWon"), tournamentsWon() + 1);
+    emit changed();
+}
+
 void Stats::reset()
 {
     m_settings.remove(QStringLiteral("stats"));
@@ -96,6 +102,11 @@ int Stats::ladderBest() const
 int Stats::endlessBest() const
 {
     return value(QStringLiteral("stats/endlessBest"));
+}
+
+int Stats::tournamentsWon() const
+{
+    return value(QStringLiteral("stats/tournamentsWon"));
 }
 
 int Stats::value(const QString& key) const
