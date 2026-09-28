@@ -15,11 +15,8 @@ Scene {
     // more play on a polygon of their own.
     readonly property var modes: [
         { name: qsTr("1 Player"), mode: GameScene.OnePlayer },
-        { name: qsTr("2 Players"), mode: GameScene.TwoPlayers },
-        { name: qsTr("3 Players"), players: 3 },
-        { name: qsTr("4 Players"), players: 4 },
-        { name: qsTr("5 Players"), players: 5 },
-        { name: qsTr("6 Players"), players: 6 },
+        { name: qsTr("2 Players"), lobby: "classic" },
+        { name: qsTr("3-6 Players"), lobby: "party" },
         { name: qsTr("Ladder"), mode: GameScene.Ladder },
         { name: qsTr("Endless"), mode: GameScene.Endless },
         { name: qsTr("Tournament"), mode: GameScene.Tournament },
@@ -29,8 +26,8 @@ Scene {
     readonly property int mode: Math.min(Math.max(GameSettings.mode, 0), modes.length - 1)
 
     function play(entry) {
-        if (entry.players)
-            phong.startParty(entry.players)
+        if (entry.lobby)
+            phong.openLobby(entry.lobby === "party")
         else
             phong.startGame(entry.mode)
     }

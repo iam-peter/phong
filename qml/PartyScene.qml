@@ -15,6 +15,38 @@ Scene {
 
     property int players: 3
     property Scene menuScene
+    // Who plays each side: { kind: "keyboard" }, { kind: "pad", pad } or
+    // { kind: "cpu" }. Sides without one are played by the computer.
+    property var controllers: [{ kind: "keyboard" }]
+
+    function controller(side) {
+        return controllers[side] ?? { kind: "cpu" }
+    }
+
+    function playerName(side) {
+        const controller = root.controller(side)
+        if (controller.kind === "keyboard")
+            return qsTr("You")
+        if (controller.kind === "pad")
+            return qsTr("Pad %1").arg(controllers.slice(0, side + 1).filter((c) => c.kind === "pad").length)
+        return qsTr("CPU %1").arg(side)
+    }
+
+    // Gamepads work the pause menu and the end, not the game
+    menuNavigation: match.state === PartyMatch.Paused || place > 0
+
+    Connections {
+        target: Gamepads
+        enabled: root.active
+        function onButtonPressed(pad, button) {
+            if (button === Gamepad.Start && root.place === 0) {
+                if (match.state === PartyMatch.Paused)
+                    match.resume()
+                else if (root.running)
+                    match.pause()
+            }
+        }
+    }
 
     // The inner polygon, the posts take the ends of every side
     readonly property real radius: 11.5
@@ -180,11 +212,17 @@ Scene {
                 continue
 
             let input = 0
-            if (i === 0) {
+            const controller = root.controller(i)
+            if (controller.kind === "keyboard") {
                 if (leftKey || rightKey)
                     input = (rightKey ? 1 : 0) - (leftKey ? 1 : 0)
                 else if (!isNaN(pointerX))
                     input = Math.max(-1, Math.min(1, (pointerX - side.offset) / 0.5))
+            }
+            else if (controller.kind === "pad") {
+                // Pushed along the side, whichever way it runs on screen
+                if (controller.pad)
+                    input = Math.max(-1, Math.min(1, controller.pad.direction.dotProduct(tangent(i)) * 1.4))
             }
             else {
                 // The computer plays in the frame of its side
@@ -317,15 +355,17 @@ Scene {
         }
         onPlayerOut: (player) => {
             banner.show(qsTr("%1 out").arg(sides.objectAt(player)?.name ?? ""), root.colors[player])
-            // You are out, the place is the players left and you
-            if (player === 0) {
+            // The last human out ends it, the place is the players left
+            // and them
+            const humans = root.controllers.filter((c, side) => c.kind !== "cpu" && match.isAlive(side))
+            if (root.controller(player).kind !== "cpu" && humans.length === 0) {
                 root.place = match.alive + 1
                 SoundEffects.play(SoundEffects.Lose)
                 match.stop()
             }
         }
         onFinished: {
-            if (match.winner === 0) {
+            if (root.controller(match.winner).kind !== "cpu") {
                 root.place = 1
                 SoundEffects.play(SoundEffects.Win)
             }
@@ -434,7 +474,7 @@ Scene {
             readonly property color color: root.colors[index]
             readonly property real angle: root.sideAngle(index) * 180 / Math.PI
             readonly property bool alive: (match.livesLeft[index] ?? 1) > 0
-            readonly property string name: index === 0 ? qsTr("You") : qsTr("CPU %1").arg(index)
+            readonly property string name: root.playerName(index)
             property real offset: 0.0
             property alias paddle: paddle
             property alias computer: computer
@@ -663,7 +703,7 @@ Scene {
                     verticalAlignment: Text.AlignVCenter
                     color: entry.alive ? entry.color : Theme.dimmed
                     glow: entry.alive ? 0.5 : 0.0
-                    text: entry.index === 0 ? qsTr("You") : qsTr("CPU %1").arg(entry.index)
+                    text: root.playerName(entry.index)
                 }
 
                 Repeater3D {
@@ -724,7 +764,8 @@ Scene {
             horizontalAlignment: Text.AlignHCenter
             color: Theme.title
             glow: 0.8
-            text: root.place === 1 ? qsTr("You win")
+            text: root.place === 1 ? (root.controller(match.winner).kind === "keyboard" ? qsTr("You win")
+                                                                         : qsTr("%1 wins").arg(root.playerName(match.winner)))
                   : root.place > 1 ? qsTr("Place %1 of %2").arg(root.place).arg(root.players)
                   : qsTr("Paused")
         }

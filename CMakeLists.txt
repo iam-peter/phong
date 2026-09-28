@@ -43,6 +43,7 @@ qt_add_qml_module(phong
         qml/StatsScene.qml
         qml/GraphicsScene.qml
         qml/OptionsScene.qml
+        qml/LobbyScene.qml
         qml/ControlsScene.qml
         qml/PartyScene.qml
         qml/PhongMaterial.qml

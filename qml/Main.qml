@@ -115,11 +115,25 @@ Window {
         gameScene.startMatch()
     }
 
-    // Three to six players on a polygon
-    function startParty(players) {
+    // Who plays which side before a game of several players
+    function openLobby(party) {
+        lobbyScene.party = party
+        nextScene(lobbyScene)
+    }
+
+    // Three to six players on a polygon, controllers for every side
+    function startParty(players, controllers) {
         partyScene.players = players
+        partyScene.controllers = controllers ?? [{ kind: "keyboard" }]
         nextScene(partyScene)
         partyScene.start()
+    }
+
+    // The classic field, gamepads for the sides or the keyboard
+    function startTwoPlayers(leftPad, rightPad) {
+        gameScene.leftPadAssigned = leftPad
+        gameScene.rightPadAssigned = rightPad
+        startGame(GameScene.TwoPlayers)
     }
 
     // The player's next match of the tournament, from the bracket
@@ -304,6 +318,13 @@ Window {
             id: achievementsScene
             phong: phong
             position: Qt.vector3d(-2 * phong.sceneSpacingX, -phong.sceneSpacingY, 0)
+        }
+
+        LobbyScene {
+            id: lobbyScene
+            phong: phong
+            position: Qt.vector3d(2 * phong.sceneSpacingX, 0, 0)
+            menuScene: menuScene
         }
 
         PartyScene {

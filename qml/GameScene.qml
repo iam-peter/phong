@@ -253,10 +253,13 @@ Scene {
     contentHalfWidth: sideLayout ? 22.6 : 18.5
     contentHalfHeight: sideLayout ? 10.9 : 12.9
 
-    // The first gamepad plays the left paddle, with two players the second
-    // one the right paddle
-    readonly property var leftPad: Gamepads.count > 0 ? Gamepads.pads[0] : null
-    readonly property var rightPad: mode === GameScene.TwoPlayers && Gamepads.count > 1 ? Gamepads.pads[1] : null
+    // Against the computer the first gamepad plays too, two players get
+    // theirs in the lobby
+    property var leftPadAssigned: null
+    property var rightPadAssigned: null
+    readonly property var leftPad: mode === GameScene.TwoPlayers ? leftPadAssigned
+                                   : Gamepads.count > 0 ? Gamepads.pads[0] : null
+    readonly property var rightPad: mode === GameScene.TwoPlayers ? rightPadAssigned : null
     // Gamepads work the pause menu and skip the replay, not the game
     menuNavigation: match.state === Match.Paused || match.state === Match.Finished
 

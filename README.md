@@ -121,13 +121,20 @@ it.
 ## Game modes
 
 - **1 Player** against the computer, the level is set in the settings.
-- **2 Players** on one keyboard, or with two fingers on a touch screen.
-- **3 to 6 Players**, a test: you against the computer on a regular polygon
-  with a side for everybody, a triangle for three up to a hexagon for six.
-  The middle of each side is its player's goal, posts at the ends keep the
-  goals apart. Everybody has three balls to lose, a player who is out gets a
-  wall instead of the goal, and the last one left wins. `Left`/`Right` or
-  `A`/`D` move your paddle at the bottom.
+- **2 Players** on one keyboard, with gamepads, or with two fingers on a
+  touch screen.
+- **3-6 Players**, a test: on a regular polygon with a side for everybody,
+  a triangle for three up to a hexagon for six. The middle of each side is
+  its player's goal, posts at the ends keep the goals apart. Everybody has
+  three balls to lose, a player who is out gets a wall instead of the goal,
+  and the last one left wins. The keyboard player has the bottom side,
+  `Left`/`Right` or `A`/`D` move, gamepads push their paddle along their
+  side, the computer plays the others.
+
+Both start in a lobby that shows who plays which side. A gamepad joins with
+`A`, leaves with `B` and starts with `Start`. With two players the first
+pad takes the right side, the second one the left, the keyboard plays the
+rest.
 - **Ladder** against Easy, Normal and Hard in a row, a loss can be retried.
 - **Endless** against a computer getting harder and faster the longer you
   last, with three balls to lose. Every return scores a point, every ball the
