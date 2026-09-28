@@ -31,6 +31,10 @@ phong_add_test(tst_stats
     ${PROJECT_SOURCE_DIR}/src/stats.cpp
 )
 
+phong_add_test(tst_graphicssettings
+    ${PROJECT_SOURCE_DIR}/src/graphicssettings.cpp
+)
+
 # Without an audio backend, the synthesis is what's tested
 phong_add_test(tst_soundeffects
     ${PROJECT_SOURCE_DIR}/src/soundeffects.cpp

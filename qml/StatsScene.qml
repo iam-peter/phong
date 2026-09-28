@@ -96,7 +96,8 @@ Scene {
 
         Disc {
             position: Qt.vector3d(-0.5 * resetItem.textWidth - 1.0, 0.35, 0)
-            radius: 0.4
+            radius: 0.35
+            sphere: true
         }
     }
 

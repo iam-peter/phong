@@ -10,6 +10,8 @@ Node {
     property alias font: geometry.font
     property alias depth: geometry.depth
     property color color: Theme.text
+    // Titles glow more than labels
+    property real glow: 0.05
 
     property int horizontalAlignment: Text.AlignLeft
     property int verticalAlignment: Text.AlignBottom
@@ -55,9 +57,10 @@ Node {
             font.pointSize: 20
             font.capitalization: Font.AllUppercase
         }
-        materials: DefaultMaterial {
-            diffuseColor: root.color
-            specularAmount: 0.0
+        materials: PhongMaterial {
+            color: root.color
+            glow: root.glow
+            shininess: 0.25
         }
 
         // Invisible hit area, picking the glyphs alone misses between letters

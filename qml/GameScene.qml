@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick3D
+import QtQuick3D.Helpers
 import QtQuick3D.Physics
 import Phong
 
@@ -569,15 +570,92 @@ Scene {
         dynamicFriction: 0.0
     }
 
+    // The floor under the field, with a faint grid
+    Node {
+        visible: GraphicsSettings.floor
+        z: -0.7
+
+        Model {
+            source: "#Rectangle"
+            scale: Qt.vector3d((root.stageWidth + 2.0) / 100, (root.stageHeight + 2.0) / 100, 1)
+            materials: PhongMaterial {
+                color: Theme.floor
+                shininess: 0.15
+            }
+        }
+
+        Model {
+            z: 0.02
+            scale: Qt.vector3d(0.5 * root.stageWidth, 0.5 * root.stageHeight, 1)
+            // The lines span -1 to 1, scaled to the field
+            geometry: GridGeometry {
+                horizontalLines: 21
+                verticalLines: 35
+                horizontalStep: 2.0 / 20
+                verticalStep: 2.0 / 34
+            }
+            materials: PhongMaterial {
+                color: Theme.grid
+                glow: 0.6
+                lighting: DefaultMaterial.NoLighting
+            }
+        }
+    }
+
+    // Soft shadows on the floor, the key light comes from above in front
+    Node {
+        visible: GraphicsSettings.floor && GraphicsSettings.shadows
+        z: -0.6
+
+        component Shadow: Model {
+            property real size: 1.0
+            source: "#Sphere"
+            scale: Qt.vector3d(size / 100, size / 100, 0.001)
+            opacity: 0.45
+            materials: DefaultMaterial {
+                diffuseColor: Theme.shadow
+                lighting: DefaultMaterial.NoLighting
+            }
+        }
+
+        Shadow {
+            position: Qt.vector3d(mainBall.x + 0.3, mainBall.y - 0.6, 0)
+            size: 2.2 * root.ballRadius
+        }
+
+        Repeater3D {
+            model: match.extraBalls
+
+            delegate: Shadow {
+                required property int index
+                readonly property var body: extraBalls.objectAt(index)
+                position: body ? Qt.vector3d(body.x + 0.3, body.y - 0.6, 0) : Qt.vector3d(0, 0, 0)
+                size: 2.2 * root.ballRadius
+            }
+        }
+
+        Shadow {
+            position: Qt.vector3d(leftPaddle.x + 0.3, leftPaddle.y - 0.6, 0)
+            scale: Qt.vector3d(1.4 / 100, (root.leftPaddleLength + 0.4) / 100, 0.001)
+            source: "#Cube"
+        }
+
+        Shadow {
+            position: Qt.vector3d(rightPaddle.x + 0.3, rightPaddle.y - 0.6, 0)
+            scale: Qt.vector3d(1.4 / 100, (root.rightPaddleLength + 0.4) / 100, 0.001)
+            source: "#Cube"
+        }
+    }
+
     // Goal planes
     Model {
         position: Qt.vector3d(-0.5 * (root.stageWidth - root.goalDepth), 0, -0.5)
         scale: Qt.vector3d(root.goalDepth / 100, 2.0 * root.wallY / 100, 1)
         source: "#Rectangle"
-        materials: DefaultMaterial {
+        materials: PhongMaterial {
             id: leftGoalMaterial
-            diffuseColor: Theme.goal
-            specularAmount: 0.0
+            color: Theme.goal
+            glow: 0.15
         }
     }
 
@@ -585,23 +663,24 @@ Scene {
         position: Qt.vector3d(0.5 * (root.stageWidth - root.goalDepth), 0, -0.5)
         scale: Qt.vector3d(root.goalDepth / 100, 2.0 * root.wallY / 100, 1)
         source: "#Rectangle"
-        materials: DefaultMaterial {
+        materials: PhongMaterial {
             id: rightGoalMaterial
-            diffuseColor: Theme.goal
-            specularAmount: 0.0
+            color: Theme.goal
+            glow: 0.15
         }
     }
 
+    // The goal flashes in the color of the scorer
     SequentialAnimation {
         id: leftGoalFlash
-        ColorAnimation { target: leftGoalMaterial; property: "diffuseColor"; to: Theme.text; duration: 60 }
-        ColorAnimation { target: leftGoalMaterial; property: "diffuseColor"; to: Theme.goal; duration: 500 }
+        ColorAnimation { target: leftGoalMaterial; property: "color"; to: Theme.rightPlayer; duration: 60 }
+        ColorAnimation { target: leftGoalMaterial; property: "color"; to: Theme.goal; duration: 600 }
     }
 
     SequentialAnimation {
         id: rightGoalFlash
-        ColorAnimation { target: rightGoalMaterial; property: "diffuseColor"; to: Theme.text; duration: 60 }
-        ColorAnimation { target: rightGoalMaterial; property: "diffuseColor"; to: Theme.goal; duration: 500 }
+        ColorAnimation { target: rightGoalMaterial; property: "color"; to: Theme.leftPlayer; duration: 60 }
+        ColorAnimation { target: rightGoalMaterial; property: "color"; to: Theme.goal; duration: 600 }
     }
 
     // Goals, a ball whose center passed the shield line is out
@@ -647,9 +726,10 @@ Scene {
         Model {
             source: "#Cube"
             scale: Qt.vector3d(root.stageWidth / 100, root.wallThickness / 100, 0.01)
-            materials: DefaultMaterial {
-                diffuseColor: Theme.wall
-                specularAmount: 0.0
+            materials: PhongMaterial {
+                color: Theme.wall
+                glow: 0.35
+                shininess: 0.5
             }
         }
     }
@@ -669,9 +749,10 @@ Scene {
         Model {
             source: "#Cube"
             scale: Qt.vector3d(root.stageWidth / 100, root.wallThickness / 100, 0.01)
-            materials: DefaultMaterial {
-                diffuseColor: Theme.wall
-                specularAmount: 0.0
+            materials: PhongMaterial {
+                color: Theme.wall
+                glow: 0.35
+                shininess: 0.5
             }
         }
     }
@@ -702,6 +783,8 @@ Scene {
                 radius: bumper.modelData.radius * (1.0 + 0.15 * bumper.glow)
                 thickness: 1.0
                 color: Qt.tint(Theme.bumper, Qt.rgba(1, 1, 1, 0.7 * bumper.glow))
+                glow: 0.2 + bumper.glow
+                shininess: 0.4
             }
 
             NumberAnimation {
@@ -740,9 +823,10 @@ Scene {
             Model {
                 source: "#Cube"
                 scale: Qt.vector3d(block.modelData.width / 100, block.modelData.height / 100, 0.01)
-                materials: DefaultMaterial {
-                    diffuseColor: Qt.tint(Theme.block, Qt.rgba(1, 1, 1, 0.7 * block.glow))
-                    specularAmount: 0.0
+                materials: PhongMaterial {
+                    color: Qt.tint(Theme.block, Qt.rgba(1, 1, 1, 0.7 * block.glow))
+                    glow: 0.3 + block.glow
+                    shininess: 0.5
                 }
             }
 
@@ -760,6 +844,7 @@ Scene {
 
     PaddleBody {
         id: leftPaddle
+        color: Theme.leftPlayer
         paddleX: -root.paddleX
         paddleY: root.leftPaddleY
         angle: root.leftPaddleAngle
@@ -769,6 +854,7 @@ Scene {
 
     PaddleBody {
         id: rightPaddle
+        color: Theme.rightPlayer
         paddleX: root.paddleX
         paddleY: root.rightPaddleY
         angle: root.rightPaddleAngle
@@ -793,9 +879,9 @@ Scene {
             visible: match.left.shielded
             source: "#Cube"
             scale: Qt.vector3d(root.shieldWidth / 100, root.innerHeight / 100, 0.01)
-            materials: DefaultMaterial {
-                diffuseColor: Theme.shield
-                specularAmount: 0.0
+            materials: PhongMaterial {
+                color: Theme.shield
+                glow: 1.0
             }
         }
     }
@@ -816,9 +902,9 @@ Scene {
             visible: match.right.shielded
             source: "#Cube"
             scale: Qt.vector3d(root.shieldWidth / 100, root.innerHeight / 100, 0.01)
-            materials: DefaultMaterial {
-                diffuseColor: Theme.shield
-                specularAmount: 0.0
+            materials: PhongMaterial {
+                color: Theme.shield
+                glow: 1.0
             }
         }
     }
@@ -942,9 +1028,9 @@ Scene {
                         eulerRotation.z: modelData.angle
                         scale: Qt.vector3d(modelData.length / 100, 0.0024, 0.003)
                         source: "#Cube"
-                        materials: DefaultMaterial {
-                            diffuseColor: Theme.title
-                            specularAmount: 0.0
+                        materials: PhongMaterial {
+                            color: Theme.title
+                            glow: 1.0
                         }
                     }
                 }
@@ -1012,6 +1098,8 @@ Scene {
         Text3D {
             id: leftName
             x: -0.5 * root.stageWidth
+            color: Theme.leftPlayer
+            glow: 0.5
             text: match.left.name
         }
 
@@ -1068,6 +1156,8 @@ Scene {
             id: rightName
             x: 0.5 * root.stageWidth
             horizontalAlignment: Text.AlignRight
+            color: Theme.rightPlayer
+            glow: 0.5
             text: match.right.name
         }
 

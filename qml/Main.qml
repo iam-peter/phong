@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick3D
+import QtQuick3D.Helpers
+import Phong
 
 Window {
     id: phong
@@ -9,7 +11,7 @@ Window {
     minimumWidth: 200
     minimumHeight: 100
     visible: true
-    color: "black"
+    color: Theme.background
     title: qsTr("Phong")
 
     property var sceneStack: []
@@ -138,11 +140,43 @@ Window {
         focus: true
         camera: camera
 
-        environment: SceneEnvironment {
-            clearColor: "black"
+        // Glow and anti-aliasing follow the graphics settings, the glow
+        // picks up what is brighter than white, the self-lit surfaces
+        environment: ExtendedSceneEnvironment {
+            readonly property int glow: GraphicsSettings.glow
+            readonly property int antialiasing: GraphicsSettings.antialiasing
+
+            clearColor: Theme.background
             backgroundMode: SceneEnvironment.Color
-            antialiasingMode: SceneEnvironment.MSAA
-            antialiasingQuality: SceneEnvironment.High
+
+            antialiasingMode: antialiasing >= GraphicsSettings.Multisample2x ? SceneEnvironment.MSAA
+                                                                             : SceneEnvironment.NoAA
+            antialiasingQuality: antialiasing === GraphicsSettings.Multisample4x ? SceneEnvironment.High
+                                                                                : SceneEnvironment.Medium
+            fxaaEnabled: antialiasing === GraphicsSettings.FastAntialiasing
+
+            glowEnabled: glow !== GraphicsSettings.NoGlow
+            glowQualityHigh: glow === GraphicsSettings.HighGlow
+            glowBlendMode: ExtendedSceneEnvironment.Additive
+            glowStrength: 1.0
+            glowIntensity: glow === GraphicsSettings.HighGlow ? 1.0 : 0.8
+            glowBloom: 0.0
+            glowHDRMinimumValue: 0.9
+            glowLevel: glow === GraphicsSettings.HighGlow
+                       ? ExtendedSceneEnvironment.One | ExtendedSceneEnvironment.Two | ExtendedSceneEnvironment.Three
+                       : ExtendedSceneEnvironment.One | ExtendedSceneEnvironment.Two
+        }
+
+        // Key light from above in front, gives the Phong highlights and
+        // makes the extruded edges read
+        DirectionalLight {
+            eulerRotation: Qt.vector3d(-35, -15, 0)
+            brightness: 0.9
+            ambientColor: Qt.rgba(0.1, 0.12, 0.2, 1.0)
+        }
+
+        Starfield {
+            visible: GraphicsSettings.stars
         }
 
         // Flies from scene to scene, the camera on it shakes and leans
@@ -158,9 +192,9 @@ Window {
                 clipNear: 0.1
                 clipFar: 1000
 
-                // The light travels with the camera
+                // A fill light travelling with the camera
                 PointLight {
-                    brightness: 1.0
+                    brightness: 0.45
                     constantFade: 1.0
                     linearFade: 0.0
                     quadraticFade: 0.0
@@ -194,6 +228,13 @@ Window {
             id: settingsScene
             phong: phong
             position: Qt.vector3d(-phong.sceneSpacingX, phong.sceneSpacingY, 0)
+            graphicsScene: graphicsScene
+        }
+
+        GraphicsScene {
+            id: graphicsScene
+            phong: phong
+            position: Qt.vector3d(0, phong.sceneSpacingY, 0)
         }
 
         StatsScene {
@@ -220,6 +261,18 @@ Window {
             if (phong.currentScene)
                 phong.currentScene.keyReleased(event)
         }
+    }
+
+    // Frame rate to keep an eye on the cost of the looks
+    Text {
+        visible: GraphicsSettings.showFps
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.margins: 8
+        color: Theme.dimmed
+        font.family: Theme.fontFamily
+        font.pixelSize: 14
+        text: qsTr("%1 fps  %2 ms").arg(view.renderStats.fps).arg(view.renderStats.frameTime.toFixed(1))
     }
 
     // Mouse and touch, forwarded to the current scene like the keys

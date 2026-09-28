@@ -75,17 +75,22 @@ DynamicRigidBody {
         eulerRotation.z: root.turn
         opacity: root.leaving ? blink.value : 1.0
 
+        // A shiny sphere, this is P(H)ONG after all
         Disc {
+            sphere: true
             radius: root.radius
             color: root.ball.extra ? Theme.extraBall : Theme.ball
+            glow: 0.35
+            shininess: 1.0
         }
 
         // A mark to see the spin by
         Disc {
-            position: Qt.vector3d(0.5 * root.radius, 0, 0.1)
-            radius: 0.2 * root.radius
-            thickness: 0.4
+            position: Qt.vector3d(0.45 * root.radius, 0, 0.55 * root.radius)
+            radius: 0.22 * root.radius
+            thickness: 0.3
             color: Theme.ballMark
+            glow: 0.8
         }
     }
 

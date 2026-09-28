@@ -144,6 +144,19 @@ with `--arenas my-arenas.json`:
 Obstacles outside the field or on the serve spot in the middle are skipped
 with a warning.
 
+## Graphics
+
+P(H)ONG is Pong with Phong shading: every surface is lit by a key light from
+above in front and shows a specular highlight, the ball is a shiny sphere. On
+top of that bright surfaces glow like neon, the field has a floor with a grid
+and soft shadows, and stars drift behind all screens.
+
+The graphics screen in the settings switches these on and off: shading
+(Phong or flat, unlit colors), glow, anti-aliasing (fast is FXAA, 2x and 4x
+multisampling), stars, floor, shadows and a frame rate display. The browser
+and phones start with low glow and fast anti-aliasing, the desktop with high
+glow and 4x multisampling.
+
 ## Sound
 
 The sound effects are synthesized from a few tones, there are no audio files.

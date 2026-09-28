@@ -34,6 +34,10 @@ qt_add_qml_module(phong
         qml/Sparks.qml
         qml/Banner.qml
         qml/StatsScene.qml
+        qml/GraphicsScene.qml
+        qml/OptionsScene.qml
+        qml/PhongMaterial.qml
+        qml/Starfield.qml
         qml/MenuScene.qml
         qml/GameScene.qml
         qml/SettingsScene.qml
@@ -46,6 +50,7 @@ qt_add_qml_module(phong
         src/arenas.h src/arenas.cpp
         src/soundeffects.h src/soundeffects.cpp
         src/stats.h src/stats.cpp
+        src/graphicssettings.h src/graphicssettings.cpp
         src/gamesettings.h src/gamesettings.cpp
     RESOURCES
         config/modifiers.json

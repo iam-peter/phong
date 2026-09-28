@@ -58,16 +58,22 @@ Scene {
             position: Qt.vector3d(-1, 2, 0)
             horizontalAlignment: Text.AlignRight
             text: "p(h)"
+            glow: 0.5
         }
 
+        // The O is a Phong shaded ball
         Disc {
             position: Qt.vector3d(0.1, 2.5, 0)
             radius: 0.7
+            sphere: true
+            glow: 0.2
+            shininess: 1.0
         }
 
         Text3D {
             position: Qt.vector3d(1, 2, 0)
             text: "ng"
+            glow: 0.5
         }
     }
 
@@ -93,8 +99,9 @@ Scene {
             // Selection marker
             Disc {
                 visible: item.index === root.currentItem
+                sphere: true
                 position: Qt.vector3d(-0.5 * item.textWidth - 1.0, 0.35, 0)
-                radius: 0.4
+                radius: 0.35
             }
         }
     }

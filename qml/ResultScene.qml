@@ -89,6 +89,7 @@ Scene {
         scale: Qt.vector3d(2, 2, 2)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.title
+        glow: 0.8
         text: root.headline
     }
 
@@ -185,7 +186,8 @@ Scene {
             Disc {
                 visible: item.index === root.currentItem
                 position: Qt.vector3d(-0.5 * item.textWidth - 1.0, 0.35, 0)
-                radius: 0.4
+                radius: 0.35
+                sphere: true
             }
         }
     }

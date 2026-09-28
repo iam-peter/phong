@@ -11,6 +11,7 @@ DynamicRigidBody {
     property real angle: 0.0
     property real length: 4.0
     property real width: 1.0
+    property color color: Theme.paddle
     // Squashes on a hit
     property real squash: 1.0
 
@@ -37,21 +38,22 @@ DynamicRigidBody {
     Model {
         source: "#Cube"
         scale: Qt.vector3d(root.width * root.squash / 100, root.length / 100, 0.01)
-        materials: DefaultMaterial {
+        materials: PhongMaterial {
             id: material
-            diffuseColor: Theme.paddle
-            specularAmount: 0.0
+            color: root.color
+            glow: 0.6
+            shininess: 0.7
         }
     }
 
     SequentialAnimation {
         id: flashAnimation
         ParallelAnimation {
-            ColorAnimation { target: material; property: "diffuseColor"; to: Theme.text; duration: 40 }
+            ColorAnimation { target: material; property: "color"; to: Theme.text; duration: 40 }
             NumberAnimation { target: root; property: "squash"; to: 1.7; duration: 40 }
         }
         ParallelAnimation {
-            ColorAnimation { target: material; property: "diffuseColor"; to: Theme.paddle; duration: 220 }
+            ColorAnimation { target: material; property: "color"; to: root.color; duration: 220 }
             NumberAnimation { target: root; property: "squash"; to: 1.0; duration: 220; easing.type: Easing.OutBack }
         }
     }

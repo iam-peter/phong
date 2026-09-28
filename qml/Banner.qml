@@ -17,6 +17,7 @@ Node {
     Text3D {
         id: label
         horizontalAlignment: Text.AlignHCenter
+        glow: 0.8
     }
 
     SequentialAnimation {
