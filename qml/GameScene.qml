@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick3D
 import QtQuick3D.Physics
@@ -42,6 +44,12 @@ Scene {
     property var pointerSides: ({})
 
     readonly property bool running: match.state === Match.Serving || match.state === Match.Playing
+
+    property int currentPauseItem: 0
+    readonly property var pauseItems: [
+        { text: qsTr("Resume"), activate: () => match.resume() },
+        { text: qsTr("Menu"), activate: () => root.leave() }
+    ]
 
     function startMatch() {
         leftPaddleY = 0.0
@@ -149,6 +157,21 @@ Scene {
         if (event.isAutoRepeat)
             return
 
+        if (match.state === Match.Paused) {
+            switch (event.key) {
+                case Qt.Key_Up:
+                    currentPauseItem = 0
+                    return
+                case Qt.Key_Down:
+                    currentPauseItem = pauseItems.length - 1
+                    return
+                case Qt.Key_Enter:
+                case Qt.Key_Return:
+                    pauseItems[currentPauseItem].activate()
+                    return
+            }
+        }
+
         if (setKey(event.key, true))
             return
 
@@ -162,11 +185,6 @@ Scene {
             case Qt.Key_P:
             case Qt.Key_Space:
                 togglePause()
-                break
-            case Qt.Key_Enter:
-            case Qt.Key_Return:
-                if (match.state === Match.Paused)
-                    match.resume()
                 break
         }
     }
@@ -223,6 +241,12 @@ Scene {
                 rightGoalFlash.restart()
             else
                 leftGoalFlash.restart()
+        }
+
+        // Every pause starts on resume
+        onStateChanged: {
+            if (match.state === Match.Paused)
+                root.currentPauseItem = 0
         }
 
         // Let the last point sink in before showing the results
@@ -518,28 +542,27 @@ Scene {
             text: qsTr("Paused")
         }
 
-        Text3D {
-            y: -1.0
-            horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Resume")
-            clickable: pauseOverlay.visible
-            onClicked: match.resume()
-        }
+        Repeater3D {
+            model: root.pauseItems
 
-        Text3D {
-            y: -3.0
-            horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Menu")
-            clickable: pauseOverlay.visible
-            onClicked: root.leave()
-        }
+            delegate: Text3D {
+                id: pauseItem
 
-        Text3D {
-            y: -6.5
-            scale: Qt.vector3d(0.5, 0.5, 0.5)
-            horizontalAlignment: Text.AlignHCenter
-            color: Theme.dimmed
-            text: qsTr("[Space] resume   [Esc] menu")
+                required property var modelData
+                required property int index
+
+                y: -1.0 - index * 2.0
+                horizontalAlignment: Text.AlignHCenter
+                text: modelData.text
+                clickable: pauseOverlay.visible
+                onClicked: pauseItem.modelData.activate()
+
+                Disc {
+                    visible: pauseItem.index === root.currentPauseItem
+                    position: Qt.vector3d(-0.5 * pauseItem.textWidth - 1.0, 0.35, 0)
+                    radius: 0.4
+                }
+            }
         }
     }
 }
