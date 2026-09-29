@@ -490,6 +490,7 @@ Window {
 
         onPressed: (points) => {
             view.forceActiveFocus()
+            phong.wakeButtons()
             for (const point of points)
                 phong.currentScene?.pointerPressed(point.pointId, point.x, point.y)
         }
@@ -521,6 +522,19 @@ Window {
     // switch to full screen. In a game they sit in the middle, the sides
     // steer the paddles, in the menus in the corner, clear of the titles.
     property bool touched: false
+
+    // During a game the buttons only show for a moment after a touch,
+    // they would be in the way of the play otherwise
+    property bool buttonsAwake: false
+    function wakeButtons() {
+        buttonsAwake = true
+        buttonsAsleep.restart()
+    }
+    Timer {
+        id: buttonsAsleep
+        interval: 3000
+        onTriggered: phong.buttonsAwake = false
+    }
 
     component CornerButton: Rectangle {
         id: button
@@ -603,10 +617,20 @@ Window {
         // The game scenes are the ones that run
         readonly property bool inGame: phong.currentScene?.running !== undefined
 
+        // Paused and after the game they stay
+        readonly property bool shown: !inGame || phong.currentScene.running !== true || phong.buttonsAwake
+
         x: inGame ? 0.5 * (parent.width - width) : parent.width - width - 8
         y: 8
         spacing: 10
         visible: phong.touched || GraphicsSettings.touchScreen
+        // Faded out they let the touches through to the game
+        opacity: shown ? 1.0 : 0.0
+        enabled: shown
+
+        Behavior on opacity {
+            NumberAnimation { duration: 300 }
+        }
 
         Behavior on x {
             NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
