@@ -5,6 +5,8 @@ services:
     name: phong-server
     runtime: docker
     plan: free
+    # Close to the players, Europe
+    region: frankfurt
     dockerfilePath: ./server/Dockerfile
     dockerContext: ./server
     autoDeploy: true
