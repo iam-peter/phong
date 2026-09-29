@@ -532,14 +532,6 @@ Scene {
             askLeave = true
     }
 
-    // The pause key, or a click on its hint
-    function pauseClicked() {
-        if (remote)
-            remotePause()
-        else
-            match.pause()
-    }
-
     // A key on the joined machine: both sets move, smash and special go to
     // the host
     function remoteKey(key, pressed) {
@@ -819,49 +811,27 @@ Scene {
         function onButtonReleased(pad, button) { root.gamepadButton(pad, button, false) }
     }
 
-    readonly property var keyNames: KeySettings.keyNames
-    function keyHint(...actions) {
-        return "[" + actions.map((action) => keyNames[action]).join("/") + "]"
-    }
     // Two players share this keyboard, each with a set of keys. Otherwise
     // both sets play the one paddle, also for a host against a player on
     // the network, and on the joined machine.
     readonly property bool sharedKeyboard: mode === GameScene.TwoPlayers && !remote
                                            && !remotes.some((remote) => remote !== null)
-    // The keys of a player who has the keyboard alone
-    readonly property var soloHints: [
-        qsTr("%1 move").arg(keyHint(KeySettings.LeftUp, KeySettings.LeftDown)),
-        qsTr("%1 move").arg(keyHint(KeySettings.RightUp, KeySettings.RightDown)),
-        qsTr("twice to dash"),
-        qsTr("%1 smash").arg("[" + qsTr("Space") + "]"),
-        qsTr("%1 special").arg(keyHint(KeySettings.LeftSpecial))
-    ]
-    // With two players a side shows its own set of keys, or none for a
-    // player on the network, the one playing here gets both sets
-    function sideHints(side, shared) {
-        if (remote)
-            return side === localSide ? soloHints : []
-        if (remotes[side])
-            return []
-        return sharedKeyboard ? shared : soloHints
-    }
-    readonly property var leftHints: mode !== GameScene.TwoPlayers ? soloHints
-        : sideHints(Match.LeftSide, [qsTr("%1 move").arg(keyHint(KeySettings.LeftUp, KeySettings.LeftDown)),
-                                     qsTr("twice to dash"),
-                                     qsTr("%1 smash").arg(keyHint(KeySettings.LeftSmash)),
-                                     qsTr("%1 special").arg(keyHint(KeySettings.LeftSpecial))])
-    readonly property var rightHints: {
-        if (mode === GameScene.TwoPlayers)
-            return sideHints(Match.RightSide,
-                             [qsTr("%1 move").arg(keyHint(KeySettings.RightUp, KeySettings.RightDown)),
-                              qsTr("twice to dash"),
-                              qsTr("%1 smash").arg(keyHint(KeySettings.RightSmash)),
-                              qsTr("%1 special").arg(keyHint(KeySettings.RightSpecial))])
-        if (mode === GameScene.Ladder)
-            return [qsTr("Ladder %1/3").arg(ladderStage + 1)]
-        if (squash)
-            return [qsTr("Best %1").arg(Math.max(match.longestRally, Stats.squashBest))]
-        return []
+
+    // What's worth knowing besides the score: the stage, the best to beat,
+    // watching, the time to the host and back. The keys are in the controls.
+    readonly property string statusLine: {
+        const parts = []
+        if (spectating)
+            parts.push(qsTr("Watching"))
+        else if (mode === GameScene.Ladder)
+            parts.push(qsTr("Ladder %1/3").arg(ladderStage + 1))
+        else if (tournament)
+            parts.push(qsTr("Tournament"))
+        else if (squash)
+            parts.push(qsTr("Best %1").arg(Math.max(match.longestRally, Stats.squashBest)))
+        if (remote && Lan.latency >= 0)
+            parts.push(qsTr("%1 ms").arg(Lan.latency))
+        return parts.join("   ")
     }
 
     // Camera shake, applied through viewOffset
@@ -2970,7 +2940,6 @@ Scene {
         power: match.left.power
         lives: root.solo ? root.lives : 0
         livesLeft: root.lives - match.right.score
-        hints: root.leftHints
     }
 
     PlayerPanel {
@@ -2984,16 +2953,13 @@ Scene {
         effects: root.rightEffects
         power: match.right.power
         showPower: !root.squash
-        hints: root.rightHints
 
         Text3D {
-            y: -9.6
-            scale: Qt.vector3d(0.42, 0.42, 0.42)
+            y: -3.6
+            scale: Qt.vector3d(0.4, 0.4, 0.4)
             horizontalAlignment: Text.AlignHCenter
             color: Theme.dimmed
-            text: root.spectating ? qsTr("[Esc] leave") : qsTr("[Esc] pause")
-            clickable: root.running && root.sideLayout
-            onClicked: root.pauseClicked()
+            text: root.statusLine
         }
     }
 
@@ -3128,57 +3094,14 @@ Scene {
         }
     }
 
-    // Controls, smaller with the keys of two players
-    Node {
-        readonly property real textScale: root.sharedKeyboard ? 0.4 : 0.5
+    // Under the field, see statusLine
+    Text3D {
         visible: !root.sideLayout
+        x: -0.5 * root.stageWidth
         y: -0.5 * root.stageHeight - 2.2
-        scale: Qt.vector3d(textScale, textScale, textScale)
-
-        Text3D {
-            x: -0.5 * root.stageWidth / parent.textScale
-            color: Theme.dimmed
-            // The keys as set in the controls
-            readonly property var names: KeySettings.keyNames
-            function keys(...actions) {
-                return "[" + actions.map((action) => names[action]).join("/") + "]"
-            }
-            readonly property string left: qsTr("%1 move %2 smash %3 special")
-                .arg(keys(KeySettings.LeftUp, KeySettings.LeftDown)).arg(keys(KeySettings.LeftSmash))
-                .arg(keys(KeySettings.LeftSpecial))
-            readonly property string solo: qsTr("%1 move, twice dashes   [Space] smash   %2 special")
-                .arg(keys(KeySettings.LeftUp, KeySettings.LeftDown)).arg(keys(KeySettings.LeftSpecial))
-
-            // Over the network the time to the host and back
-            readonly property string delay: root.remote && Lan.latency >= 0 ? qsTr("   %1 ms").arg(Lan.latency) : ""
-            text: root.spectating ? qsTr("Watching") + delay
-                  : root.remote ? solo + delay
-                  : root.sharedKeyboard ? left
-                  : root.mode === GameScene.Ladder ? qsTr("Ladder %1/3").arg(root.ladderStage + 1) + "   " + solo
-                  : root.tournament ? qsTr("Tournament") + "   " + solo
-                  : root.squash ? qsTr("Best %1").arg(Math.max(match.longestRally, Stats.squashBest)) + "   " + solo
-                  : solo
-        }
-
-        // With two players the right one's keys go right, the pause to
-        // the middle
-        Text3D {
-            visible: root.sharedKeyboard
-            x: 0.5 * root.stageWidth / parent.textScale
-            horizontalAlignment: Text.AlignRight
-            color: Theme.dimmed
-            text: qsTr("%1 move %2 smash %3 special").arg(root.keyHint(KeySettings.RightUp, KeySettings.RightDown))
-                  .arg(root.keyHint(KeySettings.RightSmash)).arg(root.keyHint(KeySettings.RightSpecial))
-        }
-
-        Text3D {
-            x: root.sharedKeyboard ? 0.0 : 0.5 * root.stageWidth / parent.textScale
-            horizontalAlignment: root.sharedKeyboard ? Text.AlignHCenter : Text.AlignRight
-            color: Theme.dimmed
-            text: root.spectating ? qsTr("[Esc] leave") : qsTr("[Esc] pause")
-            clickable: root.running && !root.sideLayout
-            onClicked: root.pauseClicked()
-        }
+        scale: Qt.vector3d(0.5, 0.5, 0.5)
+        color: Theme.dimmed
+        text: root.statusLine
     }
 
     // Pause overlay

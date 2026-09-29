@@ -20,7 +20,6 @@ Node {
     // Balls to lose in solo play, 0 for none
     property int lives: 0
     property int livesLeft: 0
-    property var hints: []
 
     // Long names, e.g. of machines on the network, shrink to the panel
     Text3D {
@@ -82,19 +81,5 @@ Node {
         vertical: true
         power: root.power
         color: root.color
-    }
-
-    Repeater3D {
-        model: root.hints
-
-        delegate: Text3D {
-            required property string modelData
-            required property int index
-            y: -3.6 - index * 0.85
-            scale: Qt.vector3d(0.4, 0.4, 0.4)
-            horizontalAlignment: Text.AlignHCenter
-            color: Theme.dimmed
-            text: modelData
-        }
     }
 }

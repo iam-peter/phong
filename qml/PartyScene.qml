@@ -1016,13 +1016,6 @@ Scene {
         }
     }
 
-    // The keys of a set as a hint, two short lines
-    function keysHint(set) {
-        const names = KeySettings.partyKeyNames
-        return [KeySettings.partySetName(set) + qsTr(" move"),
-                qsTr("%1 smash  %2 special").arg(names[set * 6 + 4]).arg(names[set * 6 + 5])]
-    }
-
     // The pause key of the controls, unless a party key has it too
     function isPauseKey(key) {
         return key === Qt.Key_Escape || (key === KeySettings.key(KeySettings.Pause) && KeySettings.partyAction(key) < 0)
@@ -1760,22 +1753,11 @@ Scene {
 
         Repeater3D {
             id: hints
+            // Only what's worth knowing, the keys are in the controls
             model: {
-                let lines = [qsTr("%1 players").arg(root.players)]
-                if (root.spectating) {
+                const lines = []
+                if (root.spectating)
                     lines.push(qsTr("Watching"))
-                }
-                else if (root.keyboards > 1 && !root.remote) {
-                    const one = root.keysHint(0)
-                    const two = root.keysHint(1)
-                    lines = lines.concat([qsTr("Keys 1: %1").arg(one[0]), one[1], qsTr("Keys 2: %1").arg(two[0]), two[1]])
-                }
-                else {
-                    lines = lines.concat(root.keysHint(0))
-                }
-                if (!root.spectating)
-                    lines.push(qsTr("Tap twice to dash"))
-                lines.push(root.spectating ? qsTr("[Esc] leave") : qsTr("[Esc] pause"))
                 // Over the network the time to the host and back
                 if (root.remote && Lan.latency >= 0)
                     lines.push(qsTr("%1 ms").arg(Lan.latency))
