@@ -78,6 +78,7 @@ qt_add_qml_module(phong
         qml/OptionsScene.qml
         qml/JoinScene.qml
         qml/LobbyScene.qml
+        qml/PracticeLane.qml
         qml/ControlsScene.qml
         qml/OnlineScene.qml
         qml/PartyScene.qml

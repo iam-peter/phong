@@ -83,6 +83,8 @@ public:
     Q_INVOKABLE void send(int peer, const QVariantMap& message);
     Q_INVOKABLE void sendAll(const QVariantMap& message);
     Q_INVOKABLE void kick(int peer);
+    // A player who chose another name
+    Q_INVOKABLE void renamePeer(int peer, const QString& name);
 
     // Opens a room on the server at serverUrl, like ws://example.com:45460
     Q_INVOKABLE void hostOnline(const QString& serverUrl, const QString& name, const QVariantMap& info);

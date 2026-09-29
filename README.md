@@ -261,6 +261,12 @@ pad takes the right side, the second one the left, the keyboard plays the
 rest. In the polygon mode `Keyboards` gives the keyboard to one or two
 players, the second one takes the next side.
 
+While they wait everybody has a small field to warm up in: the paddle keeps
+a ball in play against the far wall and the hits in a row count. The
+movement keys the menu doesn't need move it, `W`/`S` or on the polygon
+`A`/`D`, and so do a gamepad and dragging in the own field. Players on the
+network see each other's fields. `Name` sets the name the others see.
+
 ### On the LAN
 
 In the lobby of 2 Players and of the polygon mode `LAN open` lets players on
@@ -271,8 +277,9 @@ the menu lists the games open on the network. The browser build can't look
 for games or open one, but it joins a desktop host by the address the host
 shows in its lobby, e.g. `192.168.1.5:45455`. The game uses TCP port 45455
 for the players and UDP port 45454 to find games, a firewall has to let
-them through. A player who leaves is replaced by the computer, only the host
-pauses, the others can leave with `Esc`.
+them through. A player who leaves is replaced by the computer. `Esc` pauses
+the game for everybody, whoever presses it, the pause says who it was, and
+each player can resume or leave from there.
 
 A player who left and joins again gets their side back from the computer,
 the game recognises the machine. Everybody else who joins a game that is
@@ -285,8 +292,8 @@ are playing or full.
 `Online open` in the lobby opens a room on a [server](#server) and shows
 its four letter code. The others join with `Join game`, `Room code` and the
 code, from anywhere, the browser version too, which can also host this way.
-Settings, Online has the name the others see: without one they see
-"Player", the machine's name only goes out on the LAN.
+The lobby and Settings, Online have the name the others see: without one
+they see "Player", the machine's name only goes out on the LAN.
 
 Which server the game uses isn't built in, it comes from
 [`online.json`](online.json) in this repository, so the server can move to

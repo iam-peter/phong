@@ -167,6 +167,9 @@ Window {
                 case "lobby":
                     lobbyScene.showRemote(message)
                     break
+                case "practice":
+                    lobbyScene.applyPractice(message)
+                    break
                 case "full":
                     joinScene.error = qsTr("The game is full")
                     break

@@ -466,7 +466,20 @@ void Lan::setPlayerName(const QString& playerName)
         return;
 
     m_playerName = name;
+    // Announced on the LAN under the new one
+    if (m_role == Host)
+        m_name = localName();
     emit nameChanged();
+}
+
+void Lan::renamePeer(int peer, const QString& name)
+{
+    for (Peer& p : m_peers) {
+        if (p.id == peer && p.name != name) {
+            p.name = name;
+            emit peersChanged();
+        }
+    }
 }
 
 QString Lan::playerName() const
