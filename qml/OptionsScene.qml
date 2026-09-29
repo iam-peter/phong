@@ -47,17 +47,19 @@ Scene {
     // Long lists get smaller text
     readonly property real rowScale: Math.min(1.0, rowSpacing / 1.45)
 
+    // The row is the current one. A tap passes the copy of it its delegate
+    // has, the index is the one to go by.
     function change(row, step) {
         const values = row.values
         if (row.text) {
             SoundEffects.play(SoundEffects.MenuSelect)
             typed = row.get() ?? ""
-            capturing = rows.indexOf(row)
+            capturing = currentItem
             return
         }
         if (row.capture) {
             SoundEffects.play(SoundEffects.MenuSelect)
-            capturing = rows.indexOf(row)
+            capturing = currentItem
             return
         }
         if (values.length === 0) {
