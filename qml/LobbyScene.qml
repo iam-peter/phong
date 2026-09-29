@@ -162,6 +162,11 @@ Scene {
                 return qsTr("The host")
             case "cpu":
                 return ""
+            // Online the keys only matter to the one at this machine
+            case "keyboard":
+                if (network !== "local")
+                    return ""
+                break
         }
         return slot ? slotName(slot) : ""
     }
