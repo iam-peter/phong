@@ -516,9 +516,10 @@ Window {
         }
     }
 
-    // Fingers have no Esc: once the screen was touched the corner has a
-    // button that does what Esc does, pause the game or go back, and one
-    // for full screen
+    // Fingers have no Esc: on a phone, or once the screen was touched,
+    // buttons at the top do what Esc does, pause the game or go back, and
+    // switch to full screen. In a game they sit in the middle, the sides
+    // steer the paddles, in the menus in the corner, clear of the titles.
     property bool touched: false
 
     component CornerButton: Rectangle {
@@ -526,7 +527,7 @@ Window {
 
         signal tapped()
 
-        // The smallest a finger hits well, the scores are close by
+        // The smallest a finger hits well
         width: 44
         height: 44
         radius: 9
@@ -542,12 +543,74 @@ Window {
         }
     }
 
+    // Phones play sideways, upright a note covers the game and takes the
+    // fingers. The game pauses when the phone turns upright.
+    readonly property bool upright: GraphicsSettings.touchScreen && height > width
+    onUprightChanged: {
+        if (upright && currentScene?.running === true)
+            pressEscape()
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: phong.upright
+        color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.92)
+
+        MultiPointTouchArea {
+            anchors.fill: parent
+            mouseEnabled: true
+        }
+
+        Column {
+            anchors.centerIn: parent
+            width: parent.width - 40
+            spacing: 24
+
+            // A phone turning on its side
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: 36
+                height: 60
+                radius: 6
+                color: "transparent"
+                border.color: Theme.title
+                border.width: 3
+
+                SequentialAnimation on rotation {
+                    running: phong.upright
+                    loops: Animation.Infinite
+                    PauseAnimation { duration: 500 }
+                    NumberAnimation { from: 0; to: -90; duration: 700; easing.type: Easing.InOutQuad }
+                    PauseAnimation { duration: 900 }
+                    NumberAnimation { from: -90; to: 0; duration: 300 }
+                }
+            }
+
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                color: Theme.text
+                font.family: Theme.fontFamily
+                font.capitalization: Font.AllUppercase
+                font.pixelSize: 20
+                text: qsTr("Turn your phone sideways")
+            }
+        }
+    }
+
     Row {
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.margins: 8
+        // The game scenes are the ones that run
+        readonly property bool inGame: phong.currentScene?.running !== undefined
+
+        x: inGame ? 0.5 * (parent.width - width) : parent.width - width - 8
+        y: 8
         spacing: 10
-        visible: phong.touched
+        visible: phong.touched || GraphicsSettings.touchScreen
+
+        Behavior on x {
+            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+        }
 
         CornerButton {
             visible: GraphicsSettings.fullScreenAvailable

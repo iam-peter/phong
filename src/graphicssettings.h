@@ -25,6 +25,9 @@ class GraphicsSettings : public QObject
     Q_PROPERTY(bool fullScreen READ fullScreen WRITE setFullScreen NOTIFY fullScreenChanged)
     // Safari on the iPhone has no full screen for pages
     Q_PROPERTY(bool fullScreenAvailable READ fullScreenAvailable CONSTANT)
+    // Played with fingers, on a phone or a tablet: landscape only and the
+    // buttons for fingers from the start
+    Q_PROPERTY(bool touchScreen READ touchScreen CONSTANT)
 
 public:
     // Color palettes, see Theme.qml
@@ -92,6 +95,7 @@ public:
     void setFullScreen(bool fullScreen);
     bool fullScreen() const;
     bool fullScreenAvailable() const;
+    bool touchScreen() const;
 
 signals:
     void themeChanged(GraphicsSettings::Theme);

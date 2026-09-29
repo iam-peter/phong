@@ -39,6 +39,10 @@ EM_JS(int, phong_full_screen, (), {
     return document.fullscreenElement || document.webkitFullscreenElement ? 1 : 0;
 });
 
+EM_JS(int, phong_touch_screen, (), {
+    return globalThis.matchMedia && matchMedia("(pointer: coarse)").matches ? 1 : 0;
+});
+
 EM_JS(void, phong_set_full_screen, (int fullScreen), {
     const current = document.fullscreenElement || document.webkitFullscreenElement ? 1 : 0;
     if (fullScreen === current)
@@ -53,9 +57,15 @@ EM_JS(void, phong_set_full_screen, (int fullScreen), {
         result = document.exitFullscreen();
     else if (!fullScreen && document.webkitExitFullscreen)
         result = document.webkitExitFullscreen();
-    // Refused without a gesture, the state simply stays
-    if (result && result.catch)
-        result.catch(() => {});
+    if (!result || !result.then)
+        return;
+    // Refused without a gesture, the state simply stays. Phones turn to
+    // landscape, only possible in full screen and not on every phone.
+    result.then(() => {
+        const orientation = globalThis.screen && screen.orientation;
+        if (fullScreen && orientation && orientation.lock && matchMedia("(pointer: coarse)").matches)
+            orientation.lock("landscape").catch(() => {});
+    }, () => {});
 });
 
 #endif
@@ -229,6 +239,17 @@ void GraphicsSettings::setFullScreen(bool fullScreen)
 bool GraphicsSettings::fullScreen() const
 {
     return m_fullScreen;
+}
+
+bool GraphicsSettings::touchScreen() const
+{
+#if defined(Q_OS_WASM)
+    return phong_touch_screen();
+#elif defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    return true;
+#else
+    return false;
+#endif
 }
 
 bool GraphicsSettings::fullScreenAvailable() const
