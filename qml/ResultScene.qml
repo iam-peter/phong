@@ -129,6 +129,7 @@ Scene {
         scale: Qt.vector3d(2, 2, 2)
 
         Text3D {
+            id: leftScore
             x: -1.0
             horizontalAlignment: Text.AlignRight
             text: root.match?.left.score ?? 0
@@ -140,23 +141,25 @@ Scene {
         }
 
         Text3D {
+            id: rightScore
             x: 1.0
             text: root.match?.right.score ?? 0
         }
 
+        // The names next to their scores, towards them
         Text3D {
-            x: -8.5
+            x: leftScore.x - leftScore.textWidth - 0.7
             y: 0.1
             scale: Qt.vector3d(0.5, 0.5, 0.5)
+            horizontalAlignment: Text.AlignRight
             color: Theme.dimmed
             text: root.match?.left.name ?? ""
         }
 
         Text3D {
-            x: 8.5
+            x: rightScore.x + rightScore.textWidth + 0.7
             y: 0.1
             scale: Qt.vector3d(0.5, 0.5, 0.5)
-            horizontalAlignment: Text.AlignRight
             color: Theme.dimmed
             text: root.match?.right.name ?? ""
         }
