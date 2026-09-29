@@ -156,9 +156,9 @@ if(EMSCRIPTEN)
 endif()
 
 # Where the game asks which phong-server to use: a directory with
-# { "server": "wss://..." }, the nightly publishes it next to the browser
-# version. The server can move or be switched off without a new build.
-set(PHONG_DIRECTORY_URL "https://iam-peter.github.io/phong/online.json" CACHE STRING
+# { "server": "wss://..." }, online.json in the repository. Editing it
+# moves the server or switches it off, without a build. See docs/online.md.
+set(PHONG_DIRECTORY_URL "https://raw.githubusercontent.com/iam-peter/phong/main/online.json" CACHE STRING
     "Where the game asks for the server of games over the internet, empty for nowhere")
 if(PHONG_DIRECTORY_URL)
     target_compile_definitions(phong PRIVATE PHONG_DIRECTORY_URL="${PHONG_DIRECTORY_URL}")

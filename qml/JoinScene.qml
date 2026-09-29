@@ -51,6 +51,7 @@ Scene {
             return
         SoundEffects.play(SoundEffects.MenuSelect)
         error = ""
+        OnlineService.check()
         Lan.joinOnline(OnlineService.server, code, Lan.localName)
     }
 
@@ -65,6 +66,7 @@ Scene {
             error = ""
             currentItem = 0
             OnlineService.refresh()
+            OnlineService.check()
             Lan.startBrowsing()
         }
         else {
@@ -122,7 +124,9 @@ Scene {
         scale: Qt.vector3d(0.55, 0.55, 0.55)
         horizontalAlignment: Text.AlignHCenter
         color: root.error !== "" ? Theme.accent : Theme.dimmed
-        text: root.joining ? qsTr("Joining...")
+        // A sleeping server takes a while to let one join
+        text: OnlineService.state === OnlineService.Waking ? OnlineService.status
+              : root.joining ? qsTr("Joining...")
               : root.error !== "" ? root.error
               : Lan.canHost ? (Lan.games.length ? qsTr("Games on the LAN") : qsTr("Looking for games on the LAN"))
               : qsTr("Type the address the host shows")

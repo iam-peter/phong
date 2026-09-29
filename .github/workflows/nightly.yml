@@ -240,17 +240,10 @@ jobs:
           cmake --build build
 
       - name: Site
-        env:
-          # The server of games over the internet for everybody, under
-          # Settings, Secrets and variables, Actions, Variables. Empty or
-          # unset switches internet play off.
-          PHONG_SERVER_URL: ${{ vars.PHONG_SERVER_URL }}
         run: |
           mkdir site
           cp build/phong.html build/phong.js build/phong.wasm build/qtloader.js build/qtlogo.svg site/
           printf '<!doctype html>\n<meta http-equiv="refresh" content="0; url=phong.html">\n' > site/index.html
-          printf '{ "server": "%s" }\n' "$PHONG_SERVER_URL" > site/online.json
-          cat site/online.json
           (cd site && zip -r ../Phong-web.zip .)
 
       - uses: actions/upload-pages-artifact@v3

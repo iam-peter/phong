@@ -42,8 +42,13 @@ set_tests_properties(tst_fontatlas PROPERTIES ENVIRONMENT QT_QPA_PLATFORM=offscr
 
 phong_add_test(tst_onlineservice
     ${PROJECT_SOURCE_DIR}/src/onlineservice.cpp
+    ${PROJECT_SOURCE_DIR}/src/lan.cpp
 )
-target_link_libraries(tst_onlineservice PRIVATE Qt6::Network)
+target_link_libraries(tst_onlineservice PRIVATE Qt6::Network Qt6::WebSockets)
+if(TARGET phongrelay)
+    target_link_libraries(tst_onlineservice PRIVATE phongrelay)
+    target_compile_definitions(tst_onlineservice PRIVATE PHONG_HAVE_RELAY)
+endif()
 
 phong_add_test(tst_dash
     ${PROJECT_SOURCE_DIR}/src/dash.cpp

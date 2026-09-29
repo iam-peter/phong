@@ -860,6 +860,9 @@ Scene {
            { text: qsTr("Menu"), activate: () => root.leave() }]
 
     function startMatch() {
+        // The shared scores want the server awake at the end
+        if (endless || squash)
+            OnlineService.check()
         remote = false
         rightByComputer = false
         remoteMoves = [0, 0]

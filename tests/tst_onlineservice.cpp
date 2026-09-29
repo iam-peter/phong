@@ -4,7 +4,12 @@
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QTcpServer>
 #include <QTest>
+
+#if defined(PHONG_HAVE_RELAY)
+#include "relayserver.h"
+#endif
 
 class tst_OnlineService : public QObject
 {
@@ -82,6 +87,55 @@ private slots:
         online.refresh();
         QTRY_VERIFY(!online.isBusy());
         QCOMPARE(online.publishedServer(), QStringLiteral("wss://a.example.com"));
+    }
+
+#if defined(PHONG_HAVE_RELAY)
+    void checkFindsTheServerReady()
+    {
+        RelayServer server;
+        QVERIFY(server.listen(0));
+        OnlineService online;
+        online.setDirectory(QUrl());
+        online.setCustomServer(QStringLiteral("127.0.0.1:%1").arg(server.port()));
+        QCOMPARE(online.state(), OnlineService::Unknown);
+        online.check();
+        QCOMPARE(online.state(), OnlineService::Checking);
+        QTRY_COMPARE(online.state(), OnlineService::Ready);
+        QVERIFY(online.status().isEmpty());
+
+        // Fresh, not asked again
+        online.check();
+        QCOMPARE(online.state(), OnlineService::Ready);
+    }
+#endif
+
+    void slowServerIsWakingUp()
+    {
+        // Takes the connection, answers nothing, like a host waking the
+        // server up
+        QTcpServer sleepy;
+        QVERIFY(sleepy.listen(QHostAddress::LocalHost));
+        OnlineService online;
+        online.setDirectory(QUrl());
+        online.setCustomServer(QStringLiteral("127.0.0.1:%1").arg(sleepy.serverPort()));
+        online.check();
+        QTRY_COMPARE_WITH_TIMEOUT(online.state(), OnlineService::Waking, OnlineService::wakingAfter + 2000);
+        QVERIFY(online.waited() >= 2);
+        QVERIFY(online.status().contains(QStringLiteral("Waking")));
+
+        // Another server ends the check
+        online.setCustomServer(QStringLiteral("127.0.0.1:1"));
+        QCOMPARE(online.state(), OnlineService::Unknown);
+    }
+
+    void nobodyThere()
+    {
+        OnlineService online;
+        online.setDirectory(QUrl());
+        online.setCustomServer(QStringLiteral("127.0.0.1:1"));
+        online.check();
+        QTRY_COMPARE(online.state(), OnlineService::Unreachable);
+        QVERIFY(!online.status().isEmpty());
     }
 };
 

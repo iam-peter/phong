@@ -1,11 +1,14 @@
 #include "onlineservice.h"
 
+#include "lan.h"
+
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLoggingCategory>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QWebSocket>
 
 Q_LOGGING_CATEGORY(lcOnline, "phong.online")
 
@@ -17,9 +20,38 @@ OnlineService::OnlineService(QObject* parent):
     m_directory(defaultDirectory()),
     m_enabled(true),
     m_customServer(),
-    m_publishedServer(m_settings.value(QStringLiteral("online/published"), defaultServer()).toString())
+    m_publishedServer(m_settings.value(QStringLiteral("online/published"), defaultServer()).toString()),
+    m_probe(),
+    m_probed(),
+    m_checkTime(),
+    m_lastAnswer(),
+    m_tick(),
+    m_state(State::Unknown)
 {
     m_network->setTransferTimeout(timeout);
+
+    // The seconds of a check count up
+    m_tick.setInterval(1000);
+    connect(&m_tick, &QTimer::timeout, this, [this] {
+        if (m_checkTime.elapsed() >= wakeTimeout) {
+            finishCheck(false);
+            return;
+        }
+        if (m_state == State::Checking && m_checkTime.elapsed() >= wakingAfter)
+            setState(State::Waking);
+        else
+            emit stateChanged();
+    });
+
+    // Another server is another question
+    connect(this, &OnlineService::serverChanged, this, [this] {
+        if (m_probed != server()) {
+            if (m_probe)
+                finishCheck(false);
+            m_lastAnswer.invalidate();
+            setState(State::Unknown);
+        }
+    });
     refresh();
 }
 
@@ -53,6 +85,62 @@ void OnlineService::refresh()
     m_reply = m_network->get(request);
     connect(m_reply, &QNetworkReply::finished, this, [this, reply = m_reply.data()] { answered(reply); });
     emit busyChanged(true);
+}
+
+void OnlineService::check()
+{
+    const QString server = this->server();
+    if (server.isEmpty() || m_probe)
+        return;
+    if (m_state == State::Ready && m_lastAnswer.isValid() && m_lastAnswer.elapsed() < freshFor)
+        return;
+
+    const QUrl url = Lan::serverUrl(server, 45460);
+    if (!url.isValid() || url.host().isEmpty()) {
+        setState(State::Unreachable);
+        return;
+    }
+
+    m_probed = server;
+    QWebSocket* probe = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
+    m_probe = probe;
+    connect(probe, &QWebSocket::connected, this, [probe] {
+        probe->sendTextMessage(QStringLiteral("{\"t\":\"scores\",\"board\":\"endless\"}"));
+    });
+    // Any answer means it's up
+    connect(probe, &QWebSocket::textMessageReceived, this, [this, probe] {
+        if (probe == m_probe)
+            finishCheck(true);
+    });
+    connect(probe, &QWebSocket::disconnected, this, [this, probe] {
+        if (probe == m_probe)
+            finishCheck(false);
+    });
+    m_checkTime.start();
+    m_tick.start();
+    setState(State::Checking);
+    probe->open(url);
+}
+
+void OnlineService::finishCheck(bool ready)
+{
+    m_tick.stop();
+    const qint64 took = m_checkTime.isValid() ? m_checkTime.elapsed() : 0;
+    if (m_probe) {
+        QWebSocket* probe = m_probe;
+        m_probe = nullptr;
+        probe->disconnect(this);
+        probe->close();
+        probe->deleteLater();
+    }
+
+    if (ready) {
+        m_lastAnswer.start();
+        // Remembered for the next time it sleeps
+        if (took >= wakingAfter)
+            m_settings.setValue(QStringLiteral("online/wake/") + m_probed, int((took + 500) / 1000));
+    }
+    setState(ready ? State::Ready : State::Unreachable);
 }
 
 void OnlineService::setDirectory(const QUrl& directory)
@@ -114,6 +202,45 @@ bool OnlineService::isAvailable() const
 bool OnlineService::isBusy() const
 {
     return m_reply;
+}
+
+OnlineService::State OnlineService::state() const
+{
+    return m_state;
+}
+
+int OnlineService::waited() const
+{
+    return (m_state == State::Checking || m_state == State::Waking) && m_checkTime.isValid()
+               ? int(m_checkTime.elapsed() / 1000) : 0;
+}
+
+int OnlineService::lastWake() const
+{
+    const QString server = m_probe ? m_probed : this->server();
+    return m_settings.value(QStringLiteral("online/wake/") + server, 0).toInt();
+}
+
+QString OnlineService::status() const
+{
+    switch (m_state) {
+        case State::Waking:
+            return lastWake() > 0 ? tr("Waking up the server, %1 s, last time it took %2 s").arg(waited()).arg(lastWake())
+                                  : tr("Waking up the server, %1 s, that can take a minute").arg(waited());
+        case State::Unreachable:
+            return tr("The server doesn't answer");
+        default:
+            return QString();
+    }
+}
+
+void OnlineService::setState(State state)
+{
+    if (m_state == state)
+        return;
+
+    m_state = state;
+    emit stateChanged();
 }
 
 void OnlineService::answered(QNetworkReply* reply)

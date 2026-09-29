@@ -260,7 +260,8 @@ Scene {
             y: -1.3 - Math.min(root.onlineList.length, 5) * 1.1
             scale: Qt.vector3d(0.45, 0.45, 0.45)
             color: Theme.dimmed
-            text: HighScores.busy ? qsTr("Asking the server...")
+            text: OnlineService.state === OnlineService.Waking ? OnlineService.status
+                  : HighScores.busy ? qsTr("Asking the server...")
                   : HighScores.error !== "" ? HighScores.error
                   : GameSettings.playerName === "" ? qsTr("A name under Settings, Online puts you on the list")
                   : root.ownPlace >= 5 ? qsTr("You are number %1").arg(root.ownPlace + 1)

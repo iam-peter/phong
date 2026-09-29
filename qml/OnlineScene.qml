@@ -11,6 +11,17 @@ OptionsScene {
 
     title: qsTr("Online")
 
+    onActiveChanged: {
+        if (active)
+            OnlineService.check()
+    }
+    // A new server gets asked right away
+    Connections {
+        target: OnlineService
+        enabled: root.active
+        function onServerChanged() { OnlineService.check() }
+    }
+
     rows: [
         {
             label: qsTr("Internet play"),
@@ -54,8 +65,10 @@ OptionsScene {
         horizontalAlignment: Text.AlignHCenter
         color: OnlineService.available ? Theme.title : Theme.dimmed
         text: !GameSettings.online ? qsTr("Internet play is off")
-              : OnlineService.available ? qsTr("Playing online with %1").arg(OnlineService.server)
-              : qsTr("No server for internet play yet")
+              : !OnlineService.available ? qsTr("No server for internet play yet")
+              : OnlineService.status !== "" ? OnlineService.status
+              : OnlineService.state === OnlineService.Ready ? qsTr("Playing online with %1, it answers").arg(OnlineService.server)
+              : qsTr("Playing online with %1").arg(OnlineService.server)
     }
 
     Text3D {

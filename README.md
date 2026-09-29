@@ -126,11 +126,8 @@ cmake --build build/server
 ```
 
 It also comes as a container, `server/Dockerfile` builds it with the Qt of
-Debian, and `render.yaml` sets it up on Render: New, Blueprint, this
-repository. Render adds the TLS, the address is then
-`wss://<name>.onrender.com`. On the free plan the server sleeps after a
-while without players and takes about a minute to wake up, and it has no
-disk that lasts, so the high scores start over with every restart.
+Debian, and `render.yaml` sets it up on Render. Where else it can run, for
+free too, and how the game finds it is in [docs/online.md](docs/online.md).
 
 The server speaks plain WebSockets. The browser version on an HTTPS page can
 only reach it over TLS, `wss://`, so a public server goes behind a proxy
@@ -291,17 +288,12 @@ code, from anywhere, the browser version too, which can also host this way.
 Settings, Online has the name the others see: without one they see
 "Player", the machine's name only goes out on the LAN.
 
-Which server the game uses isn't built in. The game asks `online.json` next
-to the browser version, `{ "server": "wss://..." }`, which the nightly
-writes from the repository variable `PHONG_SERVER_URL` (Settings, Secrets
-and variables, Actions, Variables). So the server can move to another host,
-or be switched off for everybody with an empty variable, with the next
-nightly and without new downloads. The last answer is kept for a start
-without a connection. Settings, Online can switch internet play off, or
-name an own server that goes first. Without a server the online parts of
-the lobby, the join screen and the results don't show.
-`-DPHONG_DIRECTORY_URL=` builds a game that doesn't ask, `-DPHONG_SERVER_URL`
-gives it a server to start with.
+Which server the game uses isn't built in, it comes from
+[`online.json`](online.json) in this repository, so the server can move to
+another host or be switched off with a commit, without a build. A server
+that was asleep on a free plan is woken up when a lobby opens, and the
+screens say so while it wakes. [docs/online.md](docs/online.md) has the
+details, where the server can run for free, and how to set it up on Render.
 
 Over longer distances the messages take a while. A joined machine measures
 the time to the host and back and shows it at the bottom. Its own paddle

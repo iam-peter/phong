@@ -170,8 +170,10 @@ Scene {
         SoundEffects.play(SoundEffects.MenuSelect)
         const open = onlineOpen
         closeGame()
-        if (!open)
+        if (!open) {
+            OnlineService.check()
             Lan.hostOnline(OnlineService.server, Lan.localName, {})
+        }
     }
 
     // A player on the network who no longer fits watches instead
@@ -242,6 +244,8 @@ Scene {
         // The server may have moved since
         if (active) {
             OnlineService.refresh()
+            // Wakes a sleeping server before somebody wants a room
+            OnlineService.check()
             currentItem = remote ? 0 : items.findIndex((item) => item.activate !== undefined && !item.cycles)
         }
     }
@@ -416,6 +420,8 @@ Scene {
               : root.lanOpen ? qsTr("Open on the LAN, from a browser join %1").arg(Lan.addresses.slice(0, 2).join(qsTr(" or ")))
                                + watching
               : root.onlineOpen && root.hostingLan ? qsTr("Open online, others join with the room code") + watching
+              // A sleeping server takes a while, say so rather than nothing
+              : OnlineService.status !== "" && OnlineService.available ? OnlineService.status
               : root.onlineOpen ? qsTr("Opening a room on the server")
               : Lan.error !== "" ? Lan.error
               : ""
