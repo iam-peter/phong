@@ -19,6 +19,8 @@ concurrency:
 env:
   QT_VERSION: "6.11.3"
   QT_MODULES: "qtquick3d qtquick3dphysics qtquicktimeline qtshadertools qtmultimedia qtwebsockets"
+  # There is no Qt Multimedia for wasm, the browser plays sound with Web Audio
+  QT_WASM_MODULES: "qtquick3d qtquick3dphysics qtquicktimeline qtshadertools qtwebsockets"
   # The Emscripten version the Qt 6.11 wasm kit is built with
   EMSDK_VERSION: "4.0.7"
 
@@ -214,7 +216,7 @@ jobs:
           host: linux
           target: desktop
           arch: linux_gcc_64
-          modules: ${{ env.QT_MODULES }}
+          modules: ${{ env.QT_WASM_MODULES }}
           dir: ${{ runner.temp }}/qt-host
           set-env: false
           cache: true
@@ -226,7 +228,7 @@ jobs:
           host: all_os
           target: wasm
           arch: wasm_singlethread
-          modules: ${{ env.QT_MODULES }}
+          modules: ${{ env.QT_WASM_MODULES }}
           cache: true
 
       - uses: mymindstorm/setup-emsdk@v14
