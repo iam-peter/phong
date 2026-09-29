@@ -3157,10 +3157,12 @@ Scene {
                     pauseItem.modelData.activate()
                 }
 
+                // Like the markers of the menus, a flat disc glows too much
                 Disc {
                     visible: pauseItem.index === root.currentPauseItem
                     position: Qt.vector3d(-0.5 * pauseItem.textWidth - 1.0, 0.35, 0)
-                    radius: 0.4
+                    radius: 0.35
+                    sphere: true
                 }
             }
         }
