@@ -269,13 +269,22 @@ Scene {
                 visible: row.modelData.text ?? false
                 horizontalAlignment: Text.AlignRight
                 color: root.capturing === row.index ? Theme.title : row.selected ? Theme.text : Theme.dimmed
-                text: root.capturing === row.index ? root.typed + "_"
+                text: root.capturing === row.index ? root.typed
                       : (row.modelData.get?.() ?? "") || (row.modelData.placeholder ?? "")
                 clickable: visible
                 onClicked: {
                     root.currentItem = row.index
                     root.change(row.modelData, 1)
                 }
+            }
+
+            // The cursor follows the text
+            Text3D {
+                visible: typedText.visible && root.capturing === row.index
+                x: typedText.x
+                scale: typedText.scale
+                color: Theme.title
+                text: "_"
             }
 
             // Actions leading to another screen say so

@@ -431,17 +431,17 @@ Window {
             }
 
             entries: [
-                { text: qsTr("Versus Computer"), detail: qsTr("One match, the computer's level is in the settings"),
+                { text: qsTr("Versus Computer"),
                   activate: () => soloScene.play(0, GameScene.OnePlayer) },
-                { text: qsTr("Ladder"), detail: qsTr("Easy, Normal and Hard in a row, a loss can be retried"),
+                { text: qsTr("Ladder"),
                   activate: () => soloScene.play(1, GameScene.Ladder) },
-                { text: qsTr("Tournament"), detail: qsTr("A knockout bracket of eight with their own ways to play"),
+                { text: qsTr("Tournament"),
                   activate: () => soloScene.play(2, GameScene.Tournament) },
-                { text: qsTr("Endless"), detail: qsTr("The computer gets faster the longer you last, three balls"),
+                { text: qsTr("Endless"),
                   activate: () => soloScene.play(3, GameScene.Endless) },
-                { text: qsTr("Bricks"), detail: qsTr("A wall of bricks between you and the computer"),
+                { text: qsTr("Bricks"),
                   activate: () => soloScene.play(4, GameScene.Bricks) },
-                { text: qsTr("Squash"), detail: qsTr("Alone against a wall, the longest rally counts"),
+                { text: qsTr("Squash"),
                   activate: () => soloScene.play(5, GameScene.Squash) }
             ]
         }
@@ -470,10 +470,8 @@ Window {
             entries: [
                 // Browsers can't take connections on the LAN
                 { text: qsTr("Host a game"), enabled: OnlineService.available || Lan.canHost,
-                  detail: qsTr("Choose the players, others join over the internet or the LAN"),
                   activate: () => phong.openLobby("online") },
                 { text: qsTr("Join a game"),
-                  detail: qsTr("With the code of a room, or a game on the LAN"),
                   activate: () => phong.openJoin() }
             ]
         }

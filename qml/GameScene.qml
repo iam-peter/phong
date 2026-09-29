@@ -3180,6 +3180,7 @@ Scene {
 
                 y: -1.0 - index * 2.0
                 horizontalAlignment: Text.AlignHCenter
+                color: index === root.currentPauseItem ? Theme.text : Theme.unselected
                 text: modelData.text
                 clickable: pauseOverlay.visible
                 onClicked: {

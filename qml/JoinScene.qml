@@ -16,9 +16,11 @@ Scene {
     property int currentItem: 0
     property string address: GameSettings.lanAddress
     property string code: ""
-    // Typed in their rows
-    textEntry: (items[currentItem]?.address ?? false) || (items[currentItem]?.code ?? false)
-    enteredText: items[currentItem]?.code ? code : address
+    // Typed in their rows, after Enter on them
+    property bool typing: false
+    property string typed: ""
+    textEntry: typing
+    enteredText: typed
     // Why the last try didn't work
     property string error: ""
 
@@ -32,7 +34,7 @@ Scene {
     readonly property var items: {
         if (kind === "internet")
             return [networkItem,
-                    { text: qsTr("Room code"), code: true, activate: () => root.joinRoom() },
+                    { text: qsTr("Room code"), code: true, activate: () => root.startTyping() },
                     { text: qsTr("Back"), activate: () => root.back() }]
         const items = [networkItem].concat(Lan.games.map((game) => ({
             text: game.name,
@@ -42,9 +44,29 @@ Scene {
                          : game.info.open > 0 ? qsTr("%1 free").arg(game.info.open) : qsTr("full, to watch")),
             activate: () => root.join(game.url)
         })))
-        items.push({ text: qsTr("Address"), address: true, activate: () => root.join(root.address) })
+        items.push({ text: qsTr("Address"), address: true, activate: () => root.startTyping() })
         items.push({ text: qsTr("Back"), activate: () => root.back() })
         return items
+    }
+
+    function startTyping() {
+        SoundEffects.play(SoundEffects.MenuSelect)
+        typed = items[currentItem].code ? code : address
+        typing = true
+    }
+
+    // Enter while typing keeps the text and joins with it
+    function finishTyping() {
+        if (items[currentItem].code) {
+            code = typed
+            typing = false
+            joinRoom()
+        }
+        else {
+            address = typed
+            typing = false
+            join(address)
+        }
     }
 
     function join(url) {
@@ -97,6 +119,7 @@ Scene {
     }
 
     onActiveChanged: {
+        typing = false
         if (active) {
             // On the code or the first game, the network is one step up
             currentItem = 1
@@ -110,6 +133,26 @@ Scene {
     onKeyPressed: (event) => {
         event.accepted = true
         const item = items[currentItem]
+        if (typing) {
+            if (event.gamepad && event.key !== Qt.Key_Escape && event.key !== Qt.Key_Return)
+                return
+            const isCode = item.code ?? false
+            if (event.key === Qt.Key_Escape) {
+                typing = false
+            }
+            else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                if (!event.isAutoRepeat)
+                    finishTyping()
+            }
+            else if (event.key === Qt.Key_Backspace) {
+                typed = typed.slice(0, -1)
+            }
+            else if (isCode ? typed.length < 4 && /^[A-Za-z]$/.test(event.text ?? "")
+                            : /^[0-9A-Za-z.:\-]$/.test(event.text ?? "")) {
+                typed += isCode ? event.text.toUpperCase() : event.text
+            }
+            return
+        }
         switch (event.key) {
             case Qt.Key_Escape:
                 back()
@@ -132,19 +175,7 @@ Scene {
                 if (!event.isAutoRepeat)
                     item.activate()
                 return
-            case Qt.Key_Backspace:
-                if (item.address)
-                    address = address.slice(0, -1)
-                else if (item.code)
-                    code = code.slice(0, -1)
-                return
         }
-
-        // The address and the code are typed in their rows
-        if (item.address && !event.gamepad && /^[0-9A-Za-z.:\-]$/.test(event.text ?? ""))
-            address += event.text
-        else if (item.code && !event.gamepad && code.length < 4 && /^[A-Za-z]$/.test(event.text ?? ""))
-            code += event.text.toUpperCase()
     }
     onPointerPressed: (id, x, y) => phong.clickableAt(x, y)?.clicked()
 
@@ -182,7 +213,7 @@ Scene {
 
             readonly property bool selected: index === root.currentItem
 
-            y: 4.4 - index * 1.6
+            y: 4.6 - index * 1.6
 
             Disc {
                 visible: row.selected
@@ -193,7 +224,7 @@ Scene {
 
             Text3D {
                 x: -11.0
-                color: row.selected ? Theme.text : Theme.dimmed
+                color: row.selected ? Theme.text : Theme.unselected
                 text: row.modelData.text
                 clickable: true
                 onClicked: {
@@ -202,37 +233,67 @@ Scene {
                 }
             }
 
-            // The address as typed, with a cursor
+            // The address or the code as typed
             Text3D {
-                visible: row.modelData.address ?? false
-                x: 11.0
+                visible: (row.modelData.address ?? false) || (row.modelData.code ?? false)
+                x: 10.0
                 horizontalAlignment: Text.AlignRight
-                color: row.selected ? Theme.title : Theme.text
-                text: (root.address !== "" ? root.address : qsTr("host:45455")) + (row.selected ? "_" : "")
+                color: root.typing && row.selected ? Theme.title : row.selected ? Theme.text : Theme.dimmed
+                text: {
+                    if (root.typing && row.selected)
+                        return root.typed
+                    if (row.modelData.code)
+                        return root.code !== "" ? root.code : qsTr("ABCD")
+                    return root.address !== "" ? root.address : qsTr("host:45455")
+                }
             }
 
+            // The cursor follows the text
             Text3D {
-                visible: row.modelData.code ?? false
-                x: 11.0
-                horizontalAlignment: Text.AlignRight
-                color: row.selected ? Theme.title : Theme.text
-                text: (root.code !== "" ? root.code : qsTr("ABCD")) + (row.selected ? "_" : "")
+                visible: root.typing && row.selected && ((row.modelData.address ?? false) || (row.modelData.code ?? false))
+                x: 10.0
+                color: Theme.title
+                text: "_"
             }
 
             // Internet or LAN, arrows around it when it can change
             Text3D {
+                id: networkText
                 visible: row.modelData.network ?? false
-                x: 11.0
+                x: 10.0
                 horizontalAlignment: Text.AlignRight
-                color: row.selected ? Theme.title : Theme.text
-                text: row.selected && row.modelData.cycles ? "< " + row.modelData.value + " >" : row.modelData.value ?? ""
+                color: row.selected ? Theme.text : Theme.dimmed
+                text: row.modelData.value ?? ""
                 clickable: visible && (row.modelData.cycles ?? false)
                 onClicked: root.switchKind()
             }
 
             Text3D {
+                visible: networkText.visible && row.selected && (row.modelData.cycles ?? false)
+                x: networkText.x - networkText.textWidth - 0.7
+                horizontalAlignment: Text.AlignRight
+                color: Theme.title
+                text: "<"
+                clickable: visible
+                hitLeft: 1.5
+                hitRight: 0.35
+                onClicked: root.switchKind()
+            }
+
+            Text3D {
+                visible: networkText.visible && row.selected && (row.modelData.cycles ?? false)
+                x: networkText.x + 0.7
+                color: Theme.title
+                text: ">"
+                clickable: visible
+                hitLeft: 0.35
+                hitRight: 3.0
+                onClicked: root.switchKind()
+            }
+
+            Text3D {
                 visible: row.modelData.detail !== undefined
-                x: 11.0
+                x: 10.0
                 scale: Qt.vector3d(0.6, 0.6, 0.6)
                 horizontalAlignment: Text.AlignRight
                 color: Theme.dimmed
@@ -246,7 +307,7 @@ Scene {
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.dimmed
-        text: root.kind === "internet" ? qsTr("[Up/Down] select   [Left/Right] network   type the code   [Enter] join")
-                                       : qsTr("[Up/Down] select   [Left/Right] network   type the address   [Enter] join")
+        text: root.typing ? qsTr("Type it   [Enter] join   [Esc] cancel")
+                          : qsTr("[Up/Down] select   [Left/Right] network   [Enter] confirm   [Esc] back")
     }
 }

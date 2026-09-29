@@ -83,6 +83,8 @@ QtObject {
     readonly property color grid: palette.grid
     readonly property color text: palette.text
     readonly property color dimmed: palette.dimmed
+    // The entries of a menu that aren't selected
+    readonly property color unselected: Qt.tint(text, Qt.rgba(background.r, background.g, background.b, 0.25))
     readonly property color title: palette.title
     readonly property color accent: palette.accent
     readonly property color ball: palette.ball

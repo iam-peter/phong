@@ -56,6 +56,7 @@ Scene {
     // Title, the O of P(H)ONG is a ball
     Node {
         x: 0.8
+        y: 4.6
         scale: Qt.vector3d(2, 2, 2)
 
         Text3D {
@@ -90,8 +91,9 @@ Scene {
             required property var modelData
             required property int index
 
-            y: 0.5 - index * 2.0
+            y: 5.4 - index * 1.8
             horizontalAlignment: Text.AlignHCenter
+            color: index === root.currentItem ? Theme.text : Theme.unselected
             text: modelData.text
             clickable: true
             onClicked: {

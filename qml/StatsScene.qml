@@ -83,9 +83,11 @@ Scene {
     onPointerPressed: (id, x, y) => phong.clickableAt(x, y)?.clicked()
 
     Text3D {
-        y: 7.5
-        scale: Qt.vector3d(2, 2, 2)
+        y: 8.6
+        scale: Qt.vector3d(1.8, 1.8, 1.8)
         horizontalAlignment: Text.AlignHCenter
+        color: Theme.title
+        glow: 0.8
         text: qsTr("Stats")
     }
 
@@ -98,7 +100,7 @@ Scene {
             required property var modelData
             required property int index
 
-            y: 5.2 - index * 1.25
+            y: 6.0 - index * 1.25
             scale: Qt.vector3d(0.85, 0.85, 0.85)
 
             Text3D {
@@ -120,6 +122,7 @@ Scene {
         x: -6.0
         y: -9.0
         horizontalAlignment: Text.AlignHCenter
+        color: root.currentItem === 0 ? Theme.text : Theme.unselected
         text: qsTr("Achievements")
         clickable: true
         onClicked: {
@@ -140,7 +143,7 @@ Scene {
         x: 6.0
         y: -9.0
         horizontalAlignment: Text.AlignHCenter
-        color: root.confirming ? Theme.accent : Theme.text
+        color: root.confirming ? Theme.accent : root.currentItem === 1 ? Theme.text : Theme.unselected
         text: root.confirming ? qsTr("Really reset?") : qsTr("Reset stats")
         clickable: true
         onClicked: {

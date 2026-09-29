@@ -85,7 +85,7 @@ Scene {
     readonly property int capacity: party ? players - keyboards : 2
 
     // The name the others see, typed here as well as in the settings
-    readonly property var nameItem: ({ text: qsTr("Name"), value: typing ? typed + "_" : GameSettings.playerName || qsTr("none"),
+    readonly property var nameItem: ({ text: qsTr("Name"), value: GameSettings.playerName || qsTr("none"), input: true,
                                        activate: () => root.startTyping() })
 
     readonly property var items: {
@@ -778,47 +778,75 @@ Scene {
                                  : qsTr("Gamepads need a build with SDL 3")
     }
 
+    // Like the settings: the names to the left, their values to the right
     Repeater3D {
         model: root.items
 
-        delegate: Text3D {
+        delegate: Node {
             id: item
 
             required property var modelData
             required property int index
 
             readonly property bool selected: index === root.currentItem
+            readonly property bool cycles: selected && (modelData.cycles ?? false)
 
-            y: -5.5 - index * 1.08
+            y: -5.5 - index * 1.2
             scale: Qt.vector3d(0.9, 0.9, 0.9)
-            horizontalAlignment: Text.AlignHCenter
-            text: modelData.text + (modelData.value !== undefined ? "  " + modelData.value : "")
-            clickable: true
-            onClicked: {
-                root.currentItem = item.index
-                if (item.modelData.activate)
-                    item.modelData.activate()
+
+            function activate() {
+                root.currentItem = index
+                if (modelData.activate)
+                    modelData.activate()
                 else
-                    item.modelData.change(1)
+                    modelData.change(1)
             }
 
             Disc {
                 visible: item.selected
-                position: Qt.vector3d(-0.5 * item.textWidth - (item.modelData.cycles ? 2.4 : 1.0), 0.35, 0)
+                position: Qt.vector3d(-12.0, 0.35, 0)
                 radius: 0.35
                 sphere: true
             }
 
             Text3D {
-                visible: item.selected && (item.modelData.cycles ?? false)
-                x: -0.5 * item.textWidth - 0.9
+                x: -11.0
+                color: item.selected ? Theme.text : Theme.unselected
+                text: item.modelData.text
+                clickable: true
+                onClicked: item.activate()
+            }
+
+            // The value stays in place, the arrows wrap around it
+            Text3D {
+                id: valueText
+                x: 10.0
+                visible: item.modelData.value !== undefined
+                horizontalAlignment: Text.AlignRight
+                color: root.typing && item.selected ? Theme.title : item.selected ? Theme.text : Theme.dimmed
+                text: root.typing && item.selected && item.modelData.input ? root.typed : item.modelData.value ?? ""
+                clickable: visible
+                onClicked: item.activate()
+            }
+
+            // The cursor follows the text
+            Text3D {
+                visible: root.typing && item.selected && (item.modelData.input ?? false)
+                x: valueText.x
+                color: Theme.title
+                text: "_"
+            }
+
+            Text3D {
+                visible: item.cycles
+                x: valueText.x - valueText.textWidth - 0.7
                 horizontalAlignment: Text.AlignRight
                 color: Theme.title
                 text: "<"
-                // A tap on the item itself steps forward, back needs this
+                // A tap on the value itself steps forward, back needs this
                 clickable: visible
-                hitLeft: 3.0
-                hitRight: 0.5
+                hitLeft: 1.5
+                hitRight: 0.35
                 onClicked: {
                     root.currentItem = item.index
                     item.modelData.change(-1)
@@ -826,12 +854,12 @@ Scene {
             }
 
             Text3D {
-                visible: item.selected && (item.modelData.cycles ?? false)
-                x: 0.5 * item.textWidth + 0.9
+                visible: item.cycles
+                x: valueText.x + 0.7
                 color: Theme.title
                 text: ">"
                 clickable: visible
-                hitLeft: 0.5
+                hitLeft: 0.35
                 hitRight: 3.0
                 onClicked: {
                     root.currentItem = item.index

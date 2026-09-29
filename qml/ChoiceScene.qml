@@ -158,7 +158,7 @@ Scene {
                 id: label
                 visible: !row.header
                 horizontalAlignment: Text.AlignHCenter
-                color: !row.enabled ? Theme.dimmed : row.selected ? Theme.text : Qt.tint(Theme.text, Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.25))
+                color: !row.enabled ? Theme.dimmed : row.selected ? Theme.text : Theme.unselected
                 text: (row.entry.text ?? "") + (row.entry.value !== undefined ? "  " + row.entry.value : "")
                 clickable: visible && row.enabled
                 onClicked: root.activate(row.index)
