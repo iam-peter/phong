@@ -166,8 +166,15 @@ endif()
 # Where the game asks which phong-server to use: a directory with
 # { "server": "wss://..." }, online.json in the repository. Editing it
 # moves the server or switches it off, without a build. See docs/online.md.
-set(PHONG_DIRECTORY_URL "https://raw.githubusercontent.com/iam-peter/phong/main/online.json" CACHE STRING
+set(phong_directory_url "https://raw.githubusercontent.com/iam-peter/phong/main/online.json")
+set(PHONG_DIRECTORY_URL "${phong_directory_url}" CACHE STRING
     "Where the game asks for the server of games over the internet, empty for nowhere")
+# The cache keeps an old default, build directories from before the move
+# to the repository would ask a page that is gone
+if(PHONG_DIRECTORY_URL STREQUAL "https://iam-peter.github.io/phong/online.json")
+    set(PHONG_DIRECTORY_URL "${phong_directory_url}" CACHE STRING
+        "Where the game asks for the server of games over the internet, empty for nowhere" FORCE)
+endif()
 if(PHONG_DIRECTORY_URL)
     target_compile_definitions(phong PRIVATE PHONG_DIRECTORY_URL="${PHONG_DIRECTORY_URL}")
 endif()
