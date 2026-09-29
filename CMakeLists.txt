@@ -91,6 +91,7 @@ qt_add_qml_module(phong
         src/partymatch.h src/partymatch.cpp
         src/partymodifiers.h src/partymodifiers.cpp
         src/highscores.h src/highscores.cpp
+        src/onlineservice.h src/onlineservice.cpp
         src/fontatlas.h src/fontatlas.cpp
         src/textbatch.h src/textbatch.cpp
         src/dash.h src/dash.cpp
@@ -154,9 +155,16 @@ if(EMSCRIPTEN)
     set_target_properties(phong PROPERTIES QT_WASM_INITIAL_MEMORY "128MB")
 endif()
 
-# Where the game finds phong-server, e.g. wss://phong.example.com, the
-# players can set another one
-set(PHONG_SERVER_URL "" CACHE STRING "The default server for games over the internet")
+# Where the game asks which phong-server to use: a directory with
+# { "server": "wss://..." }, the nightly publishes it next to the browser
+# version. The server can move or be switched off without a new build.
+set(PHONG_DIRECTORY_URL "https://iam-peter.github.io/phong/online.json" CACHE STRING
+    "Where the game asks for the server of games over the internet, empty for nowhere")
+if(PHONG_DIRECTORY_URL)
+    target_compile_definitions(phong PRIVATE PHONG_DIRECTORY_URL="${PHONG_DIRECTORY_URL}")
+endif()
+# The server until the directory answered once, e.g. wss://phong.example.com
+set(PHONG_SERVER_URL "" CACHE STRING "The server for games over the internet before the directory answers")
 if(PHONG_SERVER_URL)
     target_compile_definitions(phong PRIVATE PHONG_SERVER_URL="${PHONG_SERVER_URL}")
 endif()

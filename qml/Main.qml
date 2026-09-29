@@ -541,9 +541,21 @@ Window {
     }
 
     Binding {
+        target: OnlineService
+        property: "enabled"
+        value: GameSettings.online
+    }
+
+    Binding {
+        target: OnlineService
+        property: "customServer"
+        value: GameSettings.serverUrl
+    }
+
+    Binding {
         target: HighScores
         property: "serverUrl"
-        value: GameSettings.serverUrl
+        value: OnlineService.server
     }
 
     Component.onCompleted: {

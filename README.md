@@ -288,9 +288,20 @@ are playing or full.
 `Online open` in the lobby opens a room on a [server](#server) and shows
 its four letter code. The others join with `Join game`, `Room code` and the
 code, from anywhere, the browser version too, which can also host this way.
-The server is set under Settings, Online, next to the name the others see.
-Without a name they see "Player", the machine's name only goes out on the
-LAN.
+Settings, Online has the name the others see: without one they see
+"Player", the machine's name only goes out on the LAN.
+
+Which server the game uses isn't built in. The game asks `online.json` next
+to the browser version, `{ "server": "wss://..." }`, which the nightly
+writes from the repository variable `PHONG_SERVER_URL` (Settings, Secrets
+and variables, Actions, Variables). So the server can move to another host,
+or be switched off for everybody with an empty variable, with the next
+nightly and without new downloads. The last answer is kept for a start
+without a connection. Settings, Online can switch internet play off, or
+name an own server that goes first. Without a server the online parts of
+the lobby, the join screen and the results don't show.
+`-DPHONG_DIRECTORY_URL=` builds a game that doesn't ask, `-DPHONG_SERVER_URL`
+gives it a server to start with.
 
 Over longer distances the messages take a while. A joined machine measures
 the time to the host and back and shows it at the bottom. Its own paddle

@@ -27,7 +27,9 @@ Scene {
                          : game.info.open > 0 ? qsTr("%1 free").arg(game.info.open) : qsTr("full, to watch")),
             activate: () => root.join(game.url)
         }))
-        items.push({ text: qsTr("Room code"), code: true, activate: () => root.joinRoom() })
+        // Only with a server, see OnlineService
+        if (OnlineService.available)
+            items.push({ text: qsTr("Room code"), code: true, activate: () => root.joinRoom() })
         items.push({ text: qsTr("Address"), address: true, activate: () => root.join(root.address) })
         items.push({ text: qsTr("Back"), activate: () => root.back() })
         return items
@@ -48,9 +50,8 @@ Scene {
         if (code.length < 4 || joining)
             return
         SoundEffects.play(SoundEffects.MenuSelect)
-        error = GameSettings.serverUrl === "" ? qsTr("No server for games over the internet, see the settings") : ""
-        if (error === "")
-            Lan.joinOnline(GameSettings.serverUrl, code, Lan.localName)
+        error = ""
+        Lan.joinOnline(OnlineService.server, code, Lan.localName)
     }
 
     function back() {
@@ -63,6 +64,7 @@ Scene {
         if (active) {
             error = ""
             currentItem = 0
+            OnlineService.refresh()
             Lan.startBrowsing()
         }
         else {

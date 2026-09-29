@@ -70,9 +70,11 @@ Scene {
         if (Lan.canHost)
             items.push({ text: lanOpen ? qsTr("LAN open") : qsTr("LAN closed"), cycles: true,
                          change: () => root.toggleLan() })
-        items.push({ text: !onlineOpen ? qsTr("Online closed") : Lan.role === Lan.Host ? qsTr("Online open")
-                                                                        : qsTr("Online..."),
-                     cycles: true, change: () => root.toggleOnline() })
+        // Only with a server, see OnlineService
+        if (OnlineService.available || onlineOpen)
+            items.push({ text: !onlineOpen ? qsTr("Online closed") : Lan.role === Lan.Host ? qsTr("Online open")
+                                                                            : qsTr("Online..."),
+                         cycles: true, change: () => root.toggleOnline() })
         items.push({ text: qsTr("Start"), activate: () => root.start() })
         items.push({ text: qsTr("Back"), activate: () => root.back() })
         return items
@@ -169,7 +171,7 @@ Scene {
         const open = onlineOpen
         closeGame()
         if (!open)
-            Lan.hostOnline(GameSettings.serverUrl, Lan.localName, {})
+            Lan.hostOnline(OnlineService.server, Lan.localName, {})
     }
 
     // A player on the network who no longer fits watches instead
@@ -237,8 +239,11 @@ Scene {
     }
 
     onActiveChanged: {
-        if (active)
+        // The server may have moved since
+        if (active) {
+            OnlineService.refresh()
             currentItem = remote ? 0 : items.findIndex((item) => item.activate !== undefined && !item.cycles)
+        }
     }
 
     // Gamepads join, leave and start here instead of navigating

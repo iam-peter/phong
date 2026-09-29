@@ -64,7 +64,8 @@ GameSettings::GameSettings(QObject* parent):
     m_partyPlayers = std::clamp(m_settings.value("partyPlayers", 4).toInt(), 3, 6);
     m_lanAddress = m_settings.value("lanAddress").toString();
     m_playerName = m_settings.value("playerName").toString().left(12);
-    m_serverUrl = m_settings.value("serverUrl", defaultServerUrl()).toString();
+    m_online = m_settings.value("online", true).toBool();
+    m_serverUrl = m_settings.value("serverUrl").toString();
 }
 
 void GameSettings::restoreDefaults()
@@ -361,13 +362,19 @@ QString GameSettings::serverUrl() const
     return m_serverUrl;
 }
 
-QString GameSettings::defaultServerUrl()
+void GameSettings::setOnline(bool online)
 {
-#if defined(PHONG_SERVER_URL)
-    return QStringLiteral(PHONG_SERVER_URL);
-#else
-    return QString();
-#endif
+    if (m_online == online)
+        return;
+
+    m_online = online;
+    m_settings.setValue("online", online);
+    emit onlineChanged(online);
+}
+
+bool GameSettings::online() const
+{
+    return m_online;
 }
 
 qreal GameSettings::serveSpeed() const

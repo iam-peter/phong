@@ -40,6 +40,11 @@ phong_add_test(tst_fontatlas
 target_link_libraries(tst_fontatlas PRIVATE Qt6::Quick3D)
 set_tests_properties(tst_fontatlas PROPERTIES ENVIRONMENT QT_QPA_PLATFORM=offscreen)
 
+phong_add_test(tst_onlineservice
+    ${PROJECT_SOURCE_DIR}/src/onlineservice.cpp
+)
+target_link_libraries(tst_onlineservice PRIVATE Qt6::Network)
+
 phong_add_test(tst_dash
     ${PROJECT_SOURCE_DIR}/src/dash.cpp
 )

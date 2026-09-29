@@ -39,10 +39,10 @@ class GameSettings : public QObject
     Q_PROPERTY(QString lanAddress READ lanAddress WRITE setLanAddress NOTIFY lanAddressChanged)
     // The name the others see online and on the high scores, empty for none
     Q_PROPERTY(QString playerName READ playerName WRITE setPlayerName NOTIFY playerNameChanged)
-    // phong-server for games over the internet and the shared high scores,
-    // the build's default until one is set, empty for none
+    // Games over the internet and the shared high scores, see OnlineService
+    Q_PROPERTY(bool online READ online WRITE setOnline NOTIFY onlineChanged)
+    // A phong-server of the player's own, empty for the published one
     Q_PROPERTY(QString serverUrl READ serverUrl WRITE setServerUrl NOTIFY serverUrlChanged)
-    Q_PROPERTY(QString defaultServer READ defaultServerUrl CONSTANT)
 
     Q_PROPERTY(qreal serveSpeed READ serveSpeed NOTIFY ballSpeedChanged)
     Q_PROPERTY(qreal maxSpeed READ maxSpeed NOTIFY ballSpeedChanged)
@@ -124,9 +124,11 @@ public:
     void setPlayerName(const QString& playerName);
     QString playerName() const;
 
+    void setOnline(bool online);
+    bool online() const;
+
     void setServerUrl(const QString& serverUrl);
     QString serverUrl() const;
-    static QString defaultServerUrl();
 
     qreal serveSpeed() const;
     qreal maxSpeed() const;
@@ -150,6 +152,7 @@ signals:
     void partyPlayersChanged(int);
     void lanAddressChanged(const QString&);
     void playerNameChanged(const QString&);
+    void onlineChanged(bool);
     void serverUrlChanged(const QString&);
 
 private:
@@ -172,6 +175,7 @@ private:
     int m_partyPlayers;
     QString m_lanAddress;
     QString m_playerName;
+    bool m_online;
     QString m_serverUrl;
 };
 
