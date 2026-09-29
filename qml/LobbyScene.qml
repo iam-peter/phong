@@ -19,9 +19,10 @@ Scene {
     contentHalfHeight: 13.9
 
     property Scene menuScene
-    // Two players on the classic field, or three to six on a polygon
-    property bool party: false
-    property int players: party ? GameSettings.partyPlayers : 2
+    // Two players on the classic field, or three to six on a polygon, as
+    // chosen here or by the host
+    readonly property int players: remote ? remotePlayers : GameSettings.lobbyPlayers
+    readonly property bool party: remote ? remoteParty : players > 2
     property int currentItem: 0
     // Players sharing the keyboard in a party, each with a key set
     property int keyboards: 1
@@ -35,9 +36,13 @@ Scene {
     // Players at this machine only, a room on the server for the internet,
     // or open on the LAN
     property string network: "local"
+    // Both ways to host there are, only then the lobby switches between them
+    readonly property bool canSwitchNetwork: OnlineService.available && Lan.canHost
 
     // Joined to a host: its lobby as it sends it
     property bool remote: false
+    property int remotePlayers: 2
+    property bool remoteParty: false
     property var remoteSlots: []
     property int remoteSlot: -1
 
@@ -88,11 +93,13 @@ Scene {
             items.push({ text: qsTr("Leave"), activate: () => root.back() })
             return items
         }
-        if (party) {
-            items.push({ text: qsTr("Players"), value: players, cycles: true, change: (step) => root.cyclePlayers(step) })
+        items.push({ text: qsTr("Players"), value: players, cycles: true, change: (step) => root.cyclePlayers(step) })
+        if (party)
             items.push({ text: qsTr("Keyboards"), value: keyboards, cycles: true, change: () => root.cycleKeyboards() })
-        }
         if (network !== "local") {
+            // How the others get here, the code or the address shows above
+            items.push({ text: qsTr("Network"), value: network === "lan" ? qsTr("LAN") : qsTr("Internet"),
+                         cycles: canSwitchNetwork, change: () => root.switchNetwork() })
             items.push(nameItem)
             // The room or the LAN didn't open, or the server went away
             if (Lan.role === Lan.NoRole)
@@ -290,9 +297,9 @@ Scene {
     onSlotsChanged: shareLobby()
     onWatchersChanged: shareLobby()
 
+    // 2 to 6, two play on the classic field, more on the polygon
     function cyclePlayers(step) {
-        const count = players - 3 + step
-        GameSettings.partyPlayers = 3 + ((count % 4) + 4) % 4
+        GameSettings.lobbyPlayers = 2 + ((players - 2 + step) % 5 + 5) % 5
         // Players who no longer fit leave
         while (joiners.length > capacity)
             dropJoiner(joiners[joiners.length - 1])
@@ -325,6 +332,17 @@ Scene {
             OnlineService.check()
             Lan.hostOnline(OnlineService.server, Lan.localName, {})
         }
+    }
+
+    // From the internet to the LAN or back: the players who joined the one
+    // way have to come again the other
+    function switchNetwork() {
+        if (!canSwitchNetwork)
+            return
+        SoundEffects.play(SoundEffects.MenuSelect)
+        network = network === "lan" ? "internet" : "lan"
+        GameSettings.network = network
+        openNetwork()
     }
 
     // A player on the network who no longer fits watches instead
@@ -372,15 +390,19 @@ Scene {
     }
 
     // A lobby on this machine, after one of a host maybe
-    function open(asParty, kind) {
+    // kind is "local", or "online" to host the way last chosen, if it can
+    function open(kind) {
         remote = false
         remoteSlots = []
         joiners = []
         watchers = []
         keyboards = 1
-        party = asParty
-        players = Qt.binding(() => root.party ? GameSettings.partyPlayers : 2)
-        network = kind ?? "local"
+        if (kind !== "online")
+            network = "local"
+        else if (GameSettings.network === "lan" && Lan.canHost || !OnlineService.available && Lan.canHost)
+            network = "lan"
+        else
+            network = "internet"
         if (network !== "local")
             openNetwork()
     }
@@ -388,8 +410,8 @@ Scene {
     // A client gets the lobby of the host
     function showRemote(message) {
         remote = true
-        party = message.party
-        players = message.players
+        remoteParty = message.party
+        remotePlayers = message.players
         remoteSlots = message.slots
         remoteSlot = message.slot
     }
@@ -428,8 +450,7 @@ Scene {
                     break
                 case Gamepad.DpadLeft:
                 case Gamepad.DpadRight:
-                    if (root.party)
-                        root.cyclePlayers(button === Gamepad.DpadLeft ? -1 : 1)
+                    root.cyclePlayers(button === Gamepad.DpadLeft ? -1 : 1)
                     break
             }
         }
@@ -646,7 +667,7 @@ Scene {
         horizontalAlignment: Text.AlignHCenter
         color: Theme.title
         glow: 0.8
-        text: root.party ? qsTr("%1 Players").arg(root.players) : qsTr("2 Players")
+        text: qsTr("%1 Players").arg(root.players)
     }
 
     // How the others get here: the code of the room, or the address on

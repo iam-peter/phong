@@ -33,8 +33,11 @@ class GameSettings : public QObject
     Q_PROPERTY(int kickoffTime READ kickoffTime WRITE setKickoffTime NOTIFY kickoffTimeChanged)
     // The game mode last chosen in the menu, see GameScene.Mode
     Q_PROPERTY(int mode READ mode WRITE setMode NOTIFY modeChanged)
-    // Players on the polygon, 3 to 6
-    Q_PROPERTY(int partyPlayers READ partyPlayers WRITE setPartyPlayers NOTIFY partyPlayersChanged)
+    // Players in the lobby, 2 on the classic field, 3 to 6 on the polygon
+    Q_PROPERTY(int lobbyPlayers READ lobbyPlayers WRITE setLobbyPlayers NOTIFY lobbyPlayersChanged)
+    // How games with others are hosted and joined: "internet" through the
+    // server with a room code, or "lan" by the address
+    Q_PROPERTY(QString network READ network WRITE setNetwork NOTIFY networkChanged)
     // The host last joined by address
     Q_PROPERTY(QString lanAddress READ lanAddress WRITE setLanAddress NOTIFY lanAddressChanged)
     // The name the others see online and on the high scores, empty for none
@@ -115,8 +118,11 @@ public:
     void setMode(int mode);
     int mode() const;
 
-    void setPartyPlayers(int partyPlayers);
-    int partyPlayers() const;
+    void setLobbyPlayers(int lobbyPlayers);
+    int lobbyPlayers() const;
+
+    void setNetwork(const QString& network);
+    QString network() const;
 
     void setLanAddress(const QString& lanAddress);
     QString lanAddress() const;
@@ -149,7 +155,8 @@ signals:
     void rumbleChanged(bool);
     void kickoffTimeChanged(int);
     void modeChanged(int);
-    void partyPlayersChanged(int);
+    void lobbyPlayersChanged(int);
+    void networkChanged(const QString&);
     void lanAddressChanged(const QString&);
     void playerNameChanged(const QString&);
     void onlineChanged(bool);
@@ -172,7 +179,8 @@ private:
     bool m_rumble;
     int m_kickoffTime;
     int m_mode;
-    int m_partyPlayers;
+    int m_lobbyPlayers;
+    QString m_network;
     QString m_lanAddress;
     QString m_playerName;
     bool m_online;

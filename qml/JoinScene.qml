@@ -20,18 +20,25 @@ Scene {
     property string error: ""
 
     readonly property bool joining: Lan.role === Lan.Joining
+    // Over the internet only with a server, the LAN by address always
+    readonly property var networkItem: ({ text: qsTr("Network"), network: true,
+                                          value: kind === "internet" ? qsTr("Internet") : qsTr("LAN"),
+                                          cycles: OnlineService.available,
+                                          activate: () => root.switchKind() })
+
     readonly property var items: {
         if (kind === "internet")
-            return [{ text: qsTr("Room code"), code: true, activate: () => root.joinRoom() },
+            return [networkItem,
+                    { text: qsTr("Room code"), code: true, activate: () => root.joinRoom() },
                     { text: qsTr("Back"), activate: () => root.back() }]
-        const items = Lan.games.map((game) => ({
+        const items = [networkItem].concat(Lan.games.map((game) => ({
             text: game.name,
             // A game going on or without a free side can be watched
             detail: qsTr("%1 players, %2").arg(game.info.mode === "party" ? game.info.players : 2)
                     .arg(game.info.playing ? qsTr("playing, to watch")
                          : game.info.open > 0 ? qsTr("%1 free").arg(game.info.open) : qsTr("full, to watch")),
             activate: () => root.join(game.url)
-        }))
+        })))
         items.push({ text: qsTr("Address"), address: true, activate: () => root.join(root.address) })
         items.push({ text: qsTr("Back"), activate: () => root.back() })
         return items
@@ -57,6 +64,29 @@ Scene {
         Lan.joinOnline(OnlineService.server, code, Lan.localName)
     }
 
+    // The room code or the LAN, remembered for hosting too
+    function switchKind() {
+        if (!OnlineService.available || joining)
+            return
+        SoundEffects.play(SoundEffects.MenuMove)
+        error = ""
+        kind = kind === "internet" ? "lan" : "internet"
+        GameSettings.network = kind
+        startLooking()
+    }
+
+    // The server wakes up for a code, the LAN is looked through
+    function startLooking() {
+        if (kind === "internet") {
+            Lan.stopBrowsing()
+            OnlineService.refresh()
+            OnlineService.check()
+        }
+        else {
+            Lan.startBrowsing()
+        }
+    }
+
     function back() {
         SoundEffects.play(SoundEffects.MenuSelect)
         Lan.leave()
@@ -65,15 +95,9 @@ Scene {
 
     onActiveChanged: {
         if (active) {
-            error = ""
-            currentItem = 0
-            if (kind === "internet") {
-                OnlineService.refresh()
-                OnlineService.check()
-            }
-            else {
-                Lan.startBrowsing()
-            }
+            // On the code or the first game, the network is one step up
+            currentItem = 1
+            startLooking()
         }
         else {
             Lan.stopBrowsing()
@@ -94,6 +118,11 @@ Scene {
             case Qt.Key_Down:
                 currentItem = Math.min(currentItem + 1, items.length - 1)
                 SoundEffects.play(SoundEffects.MenuMove)
+                return
+            case Qt.Key_Left:
+            case Qt.Key_Right:
+                if (item.network)
+                    switchKind()
                 return
             case Qt.Key_Enter:
             case Qt.Key_Return:
@@ -122,7 +151,7 @@ Scene {
         horizontalAlignment: Text.AlignHCenter
         color: Theme.title
         glow: 0.8
-        text: root.kind === "internet" ? qsTr("Join a room") : qsTr("Join on the LAN")
+        text: qsTr("Join")
     }
 
     Text3D {
@@ -187,6 +216,17 @@ Scene {
                 text: (root.code !== "" ? root.code : qsTr("ABCD")) + (row.selected ? "_" : "")
             }
 
+            // Internet or LAN, arrows around it when it can change
+            Text3D {
+                visible: row.modelData.network ?? false
+                x: 11.0
+                horizontalAlignment: Text.AlignRight
+                color: row.selected ? Theme.title : Theme.text
+                text: row.selected && row.modelData.cycles ? "< " + row.modelData.value + " >" : row.modelData.value ?? ""
+                clickable: visible && (row.modelData.cycles ?? false)
+                onClicked: root.switchKind()
+            }
+
             Text3D {
                 visible: row.modelData.detail !== undefined
                 x: 11.0
@@ -203,7 +243,7 @@ Scene {
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.dimmed
-        text: root.kind === "internet" ? qsTr("Type the code   [Enter] join   [Esc] back")
-                                       : qsTr("[Up/Down] select   type the address   [Enter] join   [Esc] back")
+        text: root.kind === "internet" ? qsTr("[Up/Down] select   [Left/Right] network   type the code   [Enter] join")
+                                       : qsTr("[Up/Down] select   [Left/Right] network   type the address   [Enter] join")
     }
 }

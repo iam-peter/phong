@@ -12,14 +12,13 @@ Scene {
     // Where the games are: alone, together at this machine, or over the
     // network
     property Scene soloScene
-    property Scene localScene
     property Scene playOnlineScene
     property int currentItem: 0
 
     readonly property var items: {
         const items = [
             { text: qsTr("Solo"), activate: () => phong.nextScene(root.soloScene) },
-            { text: qsTr("Local"), activate: () => phong.nextScene(root.localScene) },
+            { text: qsTr("Local"), activate: () => phong.openLobby("local") },
             { text: qsTr("Online"), activate: () => phong.nextScene(root.playOnlineScene) },
             { text: qsTr("Settings"), activate: () => phong.nextScene(root.settingsScene) },
             { text: qsTr("Stats"), activate: () => phong.nextScene(root.statsScene) }

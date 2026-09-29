@@ -42,7 +42,8 @@ GameSettings::GameSettings(QObject* parent):
     m_rumble(defaultRumble),
     m_kickoffTime(defaultKickoffTime),
     m_mode(0),
-    m_partyPlayers(4)
+    m_lobbyPlayers(2),
+    m_network()
 {
     m_pointsToWin = std::clamp(m_settings.value("pointsToWin", defaultPointsToWin).toInt(),
                                minPointsToWin, maxPointsToWin);
@@ -61,7 +62,9 @@ GameSettings::GameSettings(QObject* parent):
     m_kickoffTime = std::clamp(m_settings.value("kickoffTime", defaultKickoffTime).toInt(),
                                minKickoffTime, maxKickoffTime);
     m_mode = std::max(m_settings.value("mode", 0).toInt(), 0);
-    m_partyPlayers = std::clamp(m_settings.value("partyPlayers", 4).toInt(), 3, 6);
+    m_lobbyPlayers = std::clamp(m_settings.value("lobbyPlayers", 2).toInt(), 2, 6);
+    m_network = m_settings.value("network").toString() == QLatin1String("lan") ? QStringLiteral("lan")
+                                                                                : QStringLiteral("internet");
     m_lanAddress = m_settings.value("lanAddress").toString();
     m_playerName = m_settings.value("playerName").toString().left(12);
     m_online = m_settings.value("online", true).toBool();
@@ -299,20 +302,36 @@ int GameSettings::mode() const
     return m_mode;
 }
 
-void GameSettings::setPartyPlayers(int partyPlayers)
+void GameSettings::setLobbyPlayers(int lobbyPlayers)
 {
-    partyPlayers = std::clamp(partyPlayers, 3, 6);
-    if (m_partyPlayers == partyPlayers)
+    lobbyPlayers = std::clamp(lobbyPlayers, 2, 6);
+    if (m_lobbyPlayers == lobbyPlayers)
         return;
 
-    m_partyPlayers = partyPlayers;
-    m_settings.setValue("partyPlayers", partyPlayers);
-    emit partyPlayersChanged(partyPlayers);
+    m_lobbyPlayers = lobbyPlayers;
+    m_settings.setValue("lobbyPlayers", lobbyPlayers);
+    emit lobbyPlayersChanged(lobbyPlayers);
 }
 
-int GameSettings::partyPlayers() const
+int GameSettings::lobbyPlayers() const
 {
-    return m_partyPlayers;
+    return m_lobbyPlayers;
+}
+
+void GameSettings::setNetwork(const QString& network)
+{
+    const QString value = network == QLatin1String("lan") ? QStringLiteral("lan") : QStringLiteral("internet");
+    if (m_network == value)
+        return;
+
+    m_network = value;
+    m_settings.setValue("network", value);
+    emit networkChanged(value);
+}
+
+QString GameSettings::network() const
+{
+    return m_network;
 }
 
 void GameSettings::setLanAddress(const QString& lanAddress)

@@ -228,7 +228,7 @@ it.
 The menu has them in three places: **Solo** for one player against the
 computer or a wall, **Local** for several players at one machine, and
 **Online** for players on other machines, over the internet or on the LAN.
-Each mode says in a line what it is.
+Each solo mode says in a line what it is.
 
 Solo:
 
@@ -250,7 +250,7 @@ Solo:
 - **Squash** alone against a closed wall with three balls to lose, the
   longest rally is the score.
 
-Local, and online the same two:
+Local and online a lobby chooses the players, `Players` from 2 to 6:
 
 - **2 Players** on one keyboard, with gamepads, or with two fingers on a
   touch screen.
@@ -263,11 +263,12 @@ Local, and online the same two:
   Two players can share the keyboard, see below, gamepads push their paddle
   along their side and the computer plays the others.
 
-Both start in a lobby that shows who plays which side. A gamepad joins with
+The lobby shows who plays which side. A gamepad joins with
 `A`, leaves with `B` and starts with `Start`. With two players the first
 pad takes the right side, the second one the left, the keyboard plays the
-rest. In the polygon mode `Keyboards` gives the keyboard to one or two
-players, the second one takes the next side.
+rest. On the polygon `Keyboards` gives the keyboard to one or two
+players, the second one takes the next side. After a local game the lobby
+is still there with its players.
 
 While they wait everybody has a small field to warm up in: the paddle keeps
 a ball in play against the far wall and the hits in a row count. The
@@ -275,32 +276,40 @@ movement keys the menu doesn't need move it, `W`/`S` or on the polygon
 `A`/`D`, and so do a gamepad and dragging in the own field. Players on the
 network see each other's fields. `Name` sets the name the others see.
 
-### On the LAN
+### Online
 
-Online, `Host on the LAN` opens a lobby that players on the local network
-can join, for 2 Players or the polygon, `Left`/`Right` picks which. The
-host runs the game, the others send their paddle, smashes, specials and
+Online is `Host a game` or `Join a game`. Hosting opens a lobby like the
+local one, open to others. Its `Network` is the internet or the LAN: over
+the internet it's a room on the server and shows the room's four letter
+code, on the LAN it shows the address, e.g. `192.168.1.5:45455`. Switching
+closes the one and opens the other, whoever joined has to come again.
+Joining has the same `Network`, with the internet the code is typed in, on
+the LAN the games open there are listed, or the address typed in. The game
+remembers the last choice for both.
+
+The host runs the game, the others send their paddle, smashes, specials and
 dashes and get the picture back, on the polygon each with their own side
-at the bottom. Players at the host's machine can take sides as well.
-`Join on the LAN` lists the games open on the network. The browser build
-can't look for games or open one, but it joins a desktop host by the
-address the host shows in its lobby, e.g. `192.168.1.5:45455`. The game uses TCP port 45455
-for the players and UDP port 45454 to find games, a firewall has to let
-them through. A player who leaves is replaced by the computer. `Esc` pauses
-the game for everybody, whoever presses it, the pause says who it was, and
-each player can resume or leave from there.
+at the bottom. Players at the host's machine can take sides as well. A
+player who leaves is replaced by the computer. `Esc` pauses the game for
+everybody, whoever presses it, the pause says who it was, and each player
+can resume or leave from there.
 
 A player who left and joins again gets their side back from the computer,
 the game recognises the machine. Everybody else who joins a game that is
 already running, or a lobby without a free side, watches: the game shows
-up without a side to play, `Esc` leaves. The list of games says which ones
-are playing or full.
+up without a side to play, `Esc` leaves.
+
+### On the LAN
+
+The list of games says which ones are playing or full. The browser build
+can't look for games on the LAN or open one there, but it joins a desktop
+host by its address. The game uses TCP port 45455 for the players and UDP
+port 45454 to find games, a firewall has to let them through.
 
 ### Over the internet
 
-Online, `Host a room` opens a lobby as a room on a [server](#server) and
-shows its four letter code. The others join with `Join with a code`, from
-anywhere, the browser version too, which can also host this way.
+Rooms are on a [server](#server), the others join from anywhere, the
+browser version too, which can also host this way.
 The lobby and Settings, Online have the name the others see: without one
 they see "Player", the machine's name only goes out on the LAN.
 

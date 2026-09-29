@@ -130,17 +130,22 @@ Window {
         gameScene.startMatch()
     }
 
-    // Who plays which side before a game of several players. network is
-    // "local", "internet" for a room on the server or "lan".
-    function openLobby(party, network) {
-        lobbyScene.open(party, network)
+    // Who plays which side before a game of several players. kind is
+    // "local" for the players at this machine, "online" to host for others.
+    function openLobby(kind) {
+        lobbyScene.open(kind)
         nextScene(lobbyScene)
     }
 
-    // Back from a game to where it was chosen: the solo, local or online
-    // list, past the lobby
+    // Back from a game to where it was chosen: the local lobby with its
+    // players, the solo list, or hosting and joining, the network is closed
+    // by then
     function returnToMenu() {
-        for (const scene of [soloScene, localScene, playOnlineScene]) {
+        if (sceneStack.includes(lobbyScene) && lobbyScene.network === "local" && !lobbyScene.remote) {
+            returnTo(lobbyScene)
+            return
+        }
+        for (const scene of [soloScene, playOnlineScene]) {
             if (sceneStack.includes(scene)) {
                 returnTo(scene)
                 return
@@ -170,10 +175,12 @@ Window {
         startGame(GameScene.TwoPlayers)
     }
 
-    // kind is "internet" for a room code or "lan" for the games found
-    // and an address
-    function openJoin(kind) {
-        joinScene.kind = kind
+    // With a room code over the internet or on the LAN, the way last
+    // chosen if there is a server for it
+    function openJoin() {
+        joinScene.kind = GameSettings.network === "internet" && OnlineService.available ? "internet" : "lan"
+        // Back here from a lobby the reason stays
+        joinScene.error = ""
         nextScene(joinScene)
     }
 
@@ -386,7 +393,6 @@ Window {
             settingsScene: settingsScene
             statsScene: statsScene
             soloScene: soloScene
-            localScene: localScene
             playOnlineScene: playOnlineScene
         }
 
@@ -420,31 +426,13 @@ Window {
             ]
         }
 
-        // Together at this machine: keyboards, gamepads, fingers
-        ChoiceScene {
-            id: localScene
-            phong: phong
-            position: Qt.vector3d(phong.sceneSpacingX, phong.sceneSpacingY, 0)
-            title: qsTr("Local")
-            entries: [
-                { text: qsTr("2 Players"), detail: qsTr("One keyboard, gamepads, or two fingers on a touch screen"),
-                  activate: () => phong.openLobby(false, "local") },
-                { text: qsTr("3-6 Players"), detail: qsTr("A side of a polygon each, the computer plays the free ones"),
-                  activate: () => phong.openLobby(true, "local") }
-            ]
-        }
-
-        // Over the network: a room on the server, found by its code, or a
-        // game on the LAN, found by its address
+        // Over the network: host a lobby for the others, or join one. How,
+        // over the internet or on the LAN, is chosen there.
         ChoiceScene {
             id: playOnlineScene
             phong: phong
             position: Qt.vector3d(2 * phong.sceneSpacingX, phong.sceneSpacingY, 0)
             title: qsTr("Online")
-
-            // 2 players or a polygon, for both ways of hosting
-            property bool party: false
-            readonly property string players: party ? qsTr("3-6 Players") : qsTr("2 Players")
 
             onActiveChanged: {
                 // The server may have moved, and wakes up meanwhile
@@ -454,35 +442,20 @@ Window {
                 }
             }
 
-            status: !OnlineService.available ? (GameSettings.online ? qsTr("No server for internet play, see Settings, Online")
-                                                                    : qsTr("Internet play is off, see Settings, Online"))
+            status: !OnlineService.available ? (GameSettings.online ? qsTr("No server for internet play, only the LAN, see Settings, Online")
+                                                                    : qsTr("Internet play is off, only the LAN, see Settings, Online"))
                     : OnlineService.status
             statusColor: OnlineService.state === OnlineService.Unreachable ? Theme.accent : Theme.dimmed
 
-            entries: {
-                const entries = [
-                    { header: qsTr("Internet") },
-                    { text: qsTr("Host a room"), value: players, enabled: OnlineService.available,
-                      detail: qsTr("Friends anywhere join with the code it shows"),
-                      change: () => playOnlineScene.party = !playOnlineScene.party,
-                      activate: () => phong.openLobby(playOnlineScene.party, "internet") },
-                    { text: qsTr("Join with a code"), enabled: OnlineService.available,
-                      detail: qsTr("The four letters the host has"),
-                      activate: () => phong.openJoin("internet") },
-                    { header: qsTr("LAN") }
-                ]
-                // Browsers can't take connections, they only join
-                if (Lan.canHost)
-                    entries.push({ text: qsTr("Host on the LAN"), value: players,
-                                   detail: qsTr("Players on this network join by its address"),
-                                   change: () => playOnlineScene.party = !playOnlineScene.party,
-                                   activate: () => phong.openLobby(playOnlineScene.party, "lan") })
-                entries.push({ text: qsTr("Join on the LAN"),
-                               detail: Lan.canHost ? qsTr("The games on this network, or an address")
-                                                   : qsTr("The address a host on this network shows"),
-                               activate: () => phong.openJoin("lan") })
-                return entries
-            }
+            entries: [
+                // Browsers can't take connections on the LAN
+                { text: qsTr("Host a game"), enabled: OnlineService.available || Lan.canHost,
+                  detail: qsTr("Choose the players, others join over the internet or the LAN"),
+                  activate: () => phong.openLobby("online") },
+                { text: qsTr("Join a game"),
+                  detail: qsTr("With the code of a room, or a game on the LAN"),
+                  activate: () => phong.openJoin() }
+            ]
         }
 
         GameScene {
