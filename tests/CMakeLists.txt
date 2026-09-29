@@ -6,6 +6,11 @@ function(phong_add_test name)
     target_compile_definitions(${name} PRIVATE PHONG_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     target_link_libraries(${name} PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Test)
     add_test(NAME ${name} COMMAND ${name})
+    # Without a console Qt on Windows logs to the debugger, the test output
+    # would be missing from ctest
+    if(WIN32)
+        set_property(TEST ${name} APPEND PROPERTY ENVIRONMENT QT_FORCE_STDERR_LOGGING=1)
+    endif()
 endfunction()
 
 phong_add_test(tst_match
@@ -38,7 +43,13 @@ phong_add_test(tst_fontatlas
     ${PROJECT_SOURCE_DIR}/src/fontatlas.cpp
 )
 target_link_libraries(tst_fontatlas PRIVATE Qt6::Quick3D)
-set_tests_properties(tst_fontatlas PROPERTIES ENVIRONMENT QT_QPA_PLATFORM=offscreen)
+set_property(TEST tst_fontatlas APPEND PROPERTY ENVIRONMENT QT_QPA_PLATFORM=offscreen)
+# On Windows the offscreen platform only looks for fonts in Qt's lib/fonts,
+# which Qt doesn't ship
+if(WIN32)
+    file(TO_CMAKE_PATH "$ENV{WINDIR}/Fonts" windows_fonts)
+    set_property(TEST tst_fontatlas APPEND PROPERTY ENVIRONMENT "QT_QPA_FONTDIR=${windows_fonts}")
+endif()
 
 phong_add_test(tst_onlineservice
     ${PROJECT_SOURCE_DIR}/src/onlineservice.cpp
