@@ -1215,6 +1215,50 @@ Scene {
         body.reset(Qt.vector3d(x, y, 0), Qt.vector3d(0, 0, 0))
     }
 
+    // A ball squeezed between the end of a paddle and a wall is pressed out
+    // by the physics, through the wall at times, where it would fly on
+    // above the goals forever. Next to a paddle it comes back in front of
+    // it and the paddle sends it back, anywhere else inside the wall it
+    // went through.
+    function keepInField(body) {
+        if (body.ball.heldBy !== Match.NoSide)
+            return
+        const limit = ballLimit
+        const outside = Math.abs(body.y) > limit + 0.1
+        for (const side of [Match.LeftSide, Match.RightSide]) {
+            const left = side === Match.LeftSide
+            const x = left ? -paddleX : paddleX
+            const y = left ? leftPaddleY : rightPaddleY
+            const length = left ? leftPaddleLength : rightPaddleLength
+            const across = Math.abs(body.x - x)
+            const beside = across < 0.5 * paddleWidth + ballRadius
+            // Into the paddle at the wall, deeper than a touch of its face
+            const pressed = across < 0.5 * paddleWidth + ballRadius - 0.15 && Math.abs(body.y) > limit - ballRadius
+                            && Math.abs(body.y - y) < 0.5 * length + ballRadius - 0.1
+            if (!(beside && outside) && !pressed)
+                continue
+            const front = x + (left ? 1 : -1) * (0.5 * paddleWidth + ballRadius + 0.1)
+            body.reset(Qt.vector3d(front, Math.max(-limit, Math.min(limit, body.y)), 0), Qt.vector3d(0, 0, 0))
+            match.deflect(body.ball, side, Qt.vector2d(left ? 1 : -1, 0))
+            body.applyVelocity()
+            body.clearTrail()
+            return
+        }
+        if (outside) {
+            const top = body.y > 0
+            body.reset(Qt.vector3d(body.x, top ? limit : -limit, 0), Qt.vector3d(0, 0, 0))
+            match.wallHit(body.ball, top)
+            body.applyVelocity()
+            body.clearTrail()
+            return
+        }
+        // Stopped at a wall while the rules send it away, the engine lost
+        // the velocity in the squeeze and would slide it along the wall
+        const away = body.y > 0 ? body.ball.velocity.y < 0 : body.ball.velocity.y > 0
+        if (Math.abs(body.y) > limit - 0.02 && away)
+            body.applyVelocity()
+    }
+
     // Keys slide the held ball along the paddle, a pointer puts it where it is
     function aimHeld(body, keys, pointerY, paddleY, length, dt) {
         const offset = keys !== 0 || isNaN(pointerY) ? body.ball.holdOffset + keys * holdSlide * dt
@@ -1477,6 +1521,8 @@ Scene {
         for (const body of ballBodies()) {
             if (body.ball.heldBy !== Match.NoSide)
                 placeHeld(body)
+            else
+                keepInField(body)
             body.hidden = modifiers.ghostBall && match.state === Match.Playing && Math.abs(body.x) < ghostHalfWidth
             body.advance(dt)
         }
