@@ -756,20 +756,8 @@ Scene {
               : ""
     }
 
-    // How to try the paddle: the movement keys the menu doesn't use
     Text3D {
-        y: -3.8
-        scale: Qt.vector3d(0.45, 0.45, 0.45)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.dimmed
-        readonly property string keys: root.party
-            ? (KeySettings.partyKeyNames.length > 1 ? KeySettings.partyKeyNames[0] + "/" + KeySettings.partyKeyNames[1] : "")
-            : KeySettings.keyNames[KeySettings.LeftUp] + "/" + KeySettings.keyNames[KeySettings.LeftDown]
-        text: qsTr("Warm up while you wait: [%1], a gamepad, or drag in your field").arg(keys)
-    }
-
-    Text3D {
-        y: -4.4
+        y: -3.9
         visible: !root.remote
         scale: Qt.vector3d(0.45, 0.45, 0.45)
         horizontalAlignment: Text.AlignHCenter
