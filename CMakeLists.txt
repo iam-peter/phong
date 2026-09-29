@@ -90,6 +90,7 @@ qt_add_qml_module(phong
         qml/TextMaterial.qml
         qml/Starfield.qml
         qml/MenuScene.qml
+        qml/ChoiceScene.qml
         qml/GameScene.qml
         qml/SettingsScene.qml
         qml/ResultScene.qml

@@ -4,13 +4,15 @@ import QtQuick
 import QtQuick3D
 import Phong
 
-// Joining a game: the hosts found on the LAN, one by its address, or a
-// room on the server by its code. Browsers can't look for hosts, they take
-// the address or the code.
+// Joining a game: a room on the server by its code, or on the LAN the
+// hosts found there and one by its address. Browsers can't look for
+// hosts, they take the address.
 Scene {
     id: root
 
     property Scene menuScene
+    // "internet" for a room code, "lan" for the network here
+    property string kind: "lan"
     property int currentItem: 0
     property string address: GameSettings.lanAddress
     property string code: ""
@@ -19,6 +21,9 @@ Scene {
 
     readonly property bool joining: Lan.role === Lan.Joining
     readonly property var items: {
+        if (kind === "internet")
+            return [{ text: qsTr("Room code"), code: true, activate: () => root.joinRoom() },
+                    { text: qsTr("Back"), activate: () => root.back() }]
         const items = Lan.games.map((game) => ({
             text: game.name,
             // A game going on or without a free side can be watched
@@ -27,9 +32,6 @@ Scene {
                          : game.info.open > 0 ? qsTr("%1 free").arg(game.info.open) : qsTr("full, to watch")),
             activate: () => root.join(game.url)
         }))
-        // Only with a server, see OnlineService
-        if (OnlineService.available)
-            items.push({ text: qsTr("Room code"), code: true, activate: () => root.joinRoom() })
         items.push({ text: qsTr("Address"), address: true, activate: () => root.join(root.address) })
         items.push({ text: qsTr("Back"), activate: () => root.back() })
         return items
@@ -58,16 +60,20 @@ Scene {
     function back() {
         SoundEffects.play(SoundEffects.MenuSelect)
         Lan.leave()
-        phong.returnTo(root.menuScene)
+        phong.previousScene()
     }
 
     onActiveChanged: {
         if (active) {
             error = ""
             currentItem = 0
-            OnlineService.refresh()
-            OnlineService.check()
-            Lan.startBrowsing()
+            if (kind === "internet") {
+                OnlineService.refresh()
+                OnlineService.check()
+            }
+            else {
+                Lan.startBrowsing()
+            }
         }
         else {
             Lan.stopBrowsing()
@@ -116,7 +122,7 @@ Scene {
         horizontalAlignment: Text.AlignHCenter
         color: Theme.title
         glow: 0.8
-        text: qsTr("Join")
+        text: root.kind === "internet" ? qsTr("Join a room") : qsTr("Join on the LAN")
     }
 
     Text3D {
@@ -125,9 +131,10 @@ Scene {
         horizontalAlignment: Text.AlignHCenter
         color: root.error !== "" ? Theme.accent : Theme.dimmed
         // A sleeping server takes a while to let one join
-        text: OnlineService.state === OnlineService.Waking ? OnlineService.status
+        text: root.kind === "internet" && OnlineService.state === OnlineService.Waking ? OnlineService.status
               : root.joining ? qsTr("Joining...")
               : root.error !== "" ? root.error
+              : root.kind === "internet" ? qsTr("Type the code the host shows")
               : Lan.canHost ? (Lan.games.length ? qsTr("Games on the LAN") : qsTr("Looking for games on the LAN"))
               : qsTr("Type the address the host shows")
     }
@@ -196,6 +203,7 @@ Scene {
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.dimmed
-        text: qsTr("[Up/Down] select   type the code or the address   [Enter] join   [Esc] back")
+        text: root.kind === "internet" ? qsTr("Type the code   [Enter] join   [Esc] back")
+                                       : qsTr("[Up/Down] select   type the address   [Enter] join   [Esc] back")
     }
 }

@@ -729,7 +729,7 @@ Scene {
         match.stop()
         releaseInput()
         Lan.leave()
-        phong.returnTo(root.menuScene)
+        phong.returnToMenu()
     }
 
     function releaseInput() {

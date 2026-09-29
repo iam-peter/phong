@@ -85,8 +85,8 @@ the TLS, on a virtual machine a proxy like Caddy does it.
    `https://phong-server.onrender.com`. The game uses it as
    `wss://phong-server.onrender.com`.
 3. Try it first without changing anything for others: Settings, Online,
-   Own server, the `wss://` address. Open 2 Players, `Online open` should
-   show a room code, maybe after the server woke up.
+   Own server, the `wss://` address. Online, `Host a room` should show a
+   room code, maybe after the server woke up.
 4. Then publish it for everybody in [`online.json`](../online.json).
 
 The free plan has no disk that lasts, the high scores start over whenever

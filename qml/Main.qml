@@ -130,10 +130,23 @@ Window {
         gameScene.startMatch()
     }
 
-    // Who plays which side before a game of several players
-    function openLobby(party) {
-        lobbyScene.open(party)
+    // Who plays which side before a game of several players. network is
+    // "local", "internet" for a room on the server or "lan".
+    function openLobby(party, network) {
+        lobbyScene.open(party, network)
         nextScene(lobbyScene)
+    }
+
+    // Back from a game to where it was chosen: the solo, local or online
+    // list, past the lobby
+    function returnToMenu() {
+        for (const scene of [soloScene, localScene, playOnlineScene]) {
+            if (sceneStack.includes(scene)) {
+                returnTo(scene)
+                return
+            }
+        }
+        returnTo(menuScene)
     }
 
     // Three to six players on a polygon, controllers for every side
@@ -157,7 +170,10 @@ Window {
         startGame(GameScene.TwoPlayers)
     }
 
-    function openJoin() {
+    // kind is "internet" for a room code or "lan" for the games found
+    // and an address
+    function openJoin(kind) {
+        joinScene.kind = kind
         nextScene(joinScene)
     }
 
@@ -369,6 +385,104 @@ Window {
             position: Qt.vector3d(-phong.sceneSpacingX, 0, 0)
             settingsScene: settingsScene
             statsScene: statsScene
+            soloScene: soloScene
+            localScene: localScene
+            playOnlineScene: playOnlineScene
+        }
+
+        // Alone against the computer, or a wall. The last one played is
+        // remembered.
+        ChoiceScene {
+            id: soloScene
+            phong: phong
+            position: Qt.vector3d(-2 * phong.sceneSpacingX, 0, 0)
+            title: qsTr("Solo")
+            currentItem: Math.min(Math.max(GameSettings.mode, 0), 5)
+
+            function play(index, mode) {
+                GameSettings.mode = index
+                phong.startGame(mode)
+            }
+
+            entries: [
+                { text: qsTr("Versus Computer"), detail: qsTr("One match, the computer's level is in the settings"),
+                  activate: () => soloScene.play(0, GameScene.OnePlayer) },
+                { text: qsTr("Ladder"), detail: qsTr("Easy, Normal and Hard in a row, a loss can be retried"),
+                  activate: () => soloScene.play(1, GameScene.Ladder) },
+                { text: qsTr("Tournament"), detail: qsTr("A knockout bracket of eight with their own ways to play"),
+                  activate: () => soloScene.play(2, GameScene.Tournament) },
+                { text: qsTr("Endless"), detail: qsTr("The computer gets faster the longer you last, three balls"),
+                  activate: () => soloScene.play(3, GameScene.Endless) },
+                { text: qsTr("Bricks"), detail: qsTr("A wall of bricks between you and the computer"),
+                  activate: () => soloScene.play(4, GameScene.Bricks) },
+                { text: qsTr("Squash"), detail: qsTr("Alone against a wall, the longest rally counts"),
+                  activate: () => soloScene.play(5, GameScene.Squash) }
+            ]
+        }
+
+        // Together at this machine: keyboards, gamepads, fingers
+        ChoiceScene {
+            id: localScene
+            phong: phong
+            position: Qt.vector3d(phong.sceneSpacingX, phong.sceneSpacingY, 0)
+            title: qsTr("Local")
+            entries: [
+                { text: qsTr("2 Players"), detail: qsTr("One keyboard, gamepads, or two fingers on a touch screen"),
+                  activate: () => phong.openLobby(false, "local") },
+                { text: qsTr("3-6 Players"), detail: qsTr("A side of a polygon each, the computer plays the free ones"),
+                  activate: () => phong.openLobby(true, "local") }
+            ]
+        }
+
+        // Over the network: a room on the server, found by its code, or a
+        // game on the LAN, found by its address
+        ChoiceScene {
+            id: playOnlineScene
+            phong: phong
+            position: Qt.vector3d(2 * phong.sceneSpacingX, phong.sceneSpacingY, 0)
+            title: qsTr("Online")
+
+            // 2 players or a polygon, for both ways of hosting
+            property bool party: false
+            readonly property string players: party ? qsTr("3-6 Players") : qsTr("2 Players")
+
+            onActiveChanged: {
+                // The server may have moved, and wakes up meanwhile
+                if (active) {
+                    OnlineService.refresh()
+                    OnlineService.check()
+                }
+            }
+
+            status: !OnlineService.available ? (GameSettings.online ? qsTr("No server for internet play, see Settings, Online")
+                                                                    : qsTr("Internet play is off, see Settings, Online"))
+                    : OnlineService.status
+            statusColor: OnlineService.state === OnlineService.Unreachable ? Theme.accent : Theme.dimmed
+
+            entries: {
+                const entries = [
+                    { header: qsTr("Internet") },
+                    { text: qsTr("Host a room"), value: players, enabled: OnlineService.available,
+                      detail: qsTr("Friends anywhere join with the code it shows"),
+                      change: () => playOnlineScene.party = !playOnlineScene.party,
+                      activate: () => phong.openLobby(playOnlineScene.party, "internet") },
+                    { text: qsTr("Join with a code"), enabled: OnlineService.available,
+                      detail: qsTr("The four letters the host has"),
+                      activate: () => phong.openJoin("internet") },
+                    { header: qsTr("LAN") }
+                ]
+                // Browsers can't take connections, they only join
+                if (Lan.canHost)
+                    entries.push({ text: qsTr("Host on the LAN"), value: players,
+                                   detail: qsTr("Players on this network join by its address"),
+                                   change: () => playOnlineScene.party = !playOnlineScene.party,
+                                   activate: () => phong.openLobby(playOnlineScene.party, "lan") })
+                entries.push({ text: qsTr("Join on the LAN"),
+                               detail: Lan.canHost ? qsTr("The games on this network, or an address")
+                                                   : qsTr("The address a host on this network shows"),
+                               activate: () => phong.openJoin("lan") })
+                return entries
+            }
         }
 
         GameScene {

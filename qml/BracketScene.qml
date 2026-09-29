@@ -32,7 +32,7 @@ Scene {
     }
 
     readonly property var items: {
-        const menu = { text: qsTr("Menu"), activate: () => phong.returnTo(root.menuScene) }
+        const menu = { text: qsTr("Menu"), activate: () => phong.returnToMenu() }
         if (Tournament.running)
             return [{ text: qsTr("Play"), activate: () => phong.playTournamentMatch() }, menu]
         return [menu]

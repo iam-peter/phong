@@ -225,7 +225,33 @@ it.
 
 ## Game modes
 
-- **1 Player** against the computer, the level is set in the settings.
+The menu has them in three places: **Solo** for one player against the
+computer or a wall, **Local** for several players at one machine, and
+**Online** for players on other machines, over the internet or on the LAN.
+Each mode says in a line what it is.
+
+Solo:
+
+- **Versus Computer**, one match, the level is set in the settings.
+- **Ladder** against Easy, Normal and Hard in a row, a loss can be retried.
+- **Tournament**, a knockout bracket of eight against computer players with
+  their own ways: the Rookie, the Pro and the Ace play like Easy, Normal and
+  Hard, the Wall returns everything straight and never smashes, the Spinner
+  brushes every ball to curve it, the Smasher winds up almost every return
+  and the Collector sends the ball through the modifiers. The other matches
+  of a round are decided by the strength of the two.
+- **Endless** against a computer getting harder and faster the longer you
+  last, with three balls to lose. Every return scores a point, every ball the
+  computer misses ten, the best score is kept.
+- **Bricks** against the computer, with a wall of bricks in the middle and a
+  gap for the kickoff. A brick breaks when hit and gives the player who sent
+  the ball a point, every third one drops a modifier instead. Once the wall
+  is down a new one is built for the next kickoff.
+- **Squash** alone against a closed wall with three balls to lose, the
+  longest rally is the score.
+
+Local, and online the same two:
+
 - **2 Players** on one keyboard, with gamepads, or with two fingers on a
   touch screen.
 - **3-6 Players** on a regular polygon with a side for everybody, a
@@ -236,24 +262,6 @@ it.
   smashes, perfect hits, spin, dashes and the power bar with its special.
   Two players can share the keyboard, see below, gamepads push their paddle
   along their side and the computer plays the others.
-- **Ladder** against Easy, Normal and Hard in a row, a loss can be retried.
-- **Endless** against a computer getting harder and faster the longer you
-  last, with three balls to lose. Every return scores a point, every ball the
-  computer misses ten, the best score is kept.
-- **Tournament**, a knockout bracket of eight against computer players with
-  their own ways: the Rookie, the Pro and the Ace play like Easy, Normal and
-  Hard, the Wall returns everything straight and never smashes, the Spinner
-  brushes every ball to curve it, the Smasher winds up almost every return
-  and the Collector sends the ball through the modifiers. The other matches
-  of a round are decided by the strength of the two.
-- **Bricks** against the computer, with a wall of bricks in the middle and a
-  gap for the kickoff. A brick breaks when hit and gives the player who sent
-  the ball a point, every third one drops a modifier instead. Once the wall
-  is down a new one is built for the next kickoff.
-- **Squash** alone against a closed wall with three balls to lose, the
-  longest rally is the score.
-
-The menu cycles through the modes with `Left`/`Right`, `Enter` plays.
 
 Both start in a lobby that shows who plays which side. A gamepad joins with
 `A`, leaves with `B` and starts with `Start`. With two players the first
@@ -269,13 +277,14 @@ network see each other's fields. `Name` sets the name the others see.
 
 ### On the LAN
 
-In the lobby of 2 Players and of the polygon mode `LAN open` lets players on
-the local network join. The host runs the game, the others send their
-paddle, smashes, specials and dashes and get the picture back, on the
-polygon each with their own side at the bottom. `Join game` in
-the menu lists the games open on the network. The browser build can't look
-for games or open one, but it joins a desktop host by the address the host
-shows in its lobby, e.g. `192.168.1.5:45455`. The game uses TCP port 45455
+Online, `Host on the LAN` opens a lobby that players on the local network
+can join, for 2 Players or the polygon, `Left`/`Right` picks which. The
+host runs the game, the others send their paddle, smashes, specials and
+dashes and get the picture back, on the polygon each with their own side
+at the bottom. Players at the host's machine can take sides as well.
+`Join on the LAN` lists the games open on the network. The browser build
+can't look for games or open one, but it joins a desktop host by the
+address the host shows in its lobby, e.g. `192.168.1.5:45455`. The game uses TCP port 45455
 for the players and UDP port 45454 to find games, a firewall has to let
 them through. A player who leaves is replaced by the computer. `Esc` pauses
 the game for everybody, whoever presses it, the pause says who it was, and
@@ -289,9 +298,9 @@ are playing or full.
 
 ### Over the internet
 
-`Online open` in the lobby opens a room on a [server](#server) and shows
-its four letter code. The others join with `Join game`, `Room code` and the
-code, from anywhere, the browser version too, which can also host this way.
+Online, `Host a room` opens a lobby as a room on a [server](#server) and
+shows its four letter code. The others join with `Join with a code`, from
+anywhere, the browser version too, which can also host this way.
 The lobby and Settings, Online have the name the others see: without one
 they see "Player", the machine's name only goes out on the LAN.
 

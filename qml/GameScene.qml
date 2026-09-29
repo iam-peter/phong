@@ -1044,12 +1044,12 @@ Scene {
         departed = {}
         Lan.leave()
         remote = false
-        // The tournament goes back to its bracket, the rest to the menu,
-        // also past the lobby
+        // The tournament goes back to its bracket, the rest to where it
+        // was chosen, also past the lobby
         if (tournament)
             phong.previousScene()
         else
-            phong.returnTo(root.menuScene)
+            phong.returnToMenu()
     }
 
     function togglePause() {

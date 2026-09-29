@@ -34,7 +34,7 @@ Scene {
 
     // The last item always leads back to the menu
     readonly property var items: {
-        const menu = { text: qsTr("Menu"), activate: () => { Lan.leave(); phong.returnTo(root.menuScene) } }
+        const menu = { text: qsTr("Menu"), activate: () => { Lan.leave(); phong.returnToMenu() } }
         // Joined over the network the host decides on a rematch
         if (remote)
             return [menu]

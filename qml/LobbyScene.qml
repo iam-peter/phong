@@ -32,6 +32,10 @@ Scene {
     // they watch
     property var watchers: []
 
+    // Players at this machine only, a room on the server for the internet,
+    // or open on the LAN
+    property string network: "local"
+
     // Joined to a host: its lobby as it sends it
     property bool remote: false
     property var remoteSlots: []
@@ -88,15 +92,12 @@ Scene {
             items.push({ text: qsTr("Players"), value: players, cycles: true, change: (step) => root.cyclePlayers(step) })
             items.push({ text: qsTr("Keyboards"), value: keyboards, cycles: true, change: () => root.cycleKeyboards() })
         }
-        items.push(nameItem)
-        if (Lan.canHost)
-            items.push({ text: lanOpen ? qsTr("LAN open") : qsTr("LAN closed"), cycles: true,
-                         change: () => root.toggleLan() })
-        // Only with a server, see OnlineService
-        if (OnlineService.available || onlineOpen)
-            items.push({ text: !onlineOpen ? qsTr("Online closed") : Lan.role === Lan.Host ? qsTr("Online open")
-                                                                            : qsTr("Online..."),
-                         cycles: true, change: () => root.toggleOnline() })
+        if (network !== "local") {
+            items.push(nameItem)
+            // The room or the LAN didn't open, or the server went away
+            if (Lan.role === Lan.NoRole)
+                items.push({ text: qsTr("Open again"), activate: () => root.openNetwork() })
+        }
         items.push({ text: qsTr("Start"), starts: true, activate: () => root.start() })
         items.push({ text: qsTr("Back"), activate: () => root.back() })
         return items
@@ -313,19 +314,14 @@ Scene {
         Lan.leave()
     }
 
-    function toggleLan() {
-        SoundEffects.play(SoundEffects.MenuSelect)
-        const open = lanOpen
+    // Open to the others as the lobby was chosen, on the LAN or as a room
+    // on the server
+    function openNetwork() {
         closeGame()
-        if (!open)
+        if (network === "lan") {
             Lan.host(Lan.localName, { mode: party ? "party" : "classic", players: players, open: capacity })
-    }
-
-    function toggleOnline() {
-        SoundEffects.play(SoundEffects.MenuSelect)
-        const open = onlineOpen
-        closeGame()
-        if (!open) {
+        }
+        else if (network === "internet") {
             OnlineService.check()
             Lan.hostOnline(OnlineService.server, Lan.localName, {})
         }
@@ -360,7 +356,7 @@ Scene {
         joiners = []
         watchers = []
         remote = false
-        phong.returnTo(root.menuScene)
+        phong.previousScene()
     }
 
     function start() {
@@ -376,7 +372,7 @@ Scene {
     }
 
     // A lobby on this machine, after one of a host maybe
-    function open(asParty) {
+    function open(asParty, kind) {
         remote = false
         remoteSlots = []
         joiners = []
@@ -384,6 +380,9 @@ Scene {
         keyboards = 1
         party = asParty
         players = Qt.binding(() => root.party ? GameSettings.partyPlayers : 2)
+        network = kind ?? "local"
+        if (network !== "local")
+            openNetwork()
     }
 
     // A client gets the lobby of the host
@@ -650,15 +649,18 @@ Scene {
         text: root.party ? qsTr("%1 Players").arg(root.players) : qsTr("2 Players")
     }
 
-    // The code others join the room with
+    // How the others get here: the code of the room, or the address on
+    // the LAN
     Text3D {
-        visible: root.onlineOpen && root.hostingLan && !root.remote
+        visible: root.hostingLan && !root.remote
+        readonly property real fitting: Math.min(0.9, 34.0 / Math.max(textWidth, 0.1))
         y: 6.2
-        scale: Qt.vector3d(0.9, 0.9, 0.9)
+        scale: Qt.vector3d(fitting, fitting, fitting)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.title
         glow: 0.6
-        text: qsTr("Room code %1").arg(Lan.roomCode)
+        text: root.onlineOpen ? qsTr("Room code %1").arg(Lan.roomCode)
+                              : qsTr("Address %1").arg(Lan.addresses.slice(0, 2).join(qsTr(" or ")))
     }
 
     // The sides, who plays them, and their fields to practice in
@@ -717,8 +719,7 @@ Scene {
         readonly property string watching: root.watchers.length > 0 ? qsTr(", %n watching", "", root.watchers.length) : ""
         text: root.remote ? (root.remoteSlot < 0 ? qsTr("Every side is taken, you watch once the host starts")
                                                  : qsTr("Waiting for the host to start"))
-              : root.lanOpen ? qsTr("Open on the LAN, from a browser join %1").arg(Lan.addresses.slice(0, 2).join(qsTr(" or ")))
-                               + watching
+              : root.lanOpen ? qsTr("Open on the LAN, others find it under Join on the LAN, browsers type the address") + watching
               : root.onlineOpen && root.hostingLan ? qsTr("Open online, others join with the room code") + watching
               // A sleeping server takes a while, say so rather than nothing
               : OnlineService.status !== "" && OnlineService.available ? OnlineService.status
