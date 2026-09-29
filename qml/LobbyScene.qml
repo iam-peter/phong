@@ -786,6 +786,14 @@ Scene {
                 horizontalAlignment: Text.AlignRight
                 color: Theme.title
                 text: "<"
+                // A tap on the item itself steps forward, back needs this
+                clickable: visible
+                hitLeft: 3.0
+                hitRight: 0.5
+                onClicked: {
+                    root.currentItem = item.index
+                    item.modelData.change(-1)
+                }
             }
 
             Text3D {
@@ -793,6 +801,13 @@ Scene {
                 x: 0.5 * item.textWidth + 0.9
                 color: Theme.title
                 text: ">"
+                clickable: visible
+                hitLeft: 0.5
+                hitRight: 3.0
+                onClicked: {
+                    root.currentItem = item.index
+                    item.modelData.change(1)
+                }
             }
         }
     }

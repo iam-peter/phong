@@ -22,6 +22,11 @@ Node {
     // Makes the text react to taps and clicks, see Main.clickableAt()
     property bool clickable: false
     signal clicked()
+    // Room around the letters that reacts too, in scene units. Arrows
+    // reach far to the outside, a single letter is small for a finger.
+    property real hitLeft: 0.3
+    property real hitRight: 0.3
+    property real hitVertical: 0.3
 
     // Size in scene units, from the font metrics, the letters are placed
     // in the same units: a point of the font is a unit. The width reaches
@@ -59,12 +64,12 @@ Node {
         source: "#Rectangle"
         // Metrics grow downwards from the baseline, the letters upwards
         position: Qt.vector3d(root.alignX + (metrics.tightBoundingRect.x + 0.5 * metrics.tightBoundingRect.width)
-                                  / metrics.font.pointSize,
+                                  / metrics.font.pointSize + 0.5 * (root.hitRight - root.hitLeft),
                               root.alignY - (metrics.tightBoundingRect.y + 0.5 * metrics.tightBoundingRect.height)
                                   / metrics.font.pointSize,
                               root.depth)
-        scale: Qt.vector3d((metrics.tightBoundingRect.width / metrics.font.pointSize + 0.6) / 100,
-                           (root.textHeight + 0.6) / 100, 1.0)
+        scale: Qt.vector3d((metrics.tightBoundingRect.width / metrics.font.pointSize + root.hitLeft + root.hitRight) / 100,
+                           (root.textHeight + 2 * root.hitVertical) / 100, 1.0)
         materials: DefaultMaterial {
             opacity: 0.0
             depthDrawMode: Material.NeverDepthDraw

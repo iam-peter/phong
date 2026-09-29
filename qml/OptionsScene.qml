@@ -225,6 +225,9 @@ Scene {
                 color: Theme.title
                 text: "<"
                 clickable: visible
+                // Wide for fingers, the rows are close, the label is left
+                hitLeft: 1.5
+                hitRight: 0.35
                 onClicked: root.change(row.modelData, -1)
             }
 
@@ -234,6 +237,8 @@ Scene {
                 color: Theme.title
                 text: ">"
                 clickable: visible
+                hitLeft: 0.35
+                hitRight: 3.0
                 onClicked: root.change(row.modelData, 1)
             }
 

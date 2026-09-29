@@ -139,6 +139,10 @@ Scene {
                 color: Theme.title
                 text: "<"
                 clickable: visible
+                // Wide for fingers, up to the label on the inside
+                hitLeft: 3.0
+                hitRight: 0.5
+                hitVertical: 0.35
                 onClicked: root.cycleMode(-1)
             }
 
@@ -148,6 +152,9 @@ Scene {
                 color: Theme.title
                 text: ">"
                 clickable: visible
+                hitLeft: 0.5
+                hitRight: 3.0
+                hitVertical: 0.35
                 onClicked: root.cycleMode(1)
             }
 
