@@ -31,7 +31,14 @@ if(NOT EMSCRIPTEN)
         set(SDL_DISABLE_INSTALL ON)
         # Without video SDL needs to know no windows are wanted
         set(SDL_UNIX_CONSOLE_BUILD ON)
-        foreach(subsystem AUDIO VIDEO GPU RENDER CAMERA HAPTIC POWER DIALOG)
+        set(sdl_subsystems AUDIO GPU RENDER CAMERA HAPTIC POWER DIALOG)
+        # On macOS SDL 3.2 builds its tray only with video and has no
+        # stand-in, so without video the link fails. SDL_Init() still
+        # leaves the windows to Qt, it only starts gamepads.
+        if(NOT APPLE)
+            list(APPEND sdl_subsystems VIDEO)
+        endif()
+        foreach(subsystem IN LISTS sdl_subsystems)
             set(SDL_${subsystem} OFF)
         endforeach()
         message(STATUS "Fetching SDL 3 for gamepads")
