@@ -16,11 +16,14 @@ Scene {
     // or { label, values: [], text: true, maxLength, get, set } for a text
     // typed and confirmed with Enter
     property var rows: []
+    // The rows and a way back at the end, for fingers and the mouse
+    readonly property var entries: rows.concat([{ label: qsTr("Back"), values: [], back: true,
+                                                  set: () => phong.previousScene() }])
     property int currentItem: 0
     // The row waiting for its key, -1 for none
     property int capturing: -1
-    readonly property bool padCapturing: capturing >= 0 && (rows[capturing]?.padCapture ?? false)
-    readonly property bool textCapturing: capturing >= 0 && (rows[capturing]?.text ?? false)
+    readonly property bool padCapturing: capturing >= 0 && (entries[capturing]?.padCapture ?? false)
+    readonly property bool textCapturing: capturing >= 0 && (entries[capturing]?.text ?? false)
     // The text typed so far
     property string typed: ""
     textEntry: textCapturing
@@ -35,7 +38,7 @@ Scene {
         function onButtonPressed(pad, button) {
             root.swallowNavigation = true
             Qt.callLater(() => root.swallowNavigation = false)
-            if (!root.rows[root.capturing].set(button)) {
+            if (!root.entries[root.capturing].set(button)) {
                 SoundEffects.play(SoundEffects.Curse)
                 return
             }
@@ -45,7 +48,7 @@ Scene {
     }
 
     // The rows fit between the title and the hint
-    readonly property real rowSpacing: Math.min(2.0, 15.0 / Math.max(rows.length, 1))
+    readonly property real rowSpacing: Math.min(2.0, 15.0 / Math.max(entries.length, 1))
     // Long lists get smaller text
     readonly property real rowScale: Math.min(1.0, rowSpacing / 1.45)
 
@@ -84,7 +87,7 @@ Scene {
         if (textCapturing) {
             if (event.gamepad && event.key !== Qt.Key_Escape && event.key !== Qt.Key_Return)
                 return
-            const row = rows[capturing]
+            const row = entries[capturing]
             if (event.key === Qt.Key_Escape) {
                 capturing = -1
             }
@@ -114,7 +117,7 @@ Scene {
                 return
             }
             // Escape keeps the key, reserved keys are refused
-            if (event.key !== Qt.Key_Escape && !rows[capturing].set(event.key)) {
+            if (event.key !== Qt.Key_Escape && !entries[capturing].set(event.key)) {
                 SoundEffects.play(SoundEffects.Curse)
                 return
             }
@@ -132,21 +135,21 @@ Scene {
                 SoundEffects.play(SoundEffects.MenuMove)
                 break
             case Qt.Key_Down:
-                currentItem = Math.min(currentItem + 1, rows.length - 1)
+                currentItem = Math.min(currentItem + 1, entries.length - 1)
                 SoundEffects.play(SoundEffects.MenuMove)
                 break
             case Qt.Key_Left:
-                if (rows[currentItem].values.length)
-                    change(rows[currentItem], -1)
+                if (entries[currentItem].values.length)
+                    change(entries[currentItem], -1)
                 break
             case Qt.Key_Right:
-                if (rows[currentItem].values.length)
-                    change(rows[currentItem], 1)
+                if (entries[currentItem].values.length)
+                    change(entries[currentItem], 1)
                 break
             case Qt.Key_Enter:
             case Qt.Key_Return:
             case Qt.Key_Space:
-                change(rows[currentItem], 1)
+                change(entries[currentItem], 1)
                 break
         }
     }
@@ -162,7 +165,7 @@ Scene {
     }
 
     Repeater3D {
-        model: root.rows
+        model: root.entries
 
         delegate: Node {
             id: row

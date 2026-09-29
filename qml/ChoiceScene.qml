@@ -16,6 +16,9 @@ Scene {
 
     property string title
     property var entries: []
+    // The entries and a way back at the end, for fingers and the mouse
+    readonly property var choices: entries.concat([{ text: qsTr("Back"),
+                                                     activate: () => phong.previousScene() }])
     // Under the title, e.g. a server waking up
     property string status: ""
     property color statusColor: Theme.dimmed
@@ -25,7 +28,7 @@ Scene {
     readonly property var rows: {
         const rows = []
         let y = status !== "" ? 4.6 : 5.4
-        for (const entry of entries) {
+        for (const entry of choices) {
             if (entry.header !== undefined) {
                 y -= 0.5
                 rows.push({ entry: entry, y: y })
@@ -39,12 +42,12 @@ Scene {
     }
 
     function selectable(index) {
-        const entry = entries[index]
+        const entry = choices[index]
         return entry !== undefined && entry.header === undefined && entry.enabled !== false
     }
 
     function firstSelectable() {
-        for (let i = 0; i < entries.length; ++i) {
+        for (let i = 0; i < choices.length; ++i) {
             if (selectable(i))
                 return i
         }
@@ -52,7 +55,7 @@ Scene {
     }
 
     function move(step) {
-        for (let i = currentItem + step; i >= 0 && i < entries.length; i += step) {
+        for (let i = currentItem + step; i >= 0 && i < choices.length; i += step) {
             if (selectable(i)) {
                 currentItem = i
                 SoundEffects.play(SoundEffects.MenuMove)
@@ -62,7 +65,7 @@ Scene {
     }
 
     function change(index, step) {
-        const entry = entries[index]
+        const entry = choices[index]
         if (!entry?.change || !selectable(index))
             return
         entry.change(step)
@@ -74,7 +77,7 @@ Scene {
             return
         SoundEffects.play(SoundEffects.MenuSelect)
         currentItem = index
-        entries[index].activate()
+        choices[index].activate()
     }
 
     // Something that went away takes the selection to the next one
@@ -212,7 +215,7 @@ Scene {
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.dimmed
-        text: root.entries.some((entry) => entry.change !== undefined)
+        text: root.choices.some((entry) => entry.change !== undefined)
               ? qsTr("[Up/Down] select   [Left/Right] change   [Enter] play   [Esc] back")
               : qsTr("[Up/Down] select   [Enter] play   [Esc] back")
     }

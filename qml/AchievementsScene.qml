@@ -80,13 +80,30 @@ Scene {
         }
     }
 
+    // The only thing to do here
     Text3D {
-        y: -11
+        id: backItem
+        y: -10.9
+        horizontalAlignment: Text.AlignHCenter
+        text: qsTr("Back")
+        clickable: true
+        onClicked: {
+            SoundEffects.play(SoundEffects.MenuSelect)
+            phong.previousScene()
+        }
+
+        Disc {
+            position: Qt.vector3d(-0.5 * backItem.textWidth - 1.0, 0.35, 0)
+            radius: 0.35
+            sphere: true
+        }
+    }
+
+    Text3D {
+        y: -12.2
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
-        text: qsTr("[Esc] back")
+        text: qsTr("[Enter] or [Esc] back")
         color: Theme.dimmed
-        clickable: true
-        onClicked: phong.previousScene()
     }
 }

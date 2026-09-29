@@ -48,9 +48,24 @@ Scene {
             confirming = false
             phong.nextScene(achievementsScene)
         }
-        else {
+        else if (index === 1) {
             reset()
         }
+        else {
+            SoundEffects.play(SoundEffects.MenuSelect)
+            phong.previousScene()
+        }
+    }
+
+    // Achievements and reset side by side, back under them
+    function select(index) {
+        const next = Math.max(0, Math.min(2, index))
+        if (next === currentItem)
+            return
+        currentItem = next
+        if (next !== 1)
+            confirming = false
+        SoundEffects.play(SoundEffects.MenuMove)
     }
 
     onActiveChanged: confirming = false
@@ -63,14 +78,11 @@ Scene {
                 break
             case Qt.Key_Left:
             case Qt.Key_Up:
-                currentItem = 0
-                confirming = false
-                SoundEffects.play(SoundEffects.MenuMove)
+                select(currentItem - 1)
                 break
             case Qt.Key_Right:
             case Qt.Key_Down:
-                currentItem = 1
-                SoundEffects.play(SoundEffects.MenuMove)
+                select(currentItem + 1)
                 break
             case Qt.Key_Enter:
             case Qt.Key_Return:
@@ -160,10 +172,30 @@ Scene {
     }
 
     Text3D {
-        y: -11
+        id: backItem
+        y: -10.5
+        horizontalAlignment: Text.AlignHCenter
+        color: root.currentItem === 2 ? Theme.text : Theme.unselected
+        text: qsTr("Back")
+        clickable: true
+        onClicked: {
+            root.currentItem = 2
+            root.activate(2)
+        }
+
+        Disc {
+            visible: root.currentItem === 2
+            position: Qt.vector3d(-0.5 * backItem.textWidth - 1.0, 0.35, 0)
+            radius: 0.35
+            sphere: true
+        }
+    }
+
+    Text3D {
+        y: -11.9
         scale: Qt.vector3d(0.5, 0.5, 0.5)
         horizontalAlignment: Text.AlignHCenter
-        text: qsTr("[Left/Right] select   [Enter] confirm   [Esc] back")
+        text: qsTr("[Arrows] select   [Enter] confirm   [Esc] back")
         color: Theme.dimmed
     }
 }
