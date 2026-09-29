@@ -238,9 +238,12 @@ jobs:
         with:
           version: ${{ env.EMSDK_VERSION }}
 
+      # The wasm kit is packaged on Windows, its qt-cmake comes without the
+      # executable bit. All it does is point CMake at the toolchain file.
       - name: Build
         run: |
-          "$QT_ROOT_DIR/bin/qt-cmake" -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$QT_ROOT_DIR/lib/cmake/Qt6/qt.toolchain.cmake" \
             -DQT_HOST_PATH="${{ runner.temp }}/qt-host/Qt/$QT_VERSION/gcc_64"
           cmake --build build
 
