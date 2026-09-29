@@ -83,6 +83,13 @@ Scene {
     property real sinceSent: 0.0
     // Remote: asking before leaving
     property bool askLeave: false
+    // On the network every player pauses for all, everybody sees who
+    property string pausedBy: ""
+    // The player on the network whose pause the host is taking
+    property string pauser: ""
+    // Paused with the menu to resume on the joined machine
+    readonly property bool remotePaused: remote && match.state === PartyMatch.Paused && !askLeave && place === 0
+                                         && !spectating
 
     function playerName(side) {
         if (remote)
@@ -121,7 +128,7 @@ Scene {
             paddles.push(side ? [side.offset, side.charge, side.dash.direction, side.dash.cooldown] : [0, 0, 0, 0])
         }
         Lan.sendAll({ t: "state", match: match.snapshot(), modifiers: modifiers.snapshot(), ball: [ball.x, ball.y],
-                      paddles: paddles, events: netEvents })
+                      paddles: paddles, pausedBy: pausedBy, events: netEvents })
         netEvents = []
     }
 
@@ -268,6 +275,7 @@ Scene {
 
     function applyRemote(message) {
         match.applySnapshot(message.match)
+        pausedBy = message.pausedBy ?? ""
         modifiers.applySnapshot(message.modifiers ?? {})
         remoteBall = Qt.vector2d(message.ball[0], message.ball[1])
         remotePaddles = message.paddles ?? []
@@ -361,6 +369,16 @@ Scene {
                 if (charging !== (sides.objectAt(side)?.charging ?? false))
                     root.setCharging(side, charging)
             }
+            else if (message.t === "action" && message.a === "pause") {
+                if (root.running) {
+                    root.pauser = root.controllers[side].name ?? ""
+                    match.pause()
+                }
+            }
+            else if (message.t === "action" && message.a === "resume") {
+                if (match.state === PartyMatch.Paused)
+                    match.resume()
+            }
             else if (message.t === "action" && root.running) {
                 const direction = Number(message.d) > 0 ? 1 : -1
                 if (message.a === "special")
@@ -434,13 +452,27 @@ Scene {
         return action
     }
 
+    // The pause key on the joined machine: the host pauses or resumes for
+    // everybody, watchers only get to leave
+    function remotePause() {
+        currentPauseItem = 0
+        if (askLeave || spectating)
+            askLeave = !askLeave
+        else if (running)
+            Lan.sendToHost({ t: "action", a: "pause" })
+        else if (match.state === PartyMatch.Paused)
+            Lan.sendToHost({ t: "action", a: "resume" })
+        else
+            askLeave = true
+    }
+
     function gamepadButton(pad, button, pressed) {
         const action = padAction(button)
         if (remote) {
             if (!pressed || pad !== Gamepads.pads[0] || place > 0)
                 return
             if (action === KeySettings.PadPause)
-                askLeave = !askLeave
+                remotePause()
             else if (spectating)
                 return
             else if (action === KeySettings.PadSpecial && running)
@@ -897,8 +929,31 @@ Scene {
         if (event.isAutoRepeat)
             return
 
-        // On the network only the host pauses, the others may leave
+        // On the network the host pauses and resumes for everybody, or one
+        // leaves
         if (remote) {
+            if (remotePaused) {
+                switch (event.key) {
+                    case Qt.Key_Up:
+                    case Qt.Key_Down:
+                        currentPauseItem = event.key === Qt.Key_Up ? 0 : 1
+                        SoundEffects.play(SoundEffects.MenuMove)
+                        break
+                    case Qt.Key_Return:
+                    case Qt.Key_Enter:
+                        SoundEffects.play(SoundEffects.MenuSelect)
+                        if (currentPauseItem === 0)
+                            Lan.sendToHost({ t: "action", a: "resume" })
+                        else
+                            leave()
+                        break
+                    default:
+                        if (isPauseKey(event.key))
+                            remotePause()
+                        break
+                }
+                return
+            }
             if (askLeave || place > 0 || match.state === PartyMatch.Paused) {
                 if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                     leave()
@@ -909,7 +964,7 @@ Scene {
                 return
             }
             if (isPauseKey(event.key)) {
-                askLeave = true
+                remotePause()
                 return
             }
         }
@@ -1069,7 +1124,13 @@ Scene {
                 sides.objectAt(i)?.computer.reset()
         }
         // Paused and ended states need to get out too, no steps run then
-        onStateChanged: root.sendState()
+        onStateChanged: {
+            if (match.state === PartyMatch.Paused) {
+                root.pausedBy = root.pauser !== "" ? root.pauser : root.lanGame ? Lan.localName : ""
+                root.pauser = ""
+            }
+            root.sendState()
+        }
         onPlayerOut: (player) => {
             root.playEvent({ e: "out", p: player })
             root.netEvent({ e: "out", p: player })
@@ -1714,7 +1775,7 @@ Scene {
                 }
                 if (!root.spectating)
                     lines.push(qsTr("Tap twice to dash"))
-                lines.push(root.remote ? qsTr("[Esc] leave") : qsTr("[Esc] pause"))
+                lines.push(root.spectating ? qsTr("[Esc] leave") : qsTr("[Esc] pause"))
                 // Over the network the time to the host and back
                 if (root.remote && Lan.latency >= 0)
                     lines.push(qsTr("%1 ms").arg(Lan.latency))
@@ -1765,8 +1826,19 @@ Scene {
                   : qsTr("Paused")
         }
 
+        // On the network, who it was
+        Text3D {
+            visible: match.state === PartyMatch.Paused && root.place === 0 && !root.askLeave && root.pausedBy !== ""
+            y: 0.5
+            scale: Qt.vector3d(0.6, 0.6, 0.6)
+            horizontalAlignment: Text.AlignHCenter
+            color: Theme.dimmed
+            text: qsTr("%1 paused").arg(root.pausedBy)
+        }
+
         Repeater3D {
-            model: root.remote ? (root.askLeave ? [qsTr("Stay"), qsTr("Leave")] : ["", qsTr("Leave")])
+            model: root.remote ? (root.askLeave ? [qsTr("Stay"), qsTr("Leave")]
+                                  : root.remotePaused ? [qsTr("Resume"), qsTr("Leave")] : ["", qsTr("Leave")])
                    : root.place > 0 ? [qsTr("Again"), qsTr("Menu")] : [qsTr("Resume"), qsTr("Menu")]
 
             delegate: Text3D {
@@ -1783,6 +1855,8 @@ Scene {
                     SoundEffects.play(SoundEffects.MenuSelect)
                     if (index === 1)
                         root.leave()
+                    else if (root.remotePaused)
+                        Lan.sendToHost({ t: "action", a: "resume" })
                     else if (root.remote)
                         root.askLeave = false
                     else if (root.place > 0)
@@ -1792,7 +1866,7 @@ Scene {
                 }
 
                 Disc {
-                    visible: !root.remote && root.place === 0 && item.index === root.currentPauseItem
+                    visible: (!root.remote || root.remotePaused) && root.place === 0 && item.index === root.currentPauseItem
                     position: Qt.vector3d(-0.5 * item.textWidth - 1.0, 0.35, 0)
                     radius: 0.35
                     sphere: true
