@@ -49,6 +49,8 @@ Scene {
     // Typing the name
     property bool typing: false
     property string typed: ""
+    textEntry: typing
+    enteredText: typed
 
     // Movement keys held for the practice, by action, see practiceKey()
     property var held: ({})

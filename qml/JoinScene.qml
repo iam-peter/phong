@@ -16,6 +16,9 @@ Scene {
     property int currentItem: 0
     property string address: GameSettings.lanAddress
     property string code: ""
+    // Typed in their rows
+    textEntry: (items[currentItem]?.address ?? false) || (items[currentItem]?.code ?? false)
+    enteredText: items[currentItem]?.code ? code : address
     // Why the last try didn't work
     property string error: ""
 

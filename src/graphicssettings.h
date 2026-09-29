@@ -68,6 +68,11 @@ public:
 
     Q_INVOKABLE void restoreDefaults();
 
+    // Opens the keyboard of a phone for the text field that has the focus.
+    // Qt keeps its input element focused all the time, a browser opens the
+    // keyboard only when it takes the focus anew during a gesture.
+    Q_INVOKABLE void showKeyboard();
+
     void setTheme(Theme theme);
     Theme theme() const;
 

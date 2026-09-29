@@ -23,6 +23,8 @@ Scene {
     readonly property bool textCapturing: capturing >= 0 && (rows[capturing]?.text ?? false)
     // The text typed so far
     property string typed: ""
+    textEntry: textCapturing
+    enteredText: typed
     // The button that was just taken doesn't navigate the menu as well
     property bool swallowNavigation: false
     menuNavigation: !padCapturing && !swallowNavigation

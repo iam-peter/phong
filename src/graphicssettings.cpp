@@ -43,6 +43,23 @@ EM_JS(int, phong_touch_screen, (), {
     return globalThis.matchMedia && matchMedia("(pointer: coarse)").matches ? 1 : 0;
 });
 
+EM_JS(void, phong_show_keyboard, (), {
+    let element = document.activeElement;
+    while (element && element.shadowRoot && element.shadowRoot.activeElement)
+        element = element.shadowRoot.activeElement;
+    if (!element || element.tagName !== "INPUT")
+        return;
+    // Qt may only set the mode for text after this, letters one by one
+    if (element.inputMode === "none")
+        element.inputMode = "text";
+    element.setAttribute("autocomplete", "off");
+    element.setAttribute("autocorrect", "off");
+    element.setAttribute("autocapitalize", "off");
+    element.spellcheck = false;
+    element.blur();
+    element.focus();
+});
+
 EM_JS(void, phong_set_full_screen, (int fullScreen), {
     const current = document.fullscreenElement || document.webkitFullscreenElement ? 1 : 0;
     if (fullScreen === current)
@@ -221,6 +238,13 @@ void GraphicsSettings::setShowFps(bool showFps)
 bool GraphicsSettings::showFps() const
 {
     return m_showFps;
+}
+
+void GraphicsSettings::showKeyboard()
+{
+#if defined(Q_OS_WASM)
+    phong_show_keyboard();
+#endif
 }
 
 void GraphicsSettings::setFullScreen(bool fullScreen)

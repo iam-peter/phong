@@ -41,6 +41,12 @@ Node {
 
     signal focusLost()
 
+    // While the scene takes text. Main opens the keyboard of a phone for
+    // it and types into the scene with key presses, enteredText is what
+    // the scene took so far.
+    property bool textEntry: false
+    property string enteredText: ""
+
     // Gamepads navigate like the arrow keys, Return and Escape, while the
     // scene wants that, e.g. not during a game
     property bool menuNavigation: true

@@ -68,8 +68,28 @@ Window {
     // What Esc does, for the button of the fingers
     function pressEscape() {
         view.forceActiveFocus()
-        currentScene?.keyPressed({ key: Qt.Key_Escape, text: "", modifiers: Qt.NoModifier,
+        pressKey(Qt.Key_Escape, "")
+    }
+
+    // A key press for the current scene, like one from the keyboard
+    function pressKey(key, text) {
+        currentScene?.keyPressed({ key: key, text: text, modifiers: Qt.NoModifier,
                                    isAutoRepeat: false, accepted: false })
+    }
+
+    // Types text into the scene that has enteredText so far: what differs
+    // after their common start is deleted and typed anew, key by key
+    function typeInto(scene, text) {
+        const entered = scene.enteredText
+        let same = 0
+        // A code comes out upper case, the keyboard types it lower case
+        while (same < entered.length && same < text.length
+               && entered[same].toLowerCase() === text[same].toLowerCase())
+            ++same
+        for (let i = same; i < entered.length; ++i)
+            pressKey(Qt.Key_Backspace, "")
+        for (const character of text.slice(same))
+            pressKey(character.toUpperCase().charCodeAt(0), character)
     }
 
     // Pops scenes until scene is the current one
@@ -588,6 +608,12 @@ Window {
         onReleased: (points) => {
             for (const point of points)
                 phong.currentScene?.pointerReleased(point.pointId)
+            // Browsers open the keyboard for a field only when it takes the
+            // focus on a gesture, for a finger that is when it lets go
+            if (keyboardInput.wanted) {
+                keyboardInput.forceActiveFocus()
+                GraphicsSettings.showKeyboard()
+            }
         }
         onCanceled: (points) => {
             for (const point of points)
@@ -641,6 +667,71 @@ Window {
             // Tapped fires on release, when browsers allow full screen.
             gesturePolicy: TapHandler.WithinBounds
             onTapped: button.tapped()
+        }
+    }
+
+    // Phones type with their on-screen keyboard, and that only opens for
+    // a text field. An invisible one takes the text while the scene wants
+    // some and types the changes into the scene as keys, the scene checks
+    // them as it checks keys. The field then shows what the scene took.
+    TextInput {
+        id: keyboardInput
+
+        readonly property bool wanted: (phong.touched || GraphicsSettings.touchScreen)
+                                       && phong.currentScene?.textEntry === true
+
+        width: 1
+        height: 1
+        opacity: 0
+        // Letter by letter, no words to correct or complete
+        inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
+
+        // The focus follows when the finger lets go, see onReleased
+        onWantedChanged: {
+            if (wanted) {
+                text = phong.currentScene.enteredText
+                cursorPosition = text.length
+            }
+            else if (activeFocus) {
+                Qt.inputMethod.hide()
+                view.forceActiveFocus()
+            }
+        }
+        // The shown text has what a keyboard composes of a word too
+        onDisplayTextChanged: {
+            const scene = phong.currentScene
+            if (!wanted || displayText.toLowerCase() === scene.enteredText.toLowerCase())
+                return
+            phong.typeInto(scene, displayText)
+            // The scene may have refused some, e.g. a fifth letter of a code,
+            // only a word the keyboard has finished can be put right
+            if (!inputMethodComposing && displayText.toLowerCase() !== scene.enteredText.toLowerCase())
+                text = scene.enteredText
+        }
+        onAccepted: phong.pressKey(Qt.Key_Return, "")
+
+        // What a keyboard does besides typing still goes to the scene
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Up || event.key === Qt.Key_Down)
+                phong.currentScene?.keyPressed(event)
+        }
+    }
+
+    // The keyboard of a phone covers most of the screen sideways, what is
+    // typed shows above it
+    Rectangle {
+        visible: keyboardInput.wanted && keyboardInput.activeFocus
+        width: parent.width
+        height: 56
+        color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.9)
+
+        Text {
+            anchors.centerIn: parent
+            color: Theme.title
+            font.family: Theme.fontFamily
+            font.capitalization: Font.AllUppercase
+            font.pixelSize: 26
+            text: (phong.currentScene?.enteredText ?? "") + "_"
         }
     }
 
