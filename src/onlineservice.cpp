@@ -2,12 +2,14 @@
 
 #include "lan.h"
 
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLoggingCategory>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QUrlQuery>
 #include <QWebSocket>
 
 Q_LOGGING_CATEGORY(lcOnline, "phong.online")
@@ -78,12 +80,19 @@ void OnlineService::refresh()
     if (m_reply || !m_directory.isValid() || m_directory.isEmpty())
         return;
 
-    QNetworkRequest request(m_directory);
+    // Always the current one, not a cached copy, also not one of the CDN
+    // in front of GitHub's raw files. A new query each time gets past it,
+    // a Cache-Control header would too, but the browser would then ask
+    // first, and GitHub refuses that.
+    QUrl url = m_directory;
+    if (url.scheme().startsWith(QLatin1String("http"))) {
+        QUrlQuery query(url);
+        query.addQueryItem(QStringLiteral("t"), QString::number(QDateTime::currentMSecsSinceEpoch()));
+        url.setQuery(query);
+    }
+    QNetworkRequest request(url);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-    // Always the current one, not a cached copy, also not one of the
-    // CDN in front of GitHub's raw files
     request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
-    request.setRawHeader("Cache-Control", "no-cache");
     m_reply = m_network->get(request);
     connect(m_reply, &QNetworkReply::finished, this, [this, reply = m_reply.data()] { answered(reply); });
     emit busyChanged(true);
