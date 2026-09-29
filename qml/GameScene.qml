@@ -590,7 +590,7 @@ Scene {
             if (root.running)
                 root.record(dt)
 
-            // Keys, or the first gamepad
+            // Keys, the first gamepad, or the pointer as at the host
             let move = root.keyInput(root.remoteUp, root.remoteDown)
             let charging = root.remoteCharging
             const pad = Gamepads.count > 0 ? Gamepads.pads[0] : null
@@ -598,6 +598,13 @@ Scene {
                 if (move === 0)
                     move = pad.direction.y
                 charging = charging || pad.isPressed(KeySettings.padButton(KeySettings.PadSmash))
+            }
+            // Reversed controls mirror it, the host swaps the move back
+            if (move === 0) {
+                const left = root.localSide === Match.LeftSide
+                const sign = own?.reversed ? -1 : 1
+                move = sign * root.humanInput(false, false, sign * (left ? root.leftPointerY : root.rightPointerY),
+                                              left ? root.leftPaddleY : root.rightPaddleY)
             }
             root.sinceSent += dt
             if (root.spectating)
@@ -1506,6 +1513,9 @@ Scene {
     }
 
     function pointerSide(x) {
+        // On the joined machine anywhere steers the own paddle
+        if (remote)
+            return localSide
         return !sharedKeyboard || x < 0 ? Match.LeftSide : Match.RightSide
     }
 
