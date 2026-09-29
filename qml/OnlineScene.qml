@@ -49,9 +49,11 @@ OptionsScene {
             set: (url) => GameSettings.serverUrl = url
         },
         {
-            label: qsTr("Published server"),
+            label: qsTr("Published"),
             values: [],
-            hint: OnlineService.busy ? qsTr("asking...") : OnlineService.publishedServer || qsTr("none"),
+            // Without the wss://, the line below has it in full
+            hint: OnlineService.busy ? qsTr("asking...")
+                  : OnlineService.publishedServer.replace(/^[a-z]+:\/\//i, "") || qsTr("none"),
             set: () => {
                 GameSettings.serverUrl = ""
                 OnlineService.refresh()

@@ -174,6 +174,13 @@ Scene {
                 return index < 0 ? String(value ?? "") : modelData.names[index]
             }
 
+            // Long texts shrink into the room right of the label
+            readonly property real valueRoom: 10.0 - (labelText.x + labelText.textWidth) - 1.0
+            function fit(width: real): vector3d {
+                const s = Math.min(1.0, valueRoom / Math.max(width, 0.001))
+                return Qt.vector3d(s, s, s)
+            }
+
             y: 6.0 - index * root.rowSpacing
             scale: Qt.vector3d(root.rowScale, root.rowScale, root.rowScale)
 
@@ -185,6 +192,7 @@ Scene {
             }
 
             Text3D {
+                id: labelText
                 x: -11.0
                 color: row.selected ? Theme.text : Qt.tint(Theme.text, Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.25))
                 text: row.modelData.label
@@ -246,7 +254,9 @@ Scene {
 
             // A text, or the one being typed
             Text3D {
+                id: typedText
                 x: 10.0
+                scale: row.fit(typedText.textWidth)
                 visible: row.modelData.text ?? false
                 horizontalAlignment: Text.AlignRight
                 color: root.capturing === row.index ? Theme.title : row.selected ? Theme.text : Theme.dimmed
@@ -261,7 +271,9 @@ Scene {
 
             // Actions leading to another screen say so
             Text3D {
+                id: hintText
                 x: 10.0
+                scale: row.fit(hintText.textWidth)
                 visible: (row.modelData.hint ?? "") !== ""
                 horizontalAlignment: Text.AlignRight
                 color: row.selected ? Theme.title : Theme.dimmed

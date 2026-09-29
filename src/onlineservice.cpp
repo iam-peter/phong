@@ -80,8 +80,10 @@ void OnlineService::refresh()
 
     QNetworkRequest request(m_directory);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-    // Always the current one, not a cached copy
+    // Always the current one, not a cached copy, also not one of the
+    // CDN in front of GitHub's raw files
     request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+    request.setRawHeader("Cache-Control", "no-cache");
     m_reply = m_network->get(request);
     connect(m_reply, &QNetworkReply::finished, this, [this, reply = m_reply.data()] { answered(reply); });
     emit busyChanged(true);
