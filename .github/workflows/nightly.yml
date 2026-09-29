@@ -150,8 +150,9 @@ jobs:
         run: |
           New-Item -ItemType Directory Phong | Out-Null
           Copy-Item build/Release/phong.exe Phong/
-          # The server needs no more Qt than the game
-          Copy-Item build/server/Release/phong-server.exe Phong/
+          # The server needs no more Qt than the game. Qt puts all
+          # executables on Windows next to each other, not in server/
+          Copy-Item build/Release/phong-server.exe Phong/
           windeployqt --release --qmldir qml Phong/phong.exe
           Compress-Archive -Path Phong -DestinationPath Phong-windows-x64.zip
 
