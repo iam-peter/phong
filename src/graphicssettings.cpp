@@ -2,6 +2,12 @@
 
 #include <type_traits>
 
+#if defined(Q_OS_WASM)
+#include <emscripten.h>
+
+#include <QTimer>
+#endif
+
 namespace {
 #if defined(Q_OS_WASM) || defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
 constexpr auto defaultGlow = GraphicsSettings::Glow::LowGlow;
@@ -20,6 +26,40 @@ Enum readEnum(const QSettings& settings, const char* key, Enum fallback, Enum la
 }
 }
 
+#if defined(Q_OS_WASM)
+
+// The whole page goes full screen, the canvas of Qt fills it. Browsers
+// only allow that during a user gesture, Qt delivers taps and keys while
+// the browser is still handling them.
+EM_JS(int, phong_full_screen_available, (), {
+    return document.fullscreenEnabled || document.webkitFullscreenEnabled ? 1 : 0;
+});
+
+EM_JS(int, phong_full_screen, (), {
+    return document.fullscreenElement || document.webkitFullscreenElement ? 1 : 0;
+});
+
+EM_JS(void, phong_set_full_screen, (int fullScreen), {
+    const current = document.fullscreenElement || document.webkitFullscreenElement ? 1 : 0;
+    if (fullScreen === current)
+        return;
+    const page = document.documentElement;
+    let result;
+    if (fullScreen && page.requestFullscreen)
+        result = page.requestFullscreen({ navigationUI: "hide" });
+    else if (fullScreen && page.webkitRequestFullscreen)
+        result = page.webkitRequestFullscreen();
+    else if (!fullScreen && document.exitFullscreen)
+        result = document.exitFullscreen();
+    else if (!fullScreen && document.webkitExitFullscreen)
+        result = document.webkitExitFullscreen();
+    // Refused without a gesture, the state simply stays
+    if (result && result.catch)
+        result.catch(() => {});
+});
+
+#endif
+
 GraphicsSettings::GraphicsSettings(QObject* parent):
     QObject(parent),
     m_settings(),
@@ -30,7 +70,8 @@ GraphicsSettings::GraphicsSettings(QObject* parent):
     m_stars(true),
     m_floor(true),
     m_shadows(true),
-    m_showFps(false)
+    m_showFps(false),
+    m_fullScreen(false)
 {
     m_settings.beginGroup(QStringLiteral("graphics"));
     m_theme = readEnum(m_settings, "theme", Theme::Neon, Theme::Amber);
@@ -42,6 +83,20 @@ GraphicsSettings::GraphicsSettings(QObject* parent):
     m_floor = m_settings.value("floor", true).toBool();
     m_shadows = m_settings.value("shadows", true).toBool();
     m_showFps = m_settings.value("showFps", false).toBool();
+
+#if defined(Q_OS_WASM)
+    // The browser leaves full screen on its own too, with Esc or the back
+    // gesture, and says so only to JavaScript
+    auto* poll = new QTimer(this);
+    connect(poll, &QTimer::timeout, this, [this] {
+        const bool fullScreen = phong_full_screen();
+        if (m_fullScreen == fullScreen)
+            return;
+        m_fullScreen = fullScreen;
+        emit fullScreenChanged(fullScreen);
+    });
+    poll->start(250);
+#endif
 }
 
 void GraphicsSettings::restoreDefaults()
@@ -156,4 +211,31 @@ void GraphicsSettings::setShowFps(bool showFps)
 bool GraphicsSettings::showFps() const
 {
     return m_showFps;
+}
+
+void GraphicsSettings::setFullScreen(bool fullScreen)
+{
+#if defined(Q_OS_WASM)
+    // Follows once the browser changed, see the poll
+    phong_set_full_screen(fullScreen);
+#else
+    if (m_fullScreen == fullScreen)
+        return;
+    m_fullScreen = fullScreen;
+    emit fullScreenChanged(fullScreen);
+#endif
+}
+
+bool GraphicsSettings::fullScreen() const
+{
+    return m_fullScreen;
+}
+
+bool GraphicsSettings::fullScreenAvailable() const
+{
+#if defined(Q_OS_WASM)
+    return phong_full_screen_available();
+#else
+    return true;
+#endif
 }

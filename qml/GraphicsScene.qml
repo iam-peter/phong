@@ -7,7 +7,16 @@ OptionsScene {
 
     title: qsTr("Graphics")
 
+    // Rows the platform can't do are left out
     rows: [
+        {
+            label: qsTr("Full screen"),
+            available: GraphicsSettings.fullScreenAvailable,
+            values: [false, true],
+            names: [qsTr("Off"), qsTr("On")],
+            get: () => GraphicsSettings.fullScreen,
+            set: (value) => GraphicsSettings.fullScreen = value
+        },
         {
             label: qsTr("Theme"),
             values: [GraphicsSettings.Neon, GraphicsSettings.Classic, GraphicsSettings.Paper,
@@ -73,7 +82,7 @@ OptionsScene {
             names: [],
             set: () => GraphicsSettings.restoreDefaults()
         }
-    ]
+    ].filter((row) => row.available ?? true)
 
     // A Phong shaded sphere to judge the settings by
     Node {

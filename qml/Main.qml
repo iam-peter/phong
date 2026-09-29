@@ -65,6 +65,13 @@ Window {
         currentScene.active = true
     }
 
+    // What Esc does, for the button of the fingers
+    function pressEscape() {
+        view.forceActiveFocus()
+        currentScene?.keyPressed({ key: Qt.Key_Escape, text: "", modifiers: Qt.NoModifier,
+                                   isAutoRepeat: false, accepted: false })
+    }
+
     // Pops scenes until scene is the current one
     function returnTo(scene) {
         const index = sceneStack.indexOf(scene)
@@ -498,6 +505,139 @@ Window {
             for (const point of points)
                 phong.currentScene?.pointerReleased(point.pointId)
         }
+
+        // Only fingers bring up the buttons for them, the mouse has keys
+        PointHandler {
+            acceptedDevices: PointerDevice.TouchScreen
+            onActiveChanged: {
+                if (active)
+                    phong.touched = true
+            }
+        }
+    }
+
+    // Fingers have no Esc: once the screen was touched the corner has a
+    // button that does what Esc does, pause the game or go back, and one
+    // for full screen
+    property bool touched: false
+
+    component CornerButton: Rectangle {
+        id: button
+
+        signal tapped()
+
+        // The smallest a finger hits well, the scores are close by
+        width: 44
+        height: 44
+        radius: 9
+        color: Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.6)
+        border.color: Theme.dimmed
+        border.width: 2
+
+        TapHandler {
+            // Takes the finger at once, the scene below doesn't get it.
+            // Tapped fires on release, when browsers allow full screen.
+            gesturePolicy: TapHandler.WithinBounds
+            onTapped: button.tapped()
+        }
+    }
+
+    Row {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 8
+        spacing: 10
+        visible: phong.touched
+
+        CornerButton {
+            visible: GraphicsSettings.fullScreenAvailable
+            onTapped: GraphicsSettings.fullScreen = !GraphicsSettings.fullScreen
+
+            // Four corners, pointing out to go full screen, in to leave it
+            Item {
+                id: frame
+                anchors.centerIn: parent
+                width: 20
+                height: 20
+
+                Repeater {
+                    model: 4
+
+                    delegate: Item {
+                        required property int index
+                        readonly property bool atRight: index % 2 === 1
+                        readonly property bool atBottom: index >= 2
+                        readonly property bool outwards: !GraphicsSettings.fullScreen
+
+                        x: atRight ? frame.width - width : 0
+                        y: atBottom ? frame.height - height : 0
+                        width: 8
+                        height: 8
+
+                        Rectangle {
+                            y: parent.atBottom === parent.outwards ? 5 : 0
+                            width: 8
+                            height: 3
+                            color: Theme.text
+                        }
+                        Rectangle {
+                            x: parent.atRight === parent.outwards ? 5 : 0
+                            width: 3
+                            height: 8
+                            color: Theme.text
+                        }
+                    }
+                }
+            }
+        }
+
+        CornerButton {
+            // The menu at the bottom of the stack has nothing to go back to
+            visible: phong.sceneStack.length > 1
+            onTapped: phong.pressEscape()
+
+            // Pause while a game runs, back everywhere else
+            readonly property bool pauses: phong.currentScene?.running === true
+
+            Row {
+                visible: parent.pauses
+                anchors.centerIn: parent
+                spacing: 5
+
+                Repeater {
+                    model: 2
+                    delegate: Rectangle {
+                        width: 5
+                        height: 18
+                        color: Theme.text
+                    }
+                }
+            }
+
+            Text {
+                visible: !parent.pauses
+                anchors.centerIn: parent
+                color: Theme.text
+                font.family: Theme.fontFamily
+                font.pixelSize: 24
+                font.bold: true
+                text: "<"
+            }
+        }
+    }
+
+    // On the desktop the window follows the setting, and the setting the
+    // window when the window manager leaves full screen. The browser page
+    // goes full screen itself, see GraphicsSettings.
+    Binding {
+        when: Qt.platform.os !== "wasm"
+        target: phong
+        property: "visibility"
+        value: GraphicsSettings.fullScreen ? Window.FullScreen : Window.Windowed
+    }
+    onVisibilityChanged: {
+        if (Qt.platform.os !== "wasm" && visibility !== Window.Hidden && visibility !== Window.Minimized)
+            GraphicsSettings.fullScreen = visibility === Window.FullScreen
     }
 
     Connections {
