@@ -672,6 +672,28 @@ private slots:
         QVERIFY(qAbs(fast / slow - 2.0) < 0.05);
     }
 
+    void edgeOnlyTurnsTheBallAside()
+    {
+        Match match;
+        match.start();
+        serve(match);
+        const QVector2D before = match.ballVelocity();
+        const qreal into = before.y() > 0.0f ? -1.0 : 1.0;
+
+        // Off the end it runs into, no hit and still on its way across
+        QVERIFY(match.edgeHit(match.ball(), into, 0.0));
+        QCOMPARE(match.ballVelocity().x(), before.x());
+        QCOMPARE(match.ballVelocity().y(), -before.y());
+        QCOMPARE(match.rally(), 0);
+        QCOMPARE(match.totalHits(), 0);
+
+        // Leaving already, until the paddle comes after it faster
+        QVERIFY(!match.edgeHit(match.ball(), into, 0.0));
+        QVERIFY(match.edgeHit(match.ball(), into, into * 40.0));
+        QCOMPARE(match.ballVelocity().y(), float(into * 40.0));
+        QCOMPARE(match.ballVelocity().x(), before.x());
+    }
+
     void awardedPoints()
     {
         Match match;

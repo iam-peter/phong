@@ -172,6 +172,23 @@ void Match::paddleHit(Ball* ball, Side side, qreal offset, qreal paddleVelocity,
     hit(ball, side, QVector2D(direction * speed * qCos(angle), speed * qSin(angle)), spin, smash, perfect);
 }
 
+bool Match::edgeHit(Ball* ball, qreal direction, qreal paddleVelocity)
+{
+    if (m_state != State::Playing || !isActive(ball) || ball->heldBy() != Side::NoSide || direction == 0.0)
+        return false;
+
+    // Not a hit, the ball keeps its way across and only leaves the end,
+    // at least as fast as the paddle comes after it
+    const float away = direction > 0.0 ? 1.0f : -1.0f;
+    const QVector2D velocity = ball->velocity();
+    const float y = away * std::max(std::abs(velocity.y()), away * float(paddleVelocity));
+    if (y == velocity.y())
+        return false;
+
+    ball->setVelocity(QVector2D(velocity.x(), y));
+    return true;
+}
+
 void Match::deflect(Ball* ball, Side side, const QVector2D& normal)
 {
     if (m_state != State::Playing || !isActive(ball) || normal.isNull() || ball->heldBy() != Side::NoSide)

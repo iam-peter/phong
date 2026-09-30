@@ -800,10 +800,20 @@ Scene {
             }
         }
         else if (other.paddleOf !== undefined) {
-            // A full power bar spent catches the ball
+            // A full power bar spent catches the ball. One already past the
+            // face only glances off an end, see GameScene.
             const player = other.paddleOf
             const side = sides.objectAt(player)
             const along = Qt.vector2d(ball.x, ball.y).dotProduct(tangent(player))
+            const out = Qt.vector2d(ball.x, ball.y).dotProduct(normal(player))
+            if (out > paddleDistance - 0.5 * paddleWidth) {
+                if (match.edgeHit(player, along > side.offset ? 1 : -1, side.velocity)) {
+                    playEvent({ e: "wall" })
+                    netEvent({ e: "wall" })
+                }
+                ball.applyVelocity()
+                return
+            }
             const offset = (along - side.offset) / (0.5 * side.length + ballRadius)
             if (match.player(player).catches > 0 && match.catchBall(player, offset))
                 return

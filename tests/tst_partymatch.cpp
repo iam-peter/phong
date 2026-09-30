@@ -217,6 +217,28 @@ private slots:
         QVERIFY((match.ball()->velocity() + v).length() < 1e-4f);
     }
 
+    void edgeOnlyTurnsTheBallAside()
+    {
+        PartyMatch match;
+        match.start();
+        serve(match);
+
+        const int player = target(match);
+        const QVector2D t = match.tangent(player);
+        const QVector2D n = match.normal(player);
+        const QVector2D before = match.ball()->velocity();
+        const float along = QVector2D::dotProduct(before, t);
+        const qreal into = along > 0.0f ? -1.0 : 1.0;
+
+        // Along the side it turns, towards the goal it goes on
+        QVERIFY(match.edgeHit(player, into, 0.0));
+        const QVector2D after = match.ball()->velocity();
+        QVERIFY(qAbs(QVector2D::dotProduct(after, t) + along) < 1e-4f);
+        QVERIFY(qAbs(QVector2D::dotProduct(after - before, n)) < 1e-4f);
+        QCOMPARE(match.lastTouch(), -1);
+        QVERIFY(!match.edgeHit(player, into, 0.0));
+    }
+
     void snapshotTravels()
     {
         PartyMatch host;

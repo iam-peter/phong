@@ -111,6 +111,11 @@ public:
     // perfect.
     Q_INVOKABLE void paddleHit(Ball* ball, Match::Side side, qreal offset, qreal paddleVelocity = 0.0,
                                qreal smash = 0.0);
+    // A ball that is past the face of the paddle only glances off one of
+    // its ends and goes on to the goal. direction: 1 for the top end, -1
+    // for the bottom one, paddleVelocity along y. Returns whether the
+    // ball turned.
+    Q_INVOKABLE bool edgeHit(Ball* ball, qreal direction, qreal paddleVelocity = 0.0);
     // A paddle that isn't upright reflects the ball off its surface, but
     // always away from its own goal. normal points from the paddle to the ball.
     Q_INVOKABLE void deflect(Ball* ball, Match::Side side, const QVector2D& normal);

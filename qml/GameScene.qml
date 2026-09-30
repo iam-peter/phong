@@ -1200,11 +1200,16 @@ Scene {
         body.reset(Qt.vector3d(x, y, 0), Qt.vector3d(0, 0, 0))
     }
 
+    // The middle of the ball is no longer in front of the paddle at x
+    function pastFace(body, side, x) {
+        return (body.x - x) * (side === Match.LeftSide ? 1 : -1) < 0.5 * paddleWidth
+    }
+
     // A ball squeezed between the end of a paddle and a wall is pressed out
     // by the physics, through the wall at times, where it would fly on
     // above the goals forever. Next to a paddle it comes back in front of
-    // it and the paddle sends it back, anywhere else inside the wall it
-    // went through.
+    // it and the paddle sends it back, one already past the face goes on
+    // behind it. Anywhere else inside the wall it went through.
     function keepInField(body) {
         if (body.ball.heldBy !== Match.NoSide)
             return
@@ -1222,9 +1227,11 @@ Scene {
                             && Math.abs(body.y - y) < 0.5 * length + ballRadius - 0.1
             if (!(beside && outside) && !pressed)
                 continue
-            const front = x + (left ? 1 : -1) * (0.5 * paddleWidth + ballRadius + 0.1)
-            body.reset(Qt.vector3d(front, Math.max(-limit, Math.min(limit, body.y)), 0), Qt.vector3d(0, 0, 0))
-            match.deflect(body.ball, side, Qt.vector2d(left ? 1 : -1, 0))
+            const passed = pastFace(body, side, x)
+            const clear = (left !== passed ? 1 : -1) * (0.5 * paddleWidth + ballRadius + 0.1)
+            body.reset(Qt.vector3d(x + clear, Math.max(-limit, Math.min(limit, body.y)), 0), Qt.vector3d(0, 0, 0))
+            if (!passed)
+                match.deflect(body.ball, side, Qt.vector2d(left ? 1 : -1, 0))
             body.applyVelocity()
             body.clearTrail()
             return
@@ -1266,8 +1273,16 @@ Scene {
     }
 
     // Upright paddles use the arcade bounce, turned ones reflect the ball
-    // off their surface. A magnetic paddle catches the ball.
+    // off their surface. A magnetic paddle catches the ball. A ball already
+    // past the face only glances off an end, the engine turned it any way
+    // it liked, the rules put it back on its way.
     function paddleContact(body, side, paddle, angle, length, velocity, normals) {
+        if (angle % 180 === 0 && pastFace(body, side, paddle.x)) {
+            if (match.edgeHit(body.ball, body.y > paddle.y ? 1 : -1, velocity))
+                effect({ e: "wall" })
+            body.applyVelocity()
+            return
+        }
         if (angle % 180 === 0 || normals.length === 0) {
             const smash = side === Match.LeftSide ? leftCharge : rightCharge
             const offset = (body.y - paddle.y) / (0.5 * length + ballRadius)

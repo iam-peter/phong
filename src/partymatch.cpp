@@ -154,6 +154,24 @@ void PartyMatch::paddleHit(int player, qreal offset, qreal paddleVelocity, qreal
         brush * Match::maxSpin, smash, perfect);
 }
 
+bool PartyMatch::edgeHit(int player, qreal direction, qreal paddleVelocity)
+{
+    if (m_state != State::Playing || !isAlive(player) || m_heldBy >= 0 || direction == 0.0)
+        return false;
+
+    // Along the side the ball leaves the end, towards the goal it goes on
+    const float away = direction > 0.0 ? 1.0f : -1.0f;
+    const QVector2D t = tangent(player);
+    const QVector2D velocity = m_ball->velocity();
+    const float along = QVector2D::dotProduct(velocity, t);
+    const float leaving = away * std::max(std::abs(along), away * float(paddleVelocity));
+    if (leaving == along)
+        return false;
+
+    m_ball->setVelocity(velocity + (leaving - along) * t);
+    return true;
+}
+
 bool PartyMatch::bounce(const QVector2D& normal)
 {
     if (m_state != State::Playing || normal.isNull())

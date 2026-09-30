@@ -84,6 +84,10 @@ public:
     // paddleVelocity along the tangent puts spin on the ball, smash from 0
     // to 1 is how far the player wound up. See Match::paddleHit().
     Q_INVOKABLE void paddleHit(int player, qreal offset, qreal paddleVelocity = 0.0, qreal smash = 0.0);
+    // A ball past the face of the paddle of player glances off one of its
+    // ends, see Match::edgeHit(). direction: 1 or -1 along the tangent,
+    // paddleVelocity along it as well.
+    Q_INVOKABLE bool edgeHit(int player, qreal direction, qreal paddleVelocity = 0.0);
     // Reflection off a post or wall, normal points from it to the ball.
     // Returns whether the ball bounced.
     Q_INVOKABLE bool bounce(const QVector2D& normal);
