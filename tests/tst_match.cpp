@@ -650,6 +650,28 @@ private slots:
         QCOMPARE(match.ballVelocity(), velocity);
     }
 
+    // A ball twice as fast passes the well in half the time, it turns
+    // twice as much meanwhile, so every ball is bent alike
+    void gravityBendsAnySpeed()
+    {
+        const auto turn = [](qreal speed) {
+            Match match;
+            match.setServeSpeed(speed);
+            serve(match);
+            const QVector2D before = match.ballVelocity();
+            // The well beside the flight
+            const QVector2D side = QVector2D(-before.y(), before.x()).normalized();
+            match.attract(match.ball(), QVector2D(), side * 4.0f, 250.0, 1.0 / 60.0);
+            const QVector2D after = match.ballVelocity();
+            return qAcos(std::clamp(qreal(QVector2D::dotProduct(before, after) / (before.length() * after.length())),
+                                    qreal(-1.0), qreal(1.0)));
+        };
+        const qreal slow = turn(Match::gravitySpeed);
+        const qreal fast = turn(2.0 * Match::gravitySpeed);
+        QVERIFY(slow > 0.0);
+        QVERIFY(qAbs(fast / slow - 2.0) < 0.05);
+    }
+
     void awardedPoints()
     {
         Match match;

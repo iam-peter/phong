@@ -210,9 +210,10 @@ void PartyMatch::attract(const QVector2D& position, const QVector2D& well, qreal
     if (distance < 0.01f || velocity.isNull())
         return;
 
-    // Like Match::attract(), the speed stays
+    // Like Match::attract(), stronger for a faster ball, the speed stays
     constexpr float core = 2.0f;
-    const float pull = float(strength) / std::max(distance * distance, core * core);
+    const float speed = velocity.length() / float(Match::gravitySpeed);
+    const float pull = float(strength) * speed * speed / std::max(distance * distance, core * core);
     const QVector2D bent = (velocity + towards / distance * pull * float(dt)).normalized();
     m_ball->setVelocity(bent * velocity.length());
 }

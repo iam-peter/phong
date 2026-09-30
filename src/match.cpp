@@ -357,9 +357,11 @@ void Match::attract(Ball* ball, const QVector2D& position, const QVector2D& well
     if (distance < 0.01f || velocity.isNull())
         return;
 
-    // Falls off with the square of the distance, a core keeps it finite
+    // Falls off with the square of the distance, a core keeps it finite,
+    // and grows with the square of the speed, a fast ball passes quickly
     constexpr float core = 2.0f;
-    const float pull = float(strength) / std::max(distance * distance, core * core);
+    const float speed = velocity.length() / float(gravitySpeed);
+    const float pull = float(strength) * speed * speed / std::max(distance * distance, core * core);
     const QVector2D bent = (velocity + towards / distance * pull * float(dt)).normalized();
 
     // Never turns the ball around

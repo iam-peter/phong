@@ -127,7 +127,7 @@
             "color": "#7a5cff",
             "effect": "gravityWell",
             "target": "both",
-            "value": 120,
+            "value": 250,
             "duration": 10,
             "weight": 0.8
         }

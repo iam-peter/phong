@@ -68,6 +68,9 @@ public:
 
     // Steepest angle (degrees) a paddle can send the ball off at
     static constexpr qreal maxBounceAngle = 60.0;
+    // A gravity well pulls a ball of this speed with its strength, faster
+    // ones with the square of their speed more, see attract()
+    static constexpr qreal gravitySpeed = 16.0;
     // Serve angle range (degrees), both up and down
     static constexpr qreal minServeAngle = 10.0;
     static constexpr qreal maxServeAngle = 30.0;
@@ -138,7 +141,9 @@ public:
     Q_INVOKABLE bool useSpecial(Match::Side side);
 
     // A gravity well at well bends the flight of the ball at position,
-    // more the closer it is. The speed stays and the ball keeps crossing.
+    // more the closer it is. A fast ball passes it sooner, so the pull
+    // grows with the square of the speed and bends every ball alike. The
+    // speed stays and the ball keeps crossing.
     Q_INVOKABLE void attract(Ball* ball, const QVector2D& position, const QVector2D& well,
                              qreal strength, qreal dt);
 
