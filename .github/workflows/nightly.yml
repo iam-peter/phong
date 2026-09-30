@@ -98,6 +98,7 @@ jobs:
         with:
           name: phong-linux
           path: Phong-*.AppImage
+          retention-days: 1
 
       # The server with the Qt it needs in lib/, it finds them there
       - name: Server
@@ -115,6 +116,7 @@ jobs:
         with:
           name: phong-server-linux
           path: Phong-server-linux-x64.tar.gz
+          retention-days: 1
 
   windows:
     needs: changes
@@ -160,6 +162,7 @@ jobs:
         with:
           name: phong-windows
           path: Phong-windows-x64.zip
+          retention-days: 1
 
   macos:
     needs: changes
@@ -200,6 +203,7 @@ jobs:
         with:
           name: phong-macos
           path: Phong-macos.dmg
+          retention-days: 1
 
   wasm:
     needs: changes
@@ -258,11 +262,13 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+          retention-days: 1
 
       - uses: actions/upload-artifact@v4
         with:
           name: phong-web
           path: Phong-web.zip
+          retention-days: 1
 
   pages:
     needs: wasm
