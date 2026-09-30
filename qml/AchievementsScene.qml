@@ -24,20 +24,11 @@ Scene {
     }
     onPointerPressed: (id, x, y) => phong.clickableAt(x, y)?.clicked()
 
-    Text3D {
-        y: 8.2
-        scale: Qt.vector3d(1.8, 1.8, 1.8)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.title
-        glow: 0.8
+    MenuTitle {
         text: qsTr("Achievements")
     }
 
-    Text3D {
-        y: 6.3
-        scale: Qt.vector3d(0.6, 0.6, 0.6)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.dimmed
+    MenuAnnotation {
         text: qsTr("%1 of %2 done").arg(Stats.unlockedCount).arg(Stats.achievements.length)
     }
 
@@ -81,29 +72,17 @@ Scene {
     }
 
     // The only thing to do here
-    Text3D {
-        id: backItem
-        y: -10.9
-        horizontalAlignment: Text.AlignHCenter
+    MenuItem {
+        y: Theme.menuListBottom
+        selected: true
         text: qsTr("Back")
-        clickable: true
         onClicked: {
             SoundEffects.play(SoundEffects.MenuSelect)
             phong.previousScene()
         }
-
-        Disc {
-            position: Qt.vector3d(-0.5 * backItem.textWidth - 1.0, 0.35, 0)
-            radius: 0.35
-            sphere: true
-        }
     }
 
-    Text3D {
-        y: -12.2
-        scale: Qt.vector3d(0.5, 0.5, 0.5)
-        horizontalAlignment: Text.AlignHCenter
+    MenuHint {
         text: qsTr("[Enter] or [Esc] back")
-        color: Theme.dimmed
     }
 }

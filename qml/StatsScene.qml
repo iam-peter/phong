@@ -94,12 +94,7 @@ Scene {
     }
     onPointerPressed: (id, x, y) => phong.clickableAt(x, y)?.clicked()
 
-    Text3D {
-        y: 8.6
-        scale: Qt.vector3d(1.8, 1.8, 1.8)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.title
-        glow: 0.8
+    MenuTitle {
         text: qsTr("Stats")
     }
 
@@ -129,73 +124,40 @@ Scene {
         }
     }
 
-    Text3D {
-        id: achievementsItem
+    MenuItem {
         x: -6.0
         y: -9.0
-        horizontalAlignment: Text.AlignHCenter
-        color: root.currentItem === 0 ? Theme.text : Theme.unselected
+        selected: root.currentItem === 0
         text: qsTr("Achievements")
-        clickable: true
         onClicked: {
             root.currentItem = 0
             root.activate(0)
         }
-
-        Disc {
-            visible: root.currentItem === 0
-            position: Qt.vector3d(-0.5 * achievementsItem.textWidth - 1.0, 0.35, 0)
-            radius: 0.35
-            sphere: true
-        }
     }
 
-    Text3D {
-        id: resetItem
+    MenuItem {
         x: 6.0
         y: -9.0
-        horizontalAlignment: Text.AlignHCenter
-        color: root.confirming ? Theme.accent : root.currentItem === 1 ? Theme.text : Theme.unselected
+        selected: root.currentItem === 1
+        selectedColor: root.confirming ? Theme.accent : Theme.text
         text: root.confirming ? qsTr("Really reset?") : qsTr("Reset stats")
-        clickable: true
         onClicked: {
             root.currentItem = 1
             root.activate(1)
         }
-
-        Disc {
-            visible: root.currentItem === 1
-            position: Qt.vector3d(-0.5 * resetItem.textWidth - 1.0, 0.35, 0)
-            radius: 0.35
-            sphere: true
-        }
     }
 
-    Text3D {
-        id: backItem
+    MenuItem {
         y: -10.5
-        horizontalAlignment: Text.AlignHCenter
-        color: root.currentItem === 2 ? Theme.text : Theme.unselected
+        selected: root.currentItem === 2
         text: qsTr("Back")
-        clickable: true
         onClicked: {
             root.currentItem = 2
             root.activate(2)
         }
-
-        Disc {
-            visible: root.currentItem === 2
-            position: Qt.vector3d(-0.5 * backItem.textWidth - 1.0, 0.35, 0)
-            radius: 0.35
-            sphere: true
-        }
     }
 
-    Text3D {
-        y: -11.9
-        scale: Qt.vector3d(0.5, 0.5, 0.5)
-        horizontalAlignment: Text.AlignHCenter
+    MenuHint {
         text: qsTr("[Arrows] select   [Enter] confirm   [Esc] back")
-        color: Theme.dimmed
     }
 }

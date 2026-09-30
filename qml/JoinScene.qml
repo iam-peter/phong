@@ -179,19 +179,11 @@ Scene {
     }
     onPointerPressed: (id, x, y) => phong.clickableAt(x, y)?.clicked()
 
-    Text3D {
-        y: 8.6
-        scale: Qt.vector3d(1.8, 1.8, 1.8)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.title
-        glow: 0.8
+    MenuTitle {
         text: qsTr("Join")
     }
 
-    Text3D {
-        y: 6.4
-        scale: Qt.vector3d(0.55, 0.55, 0.55)
-        horizontalAlignment: Text.AlignHCenter
+    MenuAnnotation {
         color: root.error !== "" ? Theme.accent : Theme.dimmed
         // A sleeping server takes a while to let one join
         text: root.kind === "internet" && OnlineService.state === OnlineService.Waking ? OnlineService.status
@@ -202,43 +194,40 @@ Scene {
               : qsTr("Type the address the host shows")
     }
 
-    Repeater3D {
-        model: root.items
+    MenuList {
+        id: menuList
+        count: root.items.length
 
-        delegate: Node {
-            id: row
+        Repeater3D {
+            model: root.items
 
-            required property var modelData
-            required property int index
+            delegate: Node {
+                id: row
 
-            readonly property bool selected: index === root.currentItem
+                required property var modelData
+                required property int index
 
-            y: 4.6 - index * 1.6
+                readonly property bool selected: index === root.currentItem
 
-            Disc {
-                visible: row.selected
-                sphere: true
-                position: Qt.vector3d(-12.0, 0.35, 0)
-                radius: 0.35
-            }
+                y: menuList.yFor(index)
+                scale: menuList.itemScale
 
-            Text3D {
+            MenuItem {
                 x: -11.0
-                color: row.selected ? Theme.text : Theme.unselected
+                centered: false
+                selected: row.selected
                 text: row.modelData.text
-                clickable: true
                 onClicked: {
                     root.currentItem = row.index
                     row.modelData.activate()
                 }
             }
 
-            // The address or the code as typed
-            Text3D {
+            MenuTextInput {
                 visible: (row.modelData.address ?? false) || (row.modelData.code ?? false)
                 x: 10.0
-                horizontalAlignment: Text.AlignRight
-                color: root.typing && row.selected ? Theme.title : row.selected ? Theme.text : Theme.dimmed
+                selected: row.selected
+                editing: root.typing && row.selected
                 text: {
                     if (root.typing && row.selected)
                         return root.typed
@@ -246,67 +235,37 @@ Scene {
                         return root.code !== "" ? root.code : qsTr("ABCD")
                     return root.address !== "" ? root.address : qsTr("host:45455")
                 }
+                onClicked: {
+                    root.currentItem = row.index
+                    row.modelData.activate()
+                }
             }
 
-            // The cursor follows the text
-            Text3D {
-                visible: root.typing && row.selected && ((row.modelData.address ?? false) || (row.modelData.code ?? false))
-                x: 10.0
-                color: Theme.title
-                text: "_"
-            }
-
-            // Internet or LAN, arrows around it when it can change
-            Text3D {
-                id: networkText
+            MenuValue {
                 visible: row.modelData.network ?? false
                 x: 10.0
-                horizontalAlignment: Text.AlignRight
-                color: row.selected ? Theme.text : Theme.dimmed
+                selected: row.selected
+                available: row.modelData.cycles ?? false
+                cycles: row.modelData.cycles ?? false
                 text: row.modelData.value ?? ""
-                clickable: visible && (row.modelData.cycles ?? false)
                 onClicked: root.switchKind()
+                onDecreased: root.switchKind()
+                onIncreased: root.switchKind()
             }
 
-            Text3D {
-                visible: networkText.visible && row.selected && (row.modelData.cycles ?? false)
-                x: networkText.x - networkText.textWidth - 0.7
-                horizontalAlignment: Text.AlignRight
-                color: Theme.title
-                text: "<"
-                clickable: visible
-                hitLeft: 1.5
-                hitRight: 0.35
-                onClicked: root.switchKind()
-            }
-
-            Text3D {
-                visible: networkText.visible && row.selected && (row.modelData.cycles ?? false)
-                x: networkText.x + 0.7
-                color: Theme.title
-                text: ">"
-                clickable: visible
-                hitLeft: 0.35
-                hitRight: 3.0
-                onClicked: root.switchKind()
-            }
-
-            Text3D {
-                visible: row.modelData.detail !== undefined
-                x: 10.0
-                scale: Qt.vector3d(0.6, 0.6, 0.6)
-                horizontalAlignment: Text.AlignRight
-                color: Theme.dimmed
-                text: row.modelData.detail ?? ""
+                Text3D {
+                    visible: row.modelData.detail !== undefined
+                    x: 10.0
+                    scale: Qt.vector3d(0.6, 0.6, 0.6)
+                    horizontalAlignment: Text.AlignRight
+                    color: Theme.dimmed
+                    text: row.modelData.detail ?? ""
+                }
             }
         }
     }
 
-    Text3D {
-        y: -11.4
-        scale: Qt.vector3d(0.5, 0.5, 0.5)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.dimmed
+    MenuHint {
         text: root.typing ? qsTr("Type it   [Enter] join   [Esc] cancel")
                           : qsTr("[Up/Down] select   [Left/Right] network   [Enter] confirm   [Esc] back")
     }

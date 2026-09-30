@@ -4,9 +4,9 @@ import QtQuick
 import QtQuick3D
 import Phong
 
-// Before a game of several players: who plays which side. The keyboard is
-// the first player, a gamepad joins with A and leaves with B, players on
-// the network join while the game is open on the LAN, the free sides of
+// Before a game of several players: who plays which side. In local play the
+// keyboard is the first player and gamepads join with A. Players on the
+// network join while a hosted game is open, and the free sides of
 // the polygon are played by the computer. On a joined machine it shows the
 // lobby of the host.
 //
@@ -96,8 +96,10 @@ Scene {
             return items
         }
         items.push({ text: qsTr("Players"), value: players, cycles: true, change: (step) => root.cyclePlayers(step) })
-        if (party)
-            items.push({ text: qsTr("Keyboards"), value: keyboards, cycles: true, change: () => root.cycleKeyboards() })
+        if (network === "local") {
+            items.push({ text: qsTr("Keyboard"), value: keyboards, enabled: party,
+                         cycles: party, change: () => root.cycleKeyboards() })
+        }
         if (network !== "local") {
             // How the others get here, the code or the address shows above
             items.push({ text: qsTr("Network"), value: network === "lan" ? qsTr("LAN") : qsTr("Internet"),
@@ -107,7 +109,12 @@ Scene {
             if (Lan.role === Lan.NoRole)
                 items.push({ text: qsTr("Open again"), activate: () => root.openNetwork() })
         }
-        items.push({ text: qsTr("Start"), starts: true, activate: () => root.start() })
+        items.push({
+            text: qsTr("Rules"),
+            activate: () => phong.openRules(party ? GameRulesScene.Party : GameScene.TwoPlayers,
+                                             party ? qsTr("Party") : qsTr("Two Players"), null)
+        })
+        items.push({ text: qsTr("Play"), play: true, activate: () => root.start() })
         items.push({ text: qsTr("Back"), activate: () => root.back() })
         return items
     }
@@ -222,10 +229,16 @@ Scene {
             case "keyboard":
                 if (party) {
                     const sets = keyboards <= 1 ? [0, 1] : [slot.keys]
-                    return clamp(sets.reduce((move, set) => move + on(set * 6 + 1) - on(set * 6), 0))
+                    let move = sets.reduce((value, set) => value + on(set * 6 + 1) - on(set * 6), 0)
+                    if (move === 0 && network !== "local" && Gamepads.count > 0)
+                        move = Gamepads.pads[0].direction.x
+                    return clamp(move)
                 }
-                return slot.keys === "left" ? on(KeySettings.LeftUp) - on(KeySettings.LeftDown)
-                                            : on(KeySettings.RightUp) - on(KeySettings.RightDown)
+                let move = slot.keys === "left" ? on(KeySettings.LeftUp) - on(KeySettings.LeftDown)
+                                                : on(KeySettings.RightUp) - on(KeySettings.RightDown)
+                if (move === 0 && network !== "local" && Gamepads.count > 0)
+                    move = Gamepads.pads[0].direction.y
+                return clamp(move)
             case "pad":
                 return clamp(party ? slot.pad.direction.x : slot.pad.direction.y)
         }
@@ -307,6 +320,8 @@ Scene {
     // 2 to 6, two play on the classic field, more on the polygon
     function cyclePlayers(step) {
         GameSettings.lobbyPlayers = 2 + ((players - 2 + step) % 5 + 5) % 5
+        if (items[currentItem]?.enabled === false)
+            currentItem = 0
         // Players who no longer fit leave
         while (joiners.length > capacity)
             dropJoiner(joiners[joiners.length - 1])
@@ -319,6 +334,16 @@ Scene {
         while (joiners.length > capacity)
             dropJoiner(joiners[joiners.length - 1])
         SoundEffects.play(SoundEffects.MenuMove)
+    }
+
+    function moveSelection(step) {
+        for (let index = currentItem + step; index >= 0 && index < items.length; index += step) {
+            if (items[index].enabled !== false) {
+                currentItem = index
+                SoundEffects.play(SoundEffects.MenuMove)
+                return
+            }
+        }
     }
 
     // Only one at a time, the LAN or the server
@@ -412,6 +437,7 @@ Scene {
             network = "internet"
         if (network !== "local")
             openNetwork()
+        currentItem = items.findIndex((item) => item.play === true)
     }
 
     // A client gets the lobby of the host
@@ -421,6 +447,7 @@ Scene {
         remotePlayers = message.players
         remoteSlots = message.slots
         remoteSlot = message.slot
+        currentItem = 0
     }
 
     onActiveChanged: {
@@ -432,12 +459,11 @@ Scene {
             OnlineService.refresh()
             // Wakes a sleeping server before somebody wants a room
             OnlineService.check()
-            currentItem = remote ? 0 : items.findIndex((item) => item.starts === true)
         }
     }
 
-    // Gamepads join, leave and start here instead of navigating, and try
-    // the paddle
+    // In local play gamepads add couch players. Online each player has a
+    // separate device; its first gamepad controls its own side directly.
     menuNavigation: false
 
     Connections {
@@ -446,10 +472,12 @@ Scene {
         function onButtonPressed(pad, button) {
             switch (button) {
                 case Gamepad.South:
-                    root.join(pad)
+                    if (root.network === "local")
+                        root.join(pad)
                     break
                 case Gamepad.East:
-                    if (!root.leave(pad) && !root.joiners.some((j) => j.kind === "pad"))
+                    if (root.network !== "local"
+                            || !root.leave(pad) && !root.joiners.some((j) => j.kind === "pad"))
                         root.back()
                     break
                 case Gamepad.Start:
@@ -605,12 +633,10 @@ Scene {
                 back()
                 break
             case Qt.Key_Up:
-                currentItem = Math.max(currentItem - 1, 0)
-                SoundEffects.play(SoundEffects.MenuMove)
+                moveSelection(-1)
                 break
             case Qt.Key_Down:
-                currentItem = Math.min(currentItem + 1, items.length - 1)
-                SoundEffects.play(SoundEffects.MenuMove)
+                moveSelection(1)
                 break
             case Qt.Key_Left:
             case Qt.Key_Right:
@@ -668,23 +694,14 @@ Scene {
         pointerLanes = steering
     }
 
-    Text3D {
-        y: 8.6
-        scale: Qt.vector3d(1.8, 1.8, 1.8)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.title
-        glow: 0.8
-        text: qsTr("%1 Players").arg(root.players)
+    MenuTitle {
+        text: root.remote ? qsTr("Online") : root.network === "local" ? qsTr("Local") : qsTr("Host")
     }
 
     // How the others get here: the code of the room, or the address on
     // the LAN
-    Text3D {
+    MenuAnnotation {
         visible: root.hostingLan && !root.remote
-        readonly property real fitting: Math.min(0.9, 34.0 / Math.max(textWidth, 0.1))
-        y: 6.2
-        scale: Qt.vector3d(fitting, fitting, fitting)
-        horizontalAlignment: Text.AlignHCenter
         color: Theme.title
         glow: 0.6
         text: root.onlineOpen ? qsTr("Room code %1").arg(Lan.roomCode)
@@ -758,7 +775,7 @@ Scene {
 
     Text3D {
         y: -3.9
-        visible: !root.remote
+        visible: !root.remote && root.network === "local"
         scale: Qt.vector3d(0.45, 0.45, 0.45)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.dimmed
@@ -766,23 +783,32 @@ Scene {
                                  : qsTr("Gamepads need a build with SDL 3")
     }
 
-    // Like the settings: the names to the left, their values to the right
-    Repeater3D {
-        model: root.items
+    // The practice fields leave this menu a smaller region, but its unscaled
+    // rhythm is the same as every other menu.
+    MenuList {
+        id: menuList
+        count: root.items.length
+        top: -5.5
+        bottom: Theme.menuHintY + 0.5
 
-        delegate: Node {
-            id: item
+        Repeater3D {
+            model: root.items
 
-            required property var modelData
-            required property int index
+            delegate: Node {
+                id: item
 
-            readonly property bool selected: index === root.currentItem
-            readonly property bool cycles: selected && (modelData.cycles ?? false)
+                required property var modelData
+                required property int index
 
-            y: -5.5 - index * 1.2
-            scale: Qt.vector3d(0.9, 0.9, 0.9)
+                readonly property bool selected: index === root.currentItem
+                readonly property bool enabled: modelData.enabled !== false
+
+                y: menuList.yFor(index)
+                scale: menuList.itemScale
 
             function activate() {
+                if (!enabled)
+                    return
                 root.currentItem = index
                 if (modelData.activate)
                     modelData.activate()
@@ -790,78 +816,48 @@ Scene {
                     modelData.change(1)
             }
 
-            Disc {
-                visible: item.selected
-                position: Qt.vector3d(-12.0, 0.35, 0)
-                radius: 0.35
-                sphere: true
-            }
-
-            Text3D {
+            MenuItem {
                 x: -11.0
-                color: item.selected ? Theme.text : Theme.unselected
+                centered: false
+                selected: item.selected
+                available: item.enabled
                 text: item.modelData.text
-                clickable: true
                 onClicked: item.activate()
             }
 
-            // The value stays in place, the arrows wrap around it
-            Text3D {
-                id: valueText
+            MenuValue {
                 x: 10.0
-                visible: item.modelData.value !== undefined
-                horizontalAlignment: Text.AlignRight
-                color: root.typing && item.selected ? Theme.title : item.selected ? Theme.text : Theme.dimmed
-                text: root.typing && item.selected && item.modelData.input ? root.typed : item.modelData.value ?? ""
-                clickable: visible
-                onClicked: item.activate()
-            }
-
-            // The cursor follows the text
-            Text3D {
-                visible: root.typing && item.selected && (item.modelData.input ?? false)
-                x: valueText.x
-                color: Theme.title
-                text: "_"
-            }
-
-            Text3D {
-                visible: item.cycles
-                x: valueText.x - valueText.textWidth - 0.7
-                horizontalAlignment: Text.AlignRight
-                color: Theme.title
-                text: "<"
-                // A tap on the value itself steps forward, back needs this
-                clickable: visible
-                hitLeft: 1.5
-                hitRight: 0.35
+                visible: item.modelData.value !== undefined && !(item.modelData.input ?? false)
+                selected: item.selected
+                available: item.enabled
+                cycles: item.enabled && (item.modelData.cycles ?? false)
+                text: item.modelData.value ?? ""
                 onClicked: {
+                    item.activate()
+                }
+                onDecreased: {
                     root.currentItem = item.index
                     item.modelData.change(-1)
                 }
-            }
-
-            Text3D {
-                visible: item.cycles
-                x: valueText.x + 0.7
-                color: Theme.title
-                text: ">"
-                clickable: visible
-                hitLeft: 0.35
-                hitRight: 3.0
-                onClicked: {
+                onIncreased: {
                     root.currentItem = item.index
                     item.modelData.change(1)
+                }
+            }
+
+                MenuTextInput {
+                    x: 10.0
+                    visible: item.modelData.input ?? false
+                    selected: item.selected
+                    editing: root.typing && item.selected
+                    text: editing ? root.typed : item.modelData.value ?? ""
+                    onClicked: item.activate()
                 }
             }
         }
     }
 
-    Text3D {
-        y: -13.3
-        scale: Qt.vector3d(0.5, 0.5, 0.5)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.dimmed
+    MenuHint {
         text: root.typing ? qsTr("Type your name   [Enter] keep it   [Esc] cancel")
                           : qsTr("[Up/Down] select   [Enter] confirm   [Esc] back")
     }

@@ -47,11 +47,6 @@ Scene {
         }
     }
 
-    // The rows fit between the title and the hint
-    readonly property real rowSpacing: Math.min(2.0, 15.0 / Math.max(entries.length, 1))
-    // Long lists get smaller text
-    readonly property real rowScale: Math.min(1.0, rowSpacing / 1.45)
-
     // The row is the current one. A tap passes the copy of it its delegate
     // has, the index is the one to go by.
     function change(row, step) {
@@ -155,98 +150,67 @@ Scene {
     }
     onPointerPressed: (id, x, y) => phong.clickableAt(x, y)?.clicked()
 
-    Text3D {
-        y: 8.6
-        scale: Qt.vector3d(1.8, 1.8, 1.8)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.title
-        glow: 0.8
+    MenuTitle {
         text: root.title
     }
 
-    Repeater3D {
-        model: root.entries
+    MenuList {
+        id: menuList
+        count: root.entries.length
 
-        delegate: Node {
-            id: row
+        Repeater3D {
+            model: root.entries
 
-            required property var modelData
-            required property int index
+            delegate: Node {
+                id: row
 
-            readonly property bool selected: index === root.currentItem
-            // Reading the setting in get() makes the value text follow it
-            readonly property var value: modelData.values.length ? modelData.get() : undefined
-            readonly property string valueName: {
-                const index = modelData.values.indexOf(value)
-                return index < 0 ? String(value ?? "") : modelData.names[index]
-            }
+                required property var modelData
+                required property int index
 
-            // Long texts shrink into the room right of the label
-            readonly property real valueRoom: 10.0 - (labelText.x + labelText.textWidth) - 1.0
-            function fit(width: real): vector3d {
-                const s = Math.min(1.0, valueRoom / Math.max(width, 0.001))
-                return Qt.vector3d(s, s, s)
-            }
+                readonly property bool selected: index === root.currentItem
+                // Reading the setting in get() makes the value text follow it
+                readonly property var value: modelData.values.length ? modelData.get() : undefined
+                readonly property string valueName: {
+                    const index = modelData.values.indexOf(value)
+                    return index < 0 ? String(value ?? "") : modelData.names[index]
+                }
 
-            y: 6.0 - index * root.rowSpacing
-            scale: Qt.vector3d(root.rowScale, root.rowScale, root.rowScale)
+                // Long texts shrink into the room right of the label
+                readonly property real valueRoom: 10.0 - (labelText.x + labelText.textWidth) - 1.0
+                function fit(width: real): vector3d {
+                    const s = Math.min(1.0, valueRoom / Math.max(width, 0.001))
+                    return Qt.vector3d(s, s, s)
+                }
 
-            Disc {
-                visible: row.selected
-                sphere: true
-                position: Qt.vector3d(-12.0, 0.35, 0)
-                radius: 0.35
-            }
+                y: menuList.yFor(index)
+                scale: menuList.itemScale
 
-            Text3D {
+            MenuItem {
                 id: labelText
                 x: -11.0
-                color: row.selected ? Theme.text : Qt.tint(Theme.text, Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.25))
+                centered: false
+                selected: row.selected
+                unselectedColor: Qt.tint(Theme.text, Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.25))
                 text: row.modelData.label
-                clickable: true
                 onClicked: {
                     root.currentItem = row.index
                     root.change(row.modelData, 1)
                 }
             }
 
-            // The value stays in place, the arrows wrap around it
-            Text3D {
+            MenuValue {
                 id: valueText
                 x: 10.0
                 visible: row.modelData.values.length > 0
-                horizontalAlignment: Text.AlignRight
-                color: row.selected ? Theme.text : Theme.dimmed
+                selected: row.selected
+                cycles: true
                 text: row.valueName
-                clickable: visible
                 onClicked: {
                     root.currentItem = row.index
                     root.change(row.modelData, 1)
                 }
-            }
-
-            Text3D {
-                x: valueText.x - valueText.textWidth - 0.7
-                visible: valueText.visible && row.selected
-                horizontalAlignment: Text.AlignRight
-                color: Theme.title
-                text: "<"
-                clickable: visible
-                // Wide for fingers, the rows are close, the label is left
-                hitLeft: 1.5
-                hitRight: 0.35
-                onClicked: root.change(row.modelData, -1)
-            }
-
-            Text3D {
-                x: valueText.x + 0.7
-                visible: valueText.visible && row.selected
-                color: Theme.title
-                text: ">"
-                clickable: visible
-                hitLeft: 0.35
-                hitRight: 3.0
-                onClicked: root.change(row.modelData, 1)
+                onDecreased: root.change(row.modelData, -1)
+                onIncreased: root.change(row.modelData, 1)
             }
 
             // A key, or the request for one
@@ -264,50 +228,36 @@ Scene {
                 }
             }
 
-            // A text, or the one being typed
-            Text3D {
+            MenuTextInput {
                 id: typedText
                 x: 10.0
                 scale: row.fit(typedText.textWidth)
                 visible: row.modelData.text ?? false
-                horizontalAlignment: Text.AlignRight
-                color: root.capturing === row.index ? Theme.title : row.selected ? Theme.text : Theme.dimmed
+                selected: row.selected
+                editing: root.capturing === row.index
                 text: root.capturing === row.index ? root.typed
                       : (row.modelData.get?.() ?? "") || (row.modelData.placeholder ?? "")
-                clickable: visible
                 onClicked: {
                     root.currentItem = row.index
                     root.change(row.modelData, 1)
                 }
             }
 
-            // The cursor follows the text
-            Text3D {
-                visible: typedText.visible && root.capturing === row.index
-                x: typedText.x
-                scale: typedText.scale
-                color: Theme.title
-                text: "_"
-            }
-
-            // Actions leading to another screen say so
-            Text3D {
-                id: hintText
-                x: 10.0
-                scale: row.fit(hintText.textWidth)
-                visible: (row.modelData.hint ?? "") !== ""
-                horizontalAlignment: Text.AlignRight
-                color: row.selected ? Theme.title : Theme.dimmed
-                text: row.modelData.hint ?? ""
+                // Actions leading to another screen say so
+                Text3D {
+                    id: hintText
+                    x: 10.0
+                    scale: row.fit(hintText.textWidth)
+                    visible: (row.modelData.hint ?? "") !== ""
+                    horizontalAlignment: Text.AlignRight
+                    color: row.selected ? Theme.title : Theme.dimmed
+                    text: row.modelData.hint ?? ""
+                }
             }
         }
     }
 
-    Text3D {
-        y: -11.4
-        scale: Qt.vector3d(0.5, 0.5, 0.5)
-        horizontalAlignment: Text.AlignHCenter
+    MenuHint {
         text: qsTr("[Up/Down] select   [Left/Right] change   [Esc] back")
-        color: Theme.dimmed
     }
 }

@@ -286,7 +286,7 @@ Scene {
     Repeater3D {
         model: root.items
 
-        delegate: Text3D {
+        delegate: MenuItem {
             id: item
 
             required property var modelData
@@ -294,25 +294,13 @@ Scene {
 
             x: root.items.length === 1 ? 0.0 : index === 0 ? -5.0 : 5.0
             y: -9.0
-            horizontalAlignment: Text.AlignHCenter
+            selected: item.index === root.currentItem
             text: modelData.text
-            clickable: true
             onClicked: root.activate(item.index)
-
-            Disc {
-                visible: item.index === root.currentItem
-                position: Qt.vector3d(-0.5 * item.textWidth - 1.0, 0.35, 0)
-                radius: 0.35
-                sphere: true
-            }
         }
     }
 
-    Text3D {
-        y: -11.5
-        scale: Qt.vector3d(0.5, 0.5, 0.5)
-        horizontalAlignment: Text.AlignHCenter
+    MenuHint {
         text: qsTr("[Left/Right] select   [Enter] confirm   [Esc] menu")
-        color: Theme.dimmed
     }
 }

@@ -5,6 +5,7 @@
 
 #include <QObject>
 #include <QSettings>
+#include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
 // User settings, persisted with QSettings (browser local storage on wasm)
@@ -75,6 +76,10 @@ public:
     explicit GameSettings(QObject* parent = nullptr);
 
     Q_INVOKABLE void restoreDefaults();
+    Q_INVOKABLE void restoreAppDefaults();
+    Q_INVOKABLE QVariantMap rules(int mode) const;
+    Q_INVOKABLE void setRule(int mode, const QString& name, const QVariant& value);
+    Q_INVOKABLE void restoreRules(int mode);
 
     void setPointsToWin(int pointsToWin);
     int pointsToWin() const;
@@ -161,6 +166,7 @@ signals:
     void playerNameChanged(const QString&);
     void onlineChanged(bool);
     void serverUrlChanged(const QString&);
+    void rulesChanged(int mode);
 
 private:
     QSettings m_settings;

@@ -27,19 +27,15 @@ Scene {
     // The entries with their height, a header and a detail take room
     readonly property var rows: {
         const rows = []
-        let y = status !== "" ? 4.6 : 5.4
+        let offset = 0.0
         for (const entry of choices) {
-            if (entry.header !== undefined) {
-                y -= 0.5
-                rows.push({ entry: entry, y: y })
-                y -= 1.6
-                continue
-            }
-            rows.push({ entry: entry, y: y })
-            y -= entry.detail ? 2.7 : 1.8
+            rows.push({ entry: entry, offset: offset })
+            offset += entry.detail ? Theme.menuDetailedItemSpacing : Theme.menuItemSpacing
         }
         return rows
     }
+    readonly property real listContentHeight: choices.reduce((height, entry) =>
+        height + (entry.detail ? Theme.menuDetailedItemSpacing : Theme.menuItemSpacing), 0.0)
 
     function selectable(index) {
         const entry = choices[index]
@@ -113,40 +109,38 @@ Scene {
     }
     onPointerPressed: (id, x, y) => phong.clickableAt(x, y)?.clicked()
 
-    Text3D {
-        y: 8.6
-        scale: Qt.vector3d(1.8, 1.8, 1.8)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.title
-        glow: 0.8
+    MenuTitle {
         text: root.title
     }
 
-    Text3D {
+    MenuAnnotation {
         visible: root.status !== ""
-        y: 6.5
-        scale: Qt.vector3d(0.55, 0.55, 0.55)
-        horizontalAlignment: Text.AlignHCenter
         color: root.statusColor
         text: root.status
     }
 
-    Repeater3D {
-        model: root.rows
+    MenuList {
+        id: menuList
+        count: root.rows.length
+        contentHeight: root.listContentHeight
 
-        delegate: Node {
-            id: row
+        Repeater3D {
+            model: root.rows
 
-            required property var modelData
-            required property int index
+            delegate: Node {
+                id: row
 
-            readonly property var entry: modelData.entry
-            readonly property bool header: entry.header !== undefined
-            readonly property bool selected: index === root.currentItem
-            readonly property bool enabled: entry.enabled !== false
-            readonly property bool arrows: selected && entry.change !== undefined
+                required property var modelData
+                required property int index
 
-            y: modelData.y
+                readonly property var entry: modelData.entry
+                readonly property bool header: entry.header !== undefined
+                readonly property bool selected: index === root.currentItem
+                readonly property bool enabled: entry.enabled !== false
+                readonly property bool arrows: selected && entry.change !== undefined
+
+                y: menuList.yForOffset(modelData.offset)
+                scale: menuList.itemScale
 
             Text3D {
                 visible: row.header
@@ -157,64 +151,31 @@ Scene {
                 text: row.entry.header ?? ""
             }
 
-            Text3D {
+            MenuItem {
                 id: label
                 visible: !row.header
-                horizontalAlignment: Text.AlignHCenter
-                color: !row.enabled ? Theme.dimmed : row.selected ? Theme.text : Theme.unselected
+                selected: row.selected
+                available: row.enabled
+                arrows: row.arrows
                 text: (row.entry.text ?? "") + (row.entry.value !== undefined ? "  " + row.entry.value : "")
-                clickable: visible && row.enabled
                 onClicked: root.activate(row.index)
+                onDecreased: root.change(row.index, -1)
+                onIncreased: root.change(row.index, 1)
             }
 
-            Text3D {
-                visible: row.arrows
-                x: -0.5 * label.textWidth - 0.9
-                horizontalAlignment: Text.AlignRight
-                color: Theme.title
-                text: "<"
-                clickable: visible
-                hitLeft: 3.0
-                hitRight: 0.5
-                hitVertical: 0.35
-                onClicked: root.change(row.index, -1)
-            }
-
-            Text3D {
-                visible: row.arrows
-                x: 0.5 * label.textWidth + 0.9
-                color: Theme.title
-                text: ">"
-                clickable: visible
-                hitLeft: 0.5
-                hitRight: 3.0
-                hitVertical: 0.35
-                onClicked: root.change(row.index, 1)
-            }
-
-            Disc {
-                visible: row.selected && !row.header
-                sphere: true
-                position: Qt.vector3d(-0.5 * label.textWidth - (row.arrows ? 2.8 : 1.0), 0.35, 0)
-                radius: 0.35
-            }
-
-            Text3D {
-                visible: !row.header && (row.entry.detail ?? "") !== ""
-                y: -0.95
-                scale: Qt.vector3d(0.5, 0.5, 0.5)
-                horizontalAlignment: Text.AlignHCenter
-                color: Theme.dimmed
-                text: row.entry.detail ?? ""
+                Text3D {
+                    visible: !row.header && (row.entry.detail ?? "") !== ""
+                    y: -0.95
+                    scale: Qt.vector3d(0.5, 0.5, 0.5)
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Theme.dimmed
+                    text: row.entry.detail ?? ""
+                }
             }
         }
     }
 
-    Text3D {
-        y: -11.4
-        scale: Qt.vector3d(0.5, 0.5, 0.5)
-        horizontalAlignment: Text.AlignHCenter
-        color: Theme.dimmed
+    MenuHint {
         text: root.choices.some((entry) => entry.change !== undefined)
               ? qsTr("[Up/Down] select   [Left/Right] change   [Enter] play   [Esc] back")
               : qsTr("[Up/Down] select   [Enter] play   [Esc] back")

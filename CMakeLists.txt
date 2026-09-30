@@ -89,9 +89,17 @@ qt_add_qml_module(phong
         qml/TextLayer.qml
         qml/TextMaterial.qml
         qml/Starfield.qml
+        qml/MenuItem.qml
+        qml/MenuValue.qml
+        qml/MenuTextInput.qml
+        qml/MenuList.qml
+        qml/MenuTitle.qml
+        qml/MenuAnnotation.qml
+        qml/MenuHint.qml
         qml/MenuScene.qml
         qml/ChoiceScene.qml
         qml/GameScene.qml
+        qml/GameRulesScene.qml
         qml/SettingsScene.qml
         qml/ResultScene.qml
     SOURCES

@@ -21,6 +21,8 @@ Scene {
 
     property int mode: GameScene.OnePlayer
     property Scene menuScene
+    property Scene settingsScene
+    property var rules: GameSettings.rules(mode)
     // Ladder level, the computer's difficulty
     property int ladderStage: 0
     property alias match: match
@@ -38,8 +40,8 @@ Scene {
     // Endless gets harder the longer it lasts
     readonly property int difficulty: mode === GameScene.Ladder ? ladderStage
                                       : endless ? (match.playTime < 30 ? 0 : match.playTime < 90 ? 1 : 2)
-                                      : tournament ? opponent.difficulty ?? GameSettings.difficulty
-                                      : GameSettings.difficulty
+                                      : tournament ? opponent.difficulty ?? rules.difficulty
+                                      : rules.difficulty
     readonly property real endlessSpeedUp: endless ? 1.0 + Math.min(0.5, match.playTime / 240) : 1.0
     readonly property int lives: 3
     // Returns count, balls the computer missed count more
@@ -71,11 +73,11 @@ Scene {
     readonly property real innerHeight: 2.0 * wallY - wallThickness
     readonly property real ballLimit: 0.5 * innerHeight - ballRadius
 
-    property real leftPaddleLength: GameSettings.paddleLength * match.left.paddleScale
+    property real leftPaddleLength: rules.paddleLength * match.left.paddleScale
     Behavior on leftPaddleLength {
         NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
     }
-    property real rightPaddleLength: GameSettings.paddleLength * match.right.paddleScale
+    property real rightPaddleLength: rules.paddleLength * match.right.paddleScale
     Behavior on rightPaddleLength {
         NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
     }
@@ -481,12 +483,13 @@ Scene {
     // The match so far for a player on the network, NoSide watches
     function sendStart(peer, side) {
         Lan.send(peer, { t: "start", party: false, side: side, arena: arenaId,
-                         match: match.snapshot(), modifiers: modifiers.snapshot() })
+                         rules: root.rules, match: match.snapshot(), modifiers: modifiers.snapshot() })
     }
 
     // The game from the host, again after a rematch
     function startRemote(message) {
         mode = GameScene.TwoPlayers
+        rules = message.rules ?? GameSettings.rules(mode)
         remote = true
         localSide = message.side
         askLeave = false
@@ -741,9 +744,15 @@ Scene {
     // theirs in the lobby
     property var leftPadAssigned: null
     property var rightPadAssigned: null
+    readonly property var primaryPad: Gamepads.count > 0 ? Gamepads.pads[0] : null
+    readonly property int hostPadSide: !hostingLan ? Match.NoSide
+                                        : remotes[0] === null ? Match.LeftSide
+                                        : remotes[1] === null ? Match.RightSide : Match.NoSide
     readonly property var leftPad: mode === GameScene.TwoPlayers ? leftPadAssigned
+                                   ?? (hostPadSide === Match.LeftSide ? primaryPad : null)
                                    : Gamepads.count > 0 ? Gamepads.pads[0] : null
-    readonly property var rightPad: mode === GameScene.TwoPlayers ? rightPadAssigned : null
+    readonly property var rightPad: mode === GameScene.TwoPlayers ? rightPadAssigned
+                                    ?? (hostPadSide === Match.RightSide ? primaryPad : null) : null
     // Gamepads work the pause menu and skip the replay, not the game
     menuNavigation: match.state === Match.Paused || match.state === Match.Finished || askLeave
 
@@ -873,10 +882,12 @@ Scene {
              ? [{ text: qsTr("Resume"), activate: () => Lan.sendToHost({ t: "action", a: "resume" }) },
                 { text: qsTr("Leave"), activate: () => root.leave() }]
            : [{ text: qsTr("Leave"), activate: () => root.leave() }])
-        : [{ text: qsTr("Resume"), activate: () => match.resume() },
-           { text: qsTr("Menu"), activate: () => root.leave() }]
+          : [{ text: qsTr("Resume"), activate: () => match.resume() },
+              { text: qsTr("Settings"), activate: () => phong.nextScene(root.settingsScene) },
+              { text: qsTr("Menu"), activate: () => root.leave() }]
 
     function startMatch() {
+        rules = GameSettings.rules(mode)
         // The shared scores want the server awake at the end
         if (endless || squash)
             OnlineService.check()
@@ -925,7 +936,7 @@ Scene {
 
     // Bricks and squash play on the empty field
     function chooseArena() {
-        let id = GameSettings.arena
+        let id = rules.arena
         if (bricks || squash)
             id = "classic"
         else if (id === "random" || Arenas.arena(id).id === undefined)
@@ -945,7 +956,7 @@ Scene {
 
         for (const side of [1, -1]) {
             for (let i = 0; i < 4; ++i) {
-                const item = GameSettings.modifiers && Math.random() < 1 / 3
+                const item = rules.modifiers && Math.random() < 1 / 3
                 brickModel.append({ brickId: nextBrickId++, brickY: side * (2.6 + 2.0 * i), item: item })
             }
         }
@@ -1654,11 +1665,11 @@ Scene {
                     match.resume()
                     return
                 case Qt.Key_Up:
-                    currentPauseItem = 0
+                    currentPauseItem = Math.max(currentPauseItem - 1, 0)
                     SoundEffects.play(SoundEffects.MenuMove)
                     return
                 case Qt.Key_Down:
-                    currentPauseItem = pauseItems.length - 1
+                    currentPauseItem = Math.min(currentPauseItem + 1, pauseItems.length - 1)
                     SoundEffects.play(SoundEffects.MenuMove)
                     return
                 case Qt.Key_Enter:
@@ -1741,13 +1752,13 @@ Scene {
         id: match
 
         endless: root.solo
-        pointsToWin: root.solo ? root.lives : GameSettings.pointsToWin
-        setsToWin: root.mode === GameScene.Ladder || root.solo ? 1 : GameSettings.setsToWin
-        winByTwo: GameSettings.winByTwo && !root.solo
-        serveSpeed: GameSettings.serveSpeed * root.endlessSpeedUp
-        maxSpeed: GameSettings.maxSpeed
+        pointsToWin: root.solo ? root.lives : root.rules.pointsToWin
+        setsToWin: root.mode === GameScene.Ladder || root.solo ? 1 : root.rules.setsToWin
+        winByTwo: root.rules.winByTwo && !root.solo
+        serveSpeed: root.rules.serveSpeed * root.endlessSpeedUp
+        maxSpeed: root.rules.maxSpeed
         paddleSpeed: root.paddleSpeed
-        serveDelay: GameSettings.kickoffTime
+        serveDelay: root.rules.kickoffTime
 
         // On the LAN the machines' names
         left.name: root.remotes[0]?.name ?? (root.hostingLan ? Lan.localName
@@ -1901,7 +1912,7 @@ Scene {
                     root.achieve("shutout")
                 if (root.leftDeficit >= 3)
                     root.achieve("comeback")
-                if (!GameSettings.modifiers)
+                if (!root.rules.modifiers)
                     root.achieve("purist")
             }
 
@@ -1978,7 +1989,7 @@ Scene {
         id: modifiers
 
         match: match
-        enabled: GameSettings.modifiers && !root.squash
+        enabled: root.rules.modifiers && !root.squash
         // Inside the narrowest field, clear of the paddles
         readonly property real spawnHeight: root.innerHeight + 2.0 * root.fieldInset
                                             - 2.0 * maxFieldInset - 3.0

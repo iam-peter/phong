@@ -17,6 +17,32 @@ constexpr int defaultMusicVolume = 75;
 constexpr bool defaultRumble = true;
 constexpr int defaultKickoffTime = 2;
 
+qreal serveSpeed(GameSettings::BallSpeed speed)
+{
+    switch (speed) {
+        case GameSettings::BallSpeed::Slow:
+            return 12.0;
+        case GameSettings::BallSpeed::Fast:
+            return 21.0;
+        case GameSettings::BallSpeed::Medium:
+        default:
+            return 16.0;
+    }
+}
+
+qreal paddleLength(GameSettings::PaddleSize size)
+{
+    switch (size) {
+        case GameSettings::PaddleSize::Small:
+            return 3.0;
+        case GameSettings::PaddleSize::Large:
+            return 5.0;
+        case GameSettings::PaddleSize::Regular:
+        default:
+            return 4.0;
+    }
+}
+
 template<typename Enum>
 Enum readEnum(const QSettings& settings, const char* key, Enum fallback, Enum last)
 {
@@ -86,6 +112,95 @@ void GameSettings::restoreDefaults()
     setMusicVolume(defaultMusicVolume);
     setRumble(defaultRumble);
     setKickoffTime(defaultKickoffTime);
+}
+
+void GameSettings::restoreAppDefaults()
+{
+    setSound(defaultSound);
+    setMusic(defaultMusic);
+    setMusicVolume(defaultMusicVolume);
+    setRumble(defaultRumble);
+}
+
+QVariantMap GameSettings::rules(int mode) const
+{
+    const QString prefix = QStringLiteral("rules/%1/").arg(std::max(mode, 0));
+    const auto value = [this, &prefix](const char* name, const QVariant& fallback) {
+        return m_settings.value(prefix + QLatin1String(name), fallback);
+    };
+
+    const int points = std::clamp(value("pointsToWin", m_pointsToWin).toInt(),
+                                  minPointsToWin, maxPointsToWin);
+    const int sets = std::clamp(value("setsToWin", m_setsToWin).toInt(), 1, maxSetsToWin);
+    const auto speed = BallSpeed(std::clamp(value("ballSpeed", int(m_ballSpeed)).toInt(),
+                                            int(BallSpeed::Slow), int(BallSpeed::Fast)));
+    const auto size = PaddleSize(std::clamp(value("paddleSize", int(m_paddleSize)).toInt(),
+                                            int(PaddleSize::Small), int(PaddleSize::Large)));
+    const auto cpu = ComputerPlayer::Difficulty(std::clamp(
+        value("difficulty", int(m_difficulty)).toInt(), int(ComputerPlayer::Difficulty::Easy),
+        int(ComputerPlayer::Difficulty::Hard)));
+    const int kickoff = std::clamp(value("kickoffTime", m_kickoffTime).toInt(),
+                                   minKickoffTime, maxKickoffTime);
+
+    return {
+        {QStringLiteral("pointsToWin"), points},
+        {QStringLiteral("setsToWin"), sets},
+        {QStringLiteral("winByTwo"), value("winByTwo", m_winByTwo).toBool()},
+        {QStringLiteral("kickoffTime"), kickoff},
+        {QStringLiteral("ballSpeed"), int(speed)},
+        {QStringLiteral("serveSpeed"), ::serveSpeed(speed)},
+        {QStringLiteral("maxSpeed"), 2.0 * ::serveSpeed(speed)},
+        {QStringLiteral("paddleSize"), int(size)},
+        {QStringLiteral("paddleLength"), ::paddleLength(size)},
+        {QStringLiteral("difficulty"), int(cpu)},
+        {QStringLiteral("arena"), value("arena", m_arena).toString()},
+        {QStringLiteral("modifiers"), value("modifiers", m_modifiers).toBool()}
+    };
+}
+
+void GameSettings::setRule(int mode, const QString& name, const QVariant& value)
+{
+    const QString prefix = QStringLiteral("rules/%1/").arg(std::max(mode, 0));
+    QVariant validated;
+    if (name == QLatin1String("pointsToWin"))
+        validated = std::clamp(value.toInt(), minPointsToWin, maxPointsToWin);
+    else if (name == QLatin1String("setsToWin"))
+        validated = std::clamp(value.toInt(), 1, maxSetsToWin);
+    else if (name == QLatin1String("winByTwo") || name == QLatin1String("modifiers"))
+        validated = value.toBool();
+    else if (name == QLatin1String("kickoffTime"))
+        validated = std::clamp(value.toInt(), minKickoffTime, maxKickoffTime);
+    else if (name == QLatin1String("ballSpeed"))
+        validated = std::clamp(value.toInt(), int(BallSpeed::Slow), int(BallSpeed::Fast));
+    else if (name == QLatin1String("paddleSize"))
+        validated = std::clamp(value.toInt(), int(PaddleSize::Small), int(PaddleSize::Large));
+    else if (name == QLatin1String("difficulty"))
+        validated = std::clamp(value.toInt(), int(ComputerPlayer::Difficulty::Easy),
+                               int(ComputerPlayer::Difficulty::Hard));
+    else if (name == QLatin1String("arena"))
+        validated = value.toString();
+    else
+        return;
+
+    if (m_settings.value(prefix + name) == validated)
+        return;
+    m_settings.setValue(prefix + name, validated);
+    emit rulesChanged(std::max(mode, 0));
+}
+
+void GameSettings::restoreRules(int mode)
+{
+    const QString prefix = QStringLiteral("rules/%1/").arg(std::max(mode, 0));
+    m_settings.setValue(prefix + QStringLiteral("pointsToWin"), defaultPointsToWin);
+    m_settings.setValue(prefix + QStringLiteral("setsToWin"), defaultSetsToWin);
+    m_settings.setValue(prefix + QStringLiteral("winByTwo"), defaultWinByTwo);
+    m_settings.setValue(prefix + QStringLiteral("kickoffTime"), defaultKickoffTime);
+    m_settings.setValue(prefix + QStringLiteral("ballSpeed"), int(defaultBallSpeed));
+    m_settings.setValue(prefix + QStringLiteral("paddleSize"), int(defaultPaddleSize));
+    m_settings.setValue(prefix + QStringLiteral("difficulty"), int(defaultDifficulty));
+    m_settings.setValue(prefix + QStringLiteral("arena"), defaultArena);
+    m_settings.setValue(prefix + QStringLiteral("modifiers"), defaultModifiers);
+    emit rulesChanged(std::max(mode, 0));
 }
 
 void GameSettings::setPointsToWin(int pointsToWin)
@@ -398,15 +513,7 @@ bool GameSettings::online() const
 
 qreal GameSettings::serveSpeed() const
 {
-    switch (m_ballSpeed) {
-        case BallSpeed::Slow:
-            return 12.0;
-        case BallSpeed::Fast:
-            return 21.0;
-        case BallSpeed::Medium:
-        default:
-            return 16.0;
-    }
+    return ::serveSpeed(m_ballSpeed);
 }
 
 qreal GameSettings::maxSpeed() const
@@ -416,13 +523,5 @@ qreal GameSettings::maxSpeed() const
 
 qreal GameSettings::paddleLength() const
 {
-    switch (m_paddleSize) {
-        case PaddleSize::Small:
-            return 3.0;
-        case PaddleSize::Large:
-            return 5.0;
-        case PaddleSize::Regular:
-        default:
-            return 4.0;
-    }
+    return ::paddleLength(m_paddleSize);
 }

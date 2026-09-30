@@ -82,41 +82,33 @@ Scene {
         }
     }
 
-    Repeater3D {
-        model: root.items
+    MenuList {
+        id: menuList
+        count: root.items.length
 
-        delegate: Text3D {
-            id: item
+        Repeater3D {
+            model: root.items
 
-            required property var modelData
-            required property int index
+            delegate: MenuItem {
+                id: item
 
-            y: 5.4 - index * 1.8
-            horizontalAlignment: Text.AlignHCenter
-            color: index === root.currentItem ? Theme.text : Theme.unselected
-            text: modelData.text
-            clickable: true
-            onClicked: {
-                SoundEffects.play(SoundEffects.MenuSelect)
-                root.currentItem = item.index
-                item.modelData.activate()
-            }
+                required property var modelData
+                required property int index
 
-            // Selection marker
-            Disc {
-                visible: item.index === root.currentItem
-                sphere: true
-                position: Qt.vector3d(-0.5 * item.textWidth - 1.0, 0.35, 0)
-                radius: 0.35
+                y: menuList.yFor(index)
+                scale: menuList.itemScale
+                selected: index === root.currentItem
+                text: modelData.text
+                onClicked: {
+                    SoundEffects.play(SoundEffects.MenuSelect)
+                    root.currentItem = item.index
+                    item.modelData.activate()
+                }
             }
         }
     }
 
-    Text3D {
-        y: -11
-        scale: Qt.vector3d(0.5, 0.5, 0.5)
-        horizontalAlignment: Text.AlignHCenter
+    MenuHint {
         text: qsTr("[Up/Down] select   [Enter] confirm")
-        color: Theme.dimmed
     }
 }

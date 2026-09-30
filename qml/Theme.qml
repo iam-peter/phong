@@ -123,4 +123,19 @@ QtObject {
     // backs off further until the scene fits the window
     readonly property real minimumCameraDistance: 20.0
     readonly property int cameraDuration: 250
+
+    // Menu layout. Lists shrink their items and this base rhythm together.
+    readonly property real menuTitleY: 8.6
+    readonly property real menuTitleScale: 1.8
+    readonly property real menuTitleMaxWidth: 30.0
+    readonly property real menuAnnotationY: 6.4
+    readonly property real menuAnnotationScale: 0.55
+    readonly property real menuAnnotationMaxWidth: 32.0
+    readonly property real menuListTop: 4.6
+    readonly property real menuListBottom: -9.4
+    readonly property real menuItemSpacing: 1.6
+    readonly property real menuDetailedItemSpacing: 2.4
+    readonly property real menuHintY: -11.5
+    readonly property real menuHintScale: 0.5
+    readonly property real menuHintMaxWidth: 34.0
 }

@@ -16,6 +16,9 @@ Scene {
 
     property int players: 3
     property Scene menuScene
+    property Scene settingsScene
+    property bool visitingSettings: false
+    property var rules: GameSettings.rules(GameRulesScene.Party)
     // Who plays each side: { kind: "keyboard", keys }, { kind: "pad", pad }
     // or { kind: "cpu" }. keys is the party key set, 0 or 1. Sides without
     // one are played by the computer.
@@ -137,7 +140,9 @@ Scene {
         if (remote)
             return side === localSlot && Gamepads.count > 0 ? Gamepads.pads[0] : null
         const controller = root.controller(side)
-        return controller.kind === "pad" ? controller.pad : null
+        if (controller.kind === "pad")
+            return controller.pad
+        return lanGame && controller.kind === "keyboard" && Gamepads.count > 0 ? Gamepads.pads[0] : null
     }
 
     function rumble(side, strength, duration) {
@@ -258,6 +263,7 @@ Scene {
 
     // The game from the host, again after a rematch
     function startRemote(message) {
+        rules = message.rules ?? GameSettings.rules(GameRulesScene.Party)
         players = message.players
         localSlot = message.slot
         names = message.names
@@ -437,7 +443,7 @@ Scene {
     // The game so far for a player on the network, slot -1 watches
     function sendStart(peer, slot) {
         Lan.send(peer, { t: "start", party: true, players: players, slot: slot, names: sharedNames(),
-                         match: match.snapshot(), modifiers: modifiers.snapshot() })
+                         rules: root.rules, match: match.snapshot(), modifiers: modifiers.snapshot() })
     }
 
     // Gamepads work the pause menu and the end, not the game
@@ -491,7 +497,9 @@ Scene {
             return
         }
 
-        const side = controllers.findIndex((c) => c.kind === "pad" && c.pad === pad)
+        let side = controllers.findIndex((c) => c.kind === "pad" && c.pad === pad)
+        if (side < 0 && lanGame && pad === Gamepads.pads[0])
+            side = controllers.findIndex((c) => c.kind === "keyboard")
         if (side < 0 || !running)
             return
         switch (action) {
@@ -686,6 +694,7 @@ Scene {
     }
 
     function start() {
+        rules = GameSettings.rules(GameRulesScene.Party)
         remote = false
         place = 0
         releaseInput()
@@ -913,8 +922,16 @@ Scene {
     onActiveChanged: {
         if (!active) {
             releaseInput()
-            match.stop()
+            if (!visitingSettings)
+                match.stop()
         }
+        else if (visitingSettings)
+            visitingSettings = false
+    }
+
+    function openSettings() {
+        visitingSettings = true
+        phong.nextScene(settingsScene)
     }
 
     // Others on the network play on
@@ -989,8 +1006,11 @@ Scene {
             }
             switch (event.key) {
                 case Qt.Key_Up:
+                    currentPauseItem = Math.max(currentPauseItem - 1, 0)
+                    SoundEffects.play(SoundEffects.MenuMove)
+                    return
                 case Qt.Key_Down:
-                    currentPauseItem = event.key === Qt.Key_Up ? 0 : 1
+                    currentPauseItem = Math.min(currentPauseItem + 1, 2)
                     SoundEffects.play(SoundEffects.MenuMove)
                     return
                 case Qt.Key_Return:
@@ -998,6 +1018,8 @@ Scene {
                     SoundEffects.play(SoundEffects.MenuSelect)
                     if (currentPauseItem === 0)
                         match.resume()
+                    else if (currentPauseItem === 1)
+                        openSettings()
                     else
                         leave()
                     return
@@ -1087,9 +1109,9 @@ Scene {
 
         players: root.players
         lives: 3
-        serveSpeed: GameSettings.serveSpeed * 0.9
-        maxSpeed: GameSettings.maxSpeed * 0.9
-        serveDelay: GameSettings.kickoffTime
+        serveSpeed: root.rules.serveSpeed * 0.9
+        maxSpeed: root.rules.maxSpeed * 0.9
+        serveDelay: root.rules.kickoffTime
         paddleSpeed: root.paddleSpeed
 
         onServed: {
@@ -1172,7 +1194,7 @@ Scene {
         id: modifiers
 
         match: match
-        enabled: GameSettings.modifiers
+        enabled: root.rules.modifiers
         // Clear of the paddles
         spawnRadius: 0.55 * root.apothem
 
@@ -1332,7 +1354,7 @@ Scene {
 
                 ComputerPlayer {
                     id: computer
-                    difficulty: GameSettings.difficulty
+                    difficulty: root.rules.difficulty
                     paddleSpeed: root.paddleSpeed
                     paddleX: root.paddleDistance - 0.5 * root.paddleWidth - root.ballRadius
                     paddleReach: 0.5 * side.length + root.ballRadius
@@ -1821,7 +1843,8 @@ Scene {
         Repeater3D {
             model: root.remote ? (root.askLeave ? [qsTr("Stay"), qsTr("Leave")]
                                   : root.remotePaused ? [qsTr("Resume"), qsTr("Leave")] : ["", qsTr("Leave")])
-                   : root.place > 0 ? [qsTr("Again"), qsTr("Menu")] : [qsTr("Resume"), qsTr("Menu")]
+                   : root.place > 0 ? [qsTr("Again"), qsTr("Menu")]
+                                    : [qsTr("Resume"), qsTr("Settings"), qsTr("Menu")]
 
             delegate: Text3D {
                 id: item
@@ -1835,16 +1858,29 @@ Scene {
                 clickable: overlay.visible
                 onClicked: {
                     SoundEffects.play(SoundEffects.MenuSelect)
-                    if (index === 1)
-                        root.leave()
-                    else if (root.remotePaused)
-                        Lan.sendToHost({ t: "action", a: "resume" })
-                    else if (root.remote)
-                        root.askLeave = false
-                    else if (root.place > 0)
-                        root.start()
-                    else
+                    if (root.remote) {
+                        if (index === 1)
+                            root.leave()
+                        else if (root.remotePaused)
+                            Lan.sendToHost({ t: "action", a: "resume" })
+                        else
+                            root.askLeave = false
+                    }
+                    else if (root.place > 0) {
+                        if (index === 0)
+                            root.start()
+                        else
+                            root.leave()
+                    }
+                    else if (index === 0) {
                         match.resume()
+                    }
+                    else if (index === 1) {
+                        root.openSettings()
+                    }
+                    else {
+                        root.leave()
+                    }
                 }
 
                 Disc {

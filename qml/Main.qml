@@ -150,6 +150,14 @@ Window {
         gameScene.startMatch()
     }
 
+    function openRules(mode, modeName, launch) {
+        gameRulesScene.mode = mode
+        gameRulesScene.modeName = modeName
+        gameRulesScene.launch = launch ?? null
+        gameRulesScene.currentItem = Math.max(gameRulesScene.playIndex, 0)
+        nextScene(gameRulesScene)
+    }
+
     // Who plays which side before a game of several players. kind is
     // "local" for the players at this machine, "online" to host for others.
     function openLobby(kind) {
@@ -425,24 +433,24 @@ Window {
             title: qsTr("Solo")
             currentItem: Math.min(Math.max(GameSettings.mode, 0), 5)
 
-            function play(index, mode) {
+                        function play(index, mode, modeName) {
                 GameSettings.mode = index
-                phong.startGame(mode)
+                                phong.openRules(mode, modeName, () => phong.startGame(mode))
             }
 
             entries: [
                 { text: qsTr("Versus Computer"),
-                  activate: () => soloScene.play(0, GameScene.OnePlayer) },
+                                    activate: () => soloScene.play(0, GameScene.OnePlayer, qsTr("Versus Computer")) },
                 { text: qsTr("Ladder"),
-                  activate: () => soloScene.play(1, GameScene.Ladder) },
+                                    activate: () => soloScene.play(1, GameScene.Ladder, qsTr("Ladder")) },
                 { text: qsTr("Tournament"),
-                  activate: () => soloScene.play(2, GameScene.Tournament) },
+                                    activate: () => soloScene.play(2, GameScene.Tournament, qsTr("Tournament")) },
                 { text: qsTr("Endless"),
-                  activate: () => soloScene.play(3, GameScene.Endless) },
+                                    activate: () => soloScene.play(3, GameScene.Endless, qsTr("Endless")) },
                 { text: qsTr("Bricks"),
-                  activate: () => soloScene.play(4, GameScene.Bricks) },
+                                    activate: () => soloScene.play(4, GameScene.Bricks, qsTr("Bricks")) },
                 { text: qsTr("Squash"),
-                  activate: () => soloScene.play(5, GameScene.Squash) }
+                                    activate: () => soloScene.play(5, GameScene.Squash, qsTr("Squash")) }
             ]
         }
 
@@ -480,7 +488,14 @@ Window {
             id: gameScene
             phong: phong
             menuScene: menuScene
+            settingsScene: settingsScene
             position: Qt.vector3d(0, 0, 0)
+        }
+
+        GameRulesScene {
+            id: gameRulesScene
+            phong: phong
+            position: Qt.vector3d(2 * phong.sceneSpacingX, 2 * phong.sceneSpacingY, 0)
         }
 
         SettingsScene {
@@ -542,6 +557,7 @@ Window {
             phong: phong
             position: Qt.vector3d(phong.sceneSpacingX, -phong.sceneSpacingY, 0)
             menuScene: menuScene
+            settingsScene: settingsScene
         }
 
         BracketScene {
