@@ -1055,7 +1055,11 @@ Scene {
 
     // The camera leans a little towards the ball, never further than to
     // the edge of the field, wherever a ball may get to
+    // Only with the setting, see GraphicsSettings.cameraTilt, the view
+    // eases back when it's switched off
     function lean() {
+        if (!GraphicsSettings.cameraTilt)
+            return Qt.vector3d(0, 0, 0)
         const x = Math.max(-0.5 * stageWidth, Math.min(0.5 * stageWidth, mainBall.x || 0))
         const y = Math.max(-0.5 * stageHeight, Math.min(0.5 * stageHeight, mainBall.y || 0))
         return Qt.vector3d(0.07 * y, -0.05 * x, 0)

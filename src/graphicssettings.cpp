@@ -98,6 +98,7 @@ GraphicsSettings::GraphicsSettings(QObject* parent):
     m_floor(true),
     m_shadows(true),
     m_showFps(false),
+    m_cameraTilt(false),
     m_fullScreen(false)
 {
     m_settings.beginGroup(QStringLiteral("graphics"));
@@ -110,6 +111,7 @@ GraphicsSettings::GraphicsSettings(QObject* parent):
     m_floor = m_settings.value("floor", true).toBool();
     m_shadows = m_settings.value("shadows", true).toBool();
     m_showFps = m_settings.value("showFps", false).toBool();
+    m_cameraTilt = m_settings.value("cameraTilt", false).toBool();
 
 #if defined(Q_OS_WASM)
     // The browser leaves full screen on its own too, with Esc or the back
@@ -136,6 +138,7 @@ void GraphicsSettings::restoreDefaults()
     setFloor(true);
     setShadows(true);
     setShowFps(false);
+    setCameraTilt(false);
 }
 
 template<typename Value>
@@ -194,6 +197,17 @@ void GraphicsSettings::setAntialiasing(Antialiasing antialiasing)
 GraphicsSettings::Antialiasing GraphicsSettings::antialiasing() const
 {
     return m_antialiasing;
+}
+
+void GraphicsSettings::setCameraTilt(bool cameraTilt)
+{
+    if (store(m_cameraTilt, cameraTilt, "cameraTilt"))
+        emit cameraTiltChanged(cameraTilt);
+}
+
+bool GraphicsSettings::cameraTilt() const
+{
+    return m_cameraTilt;
 }
 
 void GraphicsSettings::setStars(bool stars)

@@ -70,6 +70,13 @@ OptionsScene {
             set: (value) => GraphicsSettings.shadows = value
         },
         {
+            label: qsTr("Camera tilt"),
+            values: [false, true],
+            names: [qsTr("Off"), qsTr("On")],
+            get: () => GraphicsSettings.cameraTilt,
+            set: (value) => GraphicsSettings.cameraTilt = value
+        },
+        {
             label: qsTr("Show FPS"),
             values: [false, true],
             names: [qsTr("Off"), qsTr("On")],

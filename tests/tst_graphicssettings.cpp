@@ -32,6 +32,7 @@ private slots:
         settings.setAntialiasing(GraphicsSettings::Antialiasing::Multisample2x);
         settings.setStars(false);
         settings.setShowFps(true);
+        settings.setCameraTilt(true);
         QCOMPARE(glow.count(), 1);
 
         // Setting the same value again changes nothing
@@ -44,6 +45,7 @@ private slots:
         QCOMPARE(again.antialiasing(), GraphicsSettings::Antialiasing::Multisample2x);
         QVERIFY(!again.stars());
         QVERIFY(again.showFps());
+        QVERIFY(again.cameraTilt());
     }
 
     void defaults()
@@ -55,6 +57,7 @@ private slots:
         QVERIFY(settings.shadows());
         QVERIFY(settings.floor());
         QVERIFY(!settings.showFps());
+        QVERIFY(!settings.cameraTilt());
     }
 };
 

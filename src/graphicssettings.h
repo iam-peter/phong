@@ -20,6 +20,8 @@ class GraphicsSettings : public QObject
     Q_PROPERTY(bool floor READ floor WRITE setFloor NOTIFY floorChanged)
     Q_PROPERTY(bool shadows READ shadows WRITE setShadows NOTIFY shadowsChanged)
     Q_PROPERTY(bool showFps READ showFps WRITE setShowFps NOTIFY showFpsChanged)
+    // The view on the classic field leans towards the ball, off by default
+    Q_PROPERTY(bool cameraTilt READ cameraTilt WRITE setCameraTilt NOTIFY cameraTiltChanged)
     // Not stored, a browser only goes full screen after a tap or a key.
     // Main applies it to the window on the desktop.
     Q_PROPERTY(bool fullScreen READ fullScreen WRITE setFullScreen NOTIFY fullScreenChanged)
@@ -97,6 +99,9 @@ public:
     void setShowFps(bool showFps);
     bool showFps() const;
 
+    void setCameraTilt(bool cameraTilt);
+    bool cameraTilt() const;
+
     void setFullScreen(bool fullScreen);
     bool fullScreen() const;
     bool fullScreenAvailable() const;
@@ -111,6 +116,7 @@ signals:
     void floorChanged(bool);
     void shadowsChanged(bool);
     void showFpsChanged(bool);
+    void cameraTiltChanged(bool);
     void fullScreenChanged(bool);
 
 private:
@@ -127,6 +133,7 @@ private:
     bool m_floor;
     bool m_shadows;
     bool m_showFps;
+    bool m_cameraTilt;
     bool m_fullScreen;
 };
 

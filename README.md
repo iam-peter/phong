@@ -464,13 +464,15 @@ the colors of the modifiers onto their few shades.
 ![The classic themes](docs/screenshots/themes.png)
 
 The camera comes as close as every screen fits the window. On wide windows
-the names, scores, power bars and keys sit beside the field and leave the
+the names, scores and power bars sit beside the field and leave the
 whole height to it, narrower ones have them above and below.
 
 The graphics screen in the settings picks the theme and switches the rest on
 and off: shading
 (Phong or flat, unlit colors), glow (low, medium, high), anti-aliasing (fast is FXAA, 2x and 4x
-multisampling), stars, floor, shadows and a frame rate display. The browser
+multisampling), stars, floor, shadows, a camera tilt that leans the view
+of the classic field towards the ball, off at first, and a frame rate
+display. The browser
 and phones start with low glow and fast anti-aliasing, the desktop with high
 glow and 4x multisampling.
 
