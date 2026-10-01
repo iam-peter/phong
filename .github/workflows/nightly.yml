@@ -1,7 +1,6 @@
-# Every night: build and test on Linux, Windows and macOS, put the browser
-# version on GitHub Pages and replace the nightly release with the new
-# downloads. Nights without new commits are skipped, a run by hand builds
-# anyway.
+# Every night: build and test on Linux, Windows and macOS and replace the
+# nightly release with the new downloads. Nights without new commits are
+# skipped, a run by hand builds anyway.
 name: Nightly
 
 on:
@@ -92,7 +91,7 @@ jobs:
           ./linuxdeploy-x86_64.AppImage --appdir AppDir --executable build/phong \
             --desktop-file packaging/phong.desktop --icon-file packaging/phong.png \
             --plugin qt --output appimage
-          ls -la Phong-*.AppImage
+          mv Phong-*.AppImage Phong-linux-x64.AppImage
 
       - uses: actions/upload-artifact@v4
         with:
@@ -259,29 +258,11 @@ jobs:
           printf '<!doctype html>\n<meta http-equiv="refresh" content="0; url=phong.html">\n' > site/index.html
           (cd site && zip -r ../Phong-web.zip .)
 
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-          retention-days: 1
-
       - uses: actions/upload-artifact@v4
         with:
           name: phong-web
           path: Phong-web.zip
           retention-days: 1
-
-  pages:
-    needs: wasm
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v4
 
   release:
     needs: [linux, windows, macos, wasm]

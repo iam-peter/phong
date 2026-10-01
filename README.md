@@ -13,16 +13,26 @@ C++, the scenes are QML.
 
 ## Play
 
-The browser version is at <https://iam-peter.github.io/phong/>, ready-made
-downloads for Linux (AppImage), Windows and macOS are on the
-[nightly release](https://github.com/iam-peter/phong/releases/tag/nightly).
-Both are built every night from the latest commit, nights without a new
-commit are skipped. The macOS app isn't signed, it opens with a right click
-and Open the first time.
+The stable browser version is at <https://iam-peter.github.io/phong/>.
+
+### Downloads
+
+- [Linux AppImage](https://github.com/iam-peter/phong/releases/latest/download/Phong-linux-x64.AppImage)
+- [Windows](https://github.com/iam-peter/phong/releases/latest/download/Phong-windows-x64.zip)
+- [macOS](https://github.com/iam-peter/phong/releases/latest/download/Phong-macos.dmg)
+- [Linux server](https://github.com/iam-peter/phong/releases/latest/download/Phong-server-linux-x64.tar.gz)
+- [Web version ZIP](https://github.com/iam-peter/phong/releases/latest/download/Phong-web.zip)
+
+Stable releases are promoted manually from a tested nightly build. The
+[latest release](https://github.com/iam-peter/phong/releases/latest)
+contains the latest development build. The macOS app isn't signed, it opens
+with a right click and Open the first time.
 
 The [workflow](.github/workflows/nightly.yml) also runs the tests on all
-three systems. It can be started by hand under Actions, Nightly, Run
-workflow. The pages need Settings, Pages, Source set to GitHub Actions once.
+three systems. The nightly workflow can be started by hand under Actions,
+Nightly, Run workflow. To publish a tested nightly, run the [promotion
+workflow](.github/workflows/promote.yml) with a version such as `1.2.0`.
+The pages need Settings, Pages, Source set to GitHub Actions once.
 
 ## Requirements
 
