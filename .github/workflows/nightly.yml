@@ -29,7 +29,7 @@ jobs:
     outputs:
       build: ${{ steps.check.outputs.build }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -50,7 +50,7 @@ jobs:
     # The oldest runner, an AppImage runs on systems at least as new
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Dependencies
         run: |
@@ -122,7 +122,7 @@ jobs:
     if: needs.changes.outputs.build == 'true'
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Since 6.11 each Windows toolchain has its own folder in the Qt
       # repository, aqt 3.3.0 doesn't know that yet but its master does
@@ -168,7 +168,7 @@ jobs:
     if: needs.changes.outputs.build == 'true'
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: jurplel/install-qt-action@v4
         with:
@@ -209,7 +209,7 @@ jobs:
     if: needs.changes.outputs.build == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Dependencies
         run: |
