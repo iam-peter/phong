@@ -515,3 +515,25 @@ The engine moves the ball, `Match` decides where it bounces to. Pong wants
 arcade physics, a constant speed that grows with every hit and an angle that
 depends on where the ball hits the paddle, so every contact report is
 answered with the velocity the rules ask for.
+
+## Licence
+
+Copyright (C) 2019-2026 Henning Gruendl
+
+The game and the relay server are free software under the GNU General
+Public License, version 3 or any later version, see [LICENSE](LICENSE).
+
+The releases bundle these, each under its own licence:
+
+| Component | Licence |
+|---|---|
+| Qt Core, Gui, Qml, Quick, Network, WebSockets, Multimedia | LGPL 3 or GPL 2/3 |
+| Qt Quick 3D, Quick 3D Physics, Quick Timeline, Shader Tools | GPL 3 |
+| NVIDIA PhysX, in Qt Quick 3D Physics | BSD 3-Clause |
+| SDL 3, on the desktop | zlib |
+| The Emscripten runtime, in the browser version | MIT or NCSA |
+
+Qt itself contains more third-party code, [Licenses Used in
+Qt](https://doc.qt.io/qt-6/licenses-used-in-qt.html) lists it. Because Qt
+Quick 3D is only open source under the GPL 3, the released builds are
+covered by the GPL 3 as a whole.
