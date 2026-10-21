@@ -25,7 +25,7 @@ env:
 
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       build: ${{ steps.check.outputs.build }}
     steps:
@@ -93,7 +93,7 @@ jobs:
             --plugin qt --output appimage
           mv Phong-*.AppImage Phong-linux-x64.AppImage
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: phong-linux
           path: Phong-*.AppImage
@@ -111,7 +111,7 @@ jobs:
           ./phong-server/phong-server --help
           tar czf Phong-server-linux-x64.tar.gz phong-server
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: phong-server-linux
           path: Phong-server-linux-x64.tar.gz
@@ -157,7 +157,7 @@ jobs:
           windeployqt --release --qmldir qml Phong/phong.exe
           Compress-Archive -Path Phong -DestinationPath Phong-windows-x64.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: phong-windows
           path: Phong-windows-x64.zip
@@ -198,7 +198,7 @@ jobs:
             -executable=build/phong.app/Contents/MacOS/phong-server -dmg
           mv build/phong.dmg Phong-macos.dmg
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: phong-macos
           path: Phong-macos.dmg
@@ -207,7 +207,7 @@ jobs:
   wasm:
     needs: changes
     if: needs.changes.outputs.build == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -238,7 +238,7 @@ jobs:
           modules: ${{ env.QT_WASM_MODULES }}
           cache: true
 
-      - uses: mymindstorm/setup-emsdk@v14
+      - uses: emscripten-core/setup-emsdk@v16
         with:
           version: ${{ env.EMSDK_VERSION }}
 
@@ -258,7 +258,7 @@ jobs:
             build/starfield.js build/phong.svg build/phong.png site/
           (cd site && zip -r ../Phong-web.zip .)
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: phong-web
           path: Phong-web.zip
@@ -266,12 +266,12 @@ jobs:
 
   release:
     needs: [linux, windows, macos, wasm]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       # The downloads, not the site for the pages
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: phong-*
           path: artifacts
