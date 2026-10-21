@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P(H)ONG</title>
+<meta name="description" content="Pong in a 3D rendered world on a 2D playing field, with spin, smashes, modifiers and arenas, for up to six players. Play it in the browser or download it for Linux, Windows and macOS.">
+<meta name="theme-color" content="#05091a">
+<link rel="icon" href="phong.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="phong.png">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #05091a;
+    --fg: #e8f0ff;
+    --muted: #8f9cc6;
+    --card: rgb(9 16 41 / 0.72);
+    --border: #1f3373;
+    --code-bg: rgb(3 6 18 / 0.85);
+    --cyan: #29e6ff;
+    --pink: #ff4fa3;
+    --yellow: #ffe65c;
+    --accent: #7fd8ff;
+    --gradient: linear-gradient(120deg, #29e6ff 0%, #8061ff 50%, #ff4fa3 100%);
+    --mono: "DejaVu Sans Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    background: transparent;
+    color: var(--fg);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+  }
+  #stars { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; display: block; }
+  a { color: var(--accent); }
+  main { max-width: 960px; margin: 0 auto; padding: 0 16px 64px; }
+
+  header { text-align: center; padding: 72px 0 40px; }
+  header img { display: block; margin: 0 auto; width: 120px; height: 120px; filter: drop-shadow(0 12px 32px rgb(41 230 255 / 0.25)); }
+  h1 {
+    font: 700 clamp(2.6rem, 9vw, 4.4rem)/1.1 var(--mono);
+    margin: 20px 0 8px; letter-spacing: 0.02em; color: #fff;
+    text-shadow: 0 0 10px rgb(255 255 255 / 0.65), 0 0 28px rgb(160 190 255 / 0.55);
+    display: inline-flex; align-items: center; gap: 0.04em;
+  }
+  /* The O of the menu title, a shaded ball */
+  h1 .ball {
+    display: inline-block; width: 0.82em; height: 0.82em; border-radius: 50%;
+    background: radial-gradient(circle at 36% 30%, #fff 0%, #ffc4cc 18%, #ff5c7a 55%, #7a1028 100%);
+    box-shadow: 0 0 18px rgb(255 92 122 / 0.8), 0 0 40px rgb(255 92 122 / 0.4);
+  }
+  .tagline { color: var(--muted); font-size: 1.15rem; max-width: 640px; margin: 0 auto 32px; }
+
+  .buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .button {
+    display: inline-block; padding: 11px 22px; border-radius: 10px;
+    font-weight: 600; text-decoration: none; border: 1px solid var(--border);
+    color: var(--fg); background: var(--card); backdrop-filter: blur(6px);
+  }
+  .button.primary {
+    background: var(--gradient); color: #05091a; border-color: transparent;
+    box-shadow: 0 0 24px rgb(128 97 255 / 0.45);
+  }
+  .button:hover { filter: brightness(1.12); }
+  .button:focus-visible, button:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+
+  .shot {
+    display: block; width: 100%; height: auto; border-radius: 12px;
+    border: 1px solid var(--border); box-shadow: 0 24px 60px rgb(0 0 0 / 0.5);
+  }
+  .hero { margin: 8px 0 16px; }
+  .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+  @media (max-width: 640px) { .gallery { grid-template-columns: 1fr; } }
+
+  section {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 8px 24px 20px; margin: 24px 0; backdrop-filter: blur(6px);
+  }
+  @media (max-width: 640px) { section { padding: 4px 16px 16px; } }
+  h2 { font: 700 1.35rem/1.3 var(--mono); margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+  p { margin: 8px 0; }
+  .note { color: var(--muted); font-size: 0.95rem; }
+  code { font-family: var(--mono); font-size: 0.92em; }
+
+  ul.features { padding-left: 20px; margin: 8px 0; }
+  ul.features li { margin: 6px 0; }
+  ul.features li::marker { color: var(--yellow); }
+
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 16px 0 12px; }
+  .head h2 { margin: 0; }
+  .channels { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .channels button {
+    font: inherit; font-size: 0.95rem; padding: 6px 16px; border: 0; cursor: pointer;
+    background: transparent; color: var(--muted);
+  }
+  .channels button[aria-pressed="true"] { background: var(--cyan); color: #05091a; font-weight: 600; }
+
+  .downloads { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .download {
+    display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--code-bg); text-decoration: none; color: var(--fg);
+  }
+  .download:hover { border-color: var(--cyan); }
+  .download strong { font-size: 1.05rem; }
+  .download span { color: var(--muted); font-size: 0.9rem; }
+  .download code { color: var(--accent); }
+  .download.yours { border-color: var(--pink); box-shadow: 0 0 18px rgb(255 79 163 / 0.25); }
+  .download.yours strong::after { content: "Your system"; margin-left: 8px; font-size: 0.75rem; font-weight: 600; color: var(--pink); }
+
+  footer { text-align: center; color: var(--muted); font-size: 0.9rem; padding-top: 32px; }
+</style>
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+<main>
+  <header>
+    <img src="phong.svg" alt="">
+    <h1 aria-label="P(H)ONG">P(H)<span class="ball"></span>NG</h1>
+    <p class="tagline">Pong in a 3D rendered world on a 2D playing field. Spin, smashes,
+      dashes and specials, modifiers and arenas, against the computer or with up to
+      six players at one machine or online.</p>
+    <div class="buttons">
+      <a class="button primary" href="play/">Play in the browser</a>
+      <a class="button" href="#download">Download</a>
+      <a class="button" href="https://github.com/iam-peter/phong">Source on GitHub</a>
+    </div>
+  </header>
+
+  <img class="shot hero" src="screenshots/multi-ball.png" width="1280" height="720"
+       alt="Three balls in play on the Pinball arena, the paddles glowing cyan and pink">
+  <div class="gallery">
+    <img class="shot" src="screenshots/rally.png" width="1280" height="720" loading="lazy" alt="A rally heating up, the walls and the grid glowing hotter">
+    <img class="shot" src="screenshots/kickoff.png" width="1280" height="720" loading="lazy" alt="The kickoff countdown with the direction of the serve">
+    <img class="shot" src="screenshots/themes.png" width="1280" height="720" loading="lazy" alt="The classic themes: black and white, paper, Game Boy green and amber">
+  </div>
+
+  <section>
+    <h2>What's in it</h2>
+    <ul class="features">
+      <li>Arcade physics with spin, smashes that wind up, dashes, perfect hits and a power bar for a special that catches the ball to aim it.</li>
+      <li>Rallies heat up: every hit climbs a musical scale, the field glows hotter, and the deciding rally is replayed in slow motion.</li>
+      <li>Thirteen modifiers the ball collects on its way, from multi-ball, shields and portals to a ghost ball and a gravity well.</li>
+      <li>Arenas with bumpers and blocks, some of them moving.</li>
+      <li>Solo against the computer: one match, a ladder, a tournament of eight with their own ways of playing, endless, bricks and squash.</li>
+      <li>Two players on one keyboard or with gamepads, three to six on a polygon with a side for everybody.</li>
+      <li>Online over the internet with a four letter room code, or on the LAN.</li>
+      <li>Phong shading, neon glow and five themes, from neon to Game Boy green.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Play in the browser</h2>
+    <p>The browser version is the whole game, with keys, gamepads and touch. It
+      joins games over the internet and desktop hosts on the LAN by their address.
+      It needs WebGL 2, which current Chrome, Edge, Firefox and Safari have.</p>
+    <div class="buttons" style="margin: 16px 0 4px;">
+      <a class="button primary" href="play/">Play now</a>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="head">
+      <h2>Download</h2>
+      <div class="channels" role="group" aria-label="Channel">
+        <button type="button" data-channel="stable" aria-pressed="true">Stable</button>
+        <button type="button" data-channel="nightly" aria-pressed="false">Nightly</button>
+      </div>
+    </div>
+    <div class="downloads">
+      <a class="download" data-file="Phong-linux-x64.AppImage" data-os="linux">
+        <strong>Linux</strong><code>Phong-linux-x64.AppImage</code>
+        <span>Any distribution from Ubuntu 22.04 on, make it executable and run it.</span>
+      </a>
+      <a class="download" data-file="Phong-windows-x64.zip" data-os="windows">
+        <strong>Windows</strong><code>Phong-windows-x64.zip</code>
+        <span>Unpack it and start <code>phong.exe</code>.</span>
+      </a>
+      <a class="download" data-file="Phong-macos.dmg" data-os="macos">
+        <strong>macOS</strong><code>Phong-macos.dmg</code>
+        <span>Apple silicon and Intel. The app isn't signed: open it with a right click and Open the first time.</span>
+      </a>
+      <a class="download" data-file="Phong-server-linux-x64.tar.gz">
+        <strong>Linux server</strong><code>Phong-server-linux-x64.tar.gz</code>
+        <span>For hosting games over the internet and the shared high scores.</span>
+      </a>
+      <a class="download" data-file="Phong-web.zip">
+        <strong>Browser version</strong><code>Phong-web.zip</code>
+        <span>To put on a web server of your own.</span>
+      </a>
+    </div>
+    <p class="note" id="channel-note"></p>
+  </section>
+
+  <footer>
+    Free software under the <a href="https://github.com/iam-peter/phong/blob/main/LICENSE">GPL 3</a> ·
+    <a href="https://github.com/iam-peter/phong">github.com/iam-peter/phong</a>
+  </footer>
+</main>
+<script src="starfield.js"></script>
+<script>
+  startStarfield(document.getElementById("stars"));
+
+  const releases = "https://github.com/iam-peter/phong/releases";
+  const channels = {
+    stable: { base: `${releases}/latest/download/`,
+              note: `Stable releases are tested nightly builds, see <a href="${releases}/latest">the latest release</a>.` },
+    nightly: { base: `${releases}/download/nightly/`,
+               note: `The <a href="${releases}/tag/nightly">nightly build</a> of the latest commit, rebuilt each night after new commits.` }
+  };
+  function showChannel(name) {
+    for (const button of document.querySelectorAll(".channels button"))
+      button.setAttribute("aria-pressed", String(button.dataset.channel === name));
+    for (const link of document.querySelectorAll(".download"))
+      link.href = channels[name].base + link.dataset.file;
+    document.getElementById("channel-note").innerHTML = channels[name].note;
+  }
+  for (const button of document.querySelectorAll(".channels button"))
+    button.addEventListener("click", () => showChannel(button.dataset.channel));
+  showChannel("stable");
+
+  const agent = navigator.userAgent;
+  const os = /Windows/.test(agent) ? "windows" : /Mac OS X/.test(agent) && !/iPhone|iPad/.test(agent) ? "macos"
+           : /Linux/.test(agent) && !/Android/.test(agent) ? "linux" : null;
+  document.querySelector(`.download[data-os="${os}"]`)?.classList.add("yours");
+</script>
+</body>
+</html>

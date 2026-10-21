@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(phong VERSION 1.0 LANGUAGES CXX)
+project(phong VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,6 +52,30 @@ qt_standard_project_setup(REQUIRES 6.9)
 qt_add_executable(phong
     src/main.cpp
 )
+
+target_compile_definitions(phong PRIVATE PHONG_VERSION="${PROJECT_VERSION}")
+
+# The icon and version of the executable on Windows and of the app on
+# macOS, Linux takes the icon from the AppImage, see packaging/make_icons.py
+if(WIN32)
+    configure_file(packaging/phong.rc.in phong.rc @ONLY)
+    target_sources(phong PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/phong.rc)
+elseif(APPLE)
+    set_source_files_properties(packaging/phong.icns PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+    target_sources(phong PRIVATE packaging/phong.icns)
+    set_target_properties(phong PROPERTIES
+        MACOSX_BUNDLE_ICON_FILE phong.icns
+        MACOSX_BUNDLE_BUNDLE_NAME "P(H)ONG"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION})
+elseif(EMSCRIPTEN)
+    # The page that loads the game, in place of the one of Qt, the build
+    # directory serves as it is
+    configure_file(pages/play.html index.html @ONLY)
+    foreach(file pages/starfield.js packaging/phong.svg packaging/phong.png)
+        configure_file(${file} . COPYONLY)
+    endforeach()
+endif()
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
@@ -127,6 +151,7 @@ qt_add_qml_module(phong
     RESOURCES
         config/modifiers.json
         config/arenas.json
+        packaging/phong.png
         qml/phong.vert
         qml/phong_instanced.vert
         qml/phong.frag

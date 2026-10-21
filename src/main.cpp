@@ -3,17 +3,21 @@
 
 #include <QCommandLineParser>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 
 int main(int argc, char** argv)
 {
     QGuiApplication::setOrganizationName(QStringLiteral("phong"));
     QGuiApplication::setApplicationName(QStringLiteral("Phong"));
+    QGuiApplication::setApplicationVersion(QStringLiteral(PHONG_VERSION));
 
     QGuiApplication app(argc, argv);
+    app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/Phong/packaging/phong.png")));
 
     QCommandLineParser parser;
     parser.addHelpOption();
+    parser.addVersionOption();
     const QCommandLineOption modifiersOption(
         QStringLiteral("modifiers"),
         QStringLiteral("Load the modifier definitions from <file> instead of the built-in ones."),

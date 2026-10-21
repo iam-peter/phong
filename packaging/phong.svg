@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0" stop-color="#0f1b47"/>
+      <stop offset="1" stop-color="#05091a"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="11" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <radialGradient id="yellowBall" cx="36%" cy="30%" r="72%">
+      <stop offset="0" stop-color="#fffdf0"/>
+      <stop offset="0.22" stop-color="#fff3a6"/>
+      <stop offset="0.55" stop-color="#ffe65c"/>
+      <stop offset="1" stop-color="#c98a00"/>
+    </radialGradient>
+    <radialGradient id="pinkBall" cx="36%" cy="30%" r="72%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.2" stop-color="#ffc2dc"/>
+      <stop offset="0.55" stop-color="#ff4fa3"/>
+      <stop offset="1" stop-color="#6e0f45"/>
+    </radialGradient>
+    <radialGradient id="titleBall" cx="36%" cy="30%" r="72%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.22" stop-color="#ffc4cc"/>
+      <stop offset="0.58" stop-color="#ff5c7a"/>
+      <stop offset="1" stop-color="#7a1028"/>
+    </radialGradient>
+    <clipPath id="tile"><rect rx="112"/></clipPath>
+  </defs>
+  <rect rx="112" fill="url(#bg)"/>
+  <g clip-path="url(#tile)" opacity="0.9">
+    <rect x="60" y="70" width="6" height="6" fill="#ffe6ff" transform="rotate(25 63 73)"/>
+    <rect x="420" y="96" width="5" height="5" fill="#a9b6ff" transform="rotate(40 422 98)"/>
+    <rect x="86" y="420" width="5" height="5" fill="#c9b8ff" transform="rotate(15 88 422)"/>
+    <rect x="446" y="430" width="7" height="7" fill="#7389ff" transform="rotate(60 449 433)"/>
+    <rect x="236" y="56" width="4" height="4" fill="#ffe6ff"/>
+    <rect x="360" y="458" width="4" height="4" fill="#a9b6ff" transform="rotate(30 362 460)"/>
+    <rect x="40" y="250" width="4" height="4" fill="#7389ff" transform="rotate(45 42 252)"/>
+    <rect x="470" y="262" width="5" height="5" fill="#ffe6ff" transform="rotate(20 472 264)"/>
+  </g>
+  <g fill="#1f3373">
+    <rect x="253" y="84" width="6" height="24" rx="3"/><rect x="253" y="128" width="6" height="24" rx="3"/>
+    <rect x="253" y="172" width="6" height="24" rx="3"/><rect x="253" y="216" width="6" height="24" rx="3"/>
+    <rect x="253" y="260" width="6" height="24" rx="3"/><rect x="253" y="304" width="6" height="24" rx="3"/>
+    <rect x="253" y="348" width="6" height="24" rx="3"/><rect x="253" y="392" width="6" height="24" rx="3"/>
+  </g>
+  <rect x="94" y="140" width="38" height="160" rx="19" fill="#29e6ff" filter="url(#glow)"/>
+  <rect x="380" y="226" width="38" height="160" rx="19" fill="#ff4fa3" filter="url(#glow)"/>
+  <circle cx="162" cy="214" r="22" fill="#ffe65c" opacity="0.12"/>
+  <circle cx="202" cy="228" r="29" fill="#ffe65c" opacity="0.22"/>
+  <circle cx="246" cy="243" r="36" fill="#ffe65c" opacity="0.35"/>
+  <circle cx="298" cy="262" r="44" fill="url(#yellowBall)" filter="url(#soft)"/>
+</svg>

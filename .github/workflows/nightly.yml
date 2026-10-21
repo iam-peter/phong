@@ -254,8 +254,8 @@ jobs:
       - name: Site
         run: |
           mkdir site
-          cp build/phong.html build/phong.js build/phong.wasm build/qtloader.js build/qtlogo.svg site/
-          printf '<!doctype html>\n<meta http-equiv="refresh" content="0; url=phong.html">\n' > site/index.html
+          cp build/index.html build/phong.js build/phong.wasm build/qtloader.js \
+            build/starfield.js build/phong.svg build/phong.png site/
           (cd site && zip -r ../Phong-web.zip .)
 
       - uses: actions/upload-artifact@v4

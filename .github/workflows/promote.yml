@@ -23,6 +23,7 @@ jobs:
       id-token: write
     steps:
       - name: Download nightly assets
+        id: nightly
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -37,6 +38,23 @@ jobs:
           mkdir artifacts
           gh release download nightly --repo "$GH_REPO" --dir artifacts
           gh api "repos/$GH_REPO/commits/nightly" --jq '.sha' > nightly-sha
+          echo "sha=$(cat nightly-sha)" >> "$GITHUB_OUTPUT"
+
+      # The start page and the version from the commit the nightly was built from
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.nightly.outputs.sha }}
+          path: source
+
+      - name: Check the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          built=$(sed -n 's/^project(phong VERSION \([0-9.]*\).*/\1/p' source/CMakeLists.txt)
+          if [ "${VERSION%%-*}" != "$built" ]; then
+            echo "The nightly is version $built, set project(VERSION) in CMakeLists.txt first" >&2
+            exit 1
+          fi
 
       - name: Create stable release
         env:
@@ -55,8 +73,13 @@ jobs:
 
       - name: Prepare Pages site
         run: |
-          mkdir site
-          unzip -q artifacts/Phong-web.zip -d site
+          mkdir -p site/screenshots
+          cp source/pages/index.html source/pages/starfield.js \
+            source/packaging/phong.svg source/packaging/phong.png site/
+          cp source/docs/screenshots/*.png site/screenshots/
+          # The game in play/, the old address of the game leads there
+          unzip -q artifacts/Phong-web.zip -d site/play
+          printf '<!doctype html>\n<meta http-equiv="refresh" content="0; url=play/">\n' > site/phong.html
 
       - uses: actions/upload-pages-artifact@v3
         with:

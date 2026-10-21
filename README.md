@@ -1,4 +1,10 @@
-# P(H)ONG
+<p align="center">
+  <img src="packaging/phong.svg" width="128" height="128" alt="">
+</p>
+
+<h1 align="center">P(H)ONG</h1>
+
+<p align="center"><a href="https://iam-peter.github.io/phong/">iam-peter.github.io/phong</a></p>
 
 Pong in a 3D rendered world on a 2D playing field, built with Qt Quick 3D and
 Qt Quick 3D Physics. The rules, the computer opponent and the settings are
@@ -13,7 +19,9 @@ C++, the scenes are QML.
 
 ## Play
 
-The stable browser version is at <https://iam-peter.github.io/phong/>.
+The [website](https://iam-peter.github.io/phong/) has the stable browser
+version to play right away and the downloads. Its pages are in
+[pages](pages), the promotion workflow publishes them with each release.
 
 ### Downloads
 
@@ -113,8 +121,25 @@ cmake --build build/wasm
 python3 -m http.server -d build/wasm
 ```
 
-Then open <http://localhost:8000/phong.html>. Settings are kept in the
+Then open <http://localhost:8000/>. Settings are kept in the
 browser's local storage.
+
+The build directory is the browser version as it is published, with
+[pages/play.html](pages/play.html) as its `index.html` instead of the
+page of Qt.
+
+### Icons
+
+The logo is [packaging/phong.svg](packaging/phong.svg). After changing
+it, `python3 packaging/make_icons.py` renders the icons of the desktop
+builds with Chrome and Pillow.
+
+### Version
+
+The version is `project(VERSION)` in [CMakeLists.txt](CMakeLists.txt),
+`phong --version` shows it and so does the loading page of the browser.
+It has to match the version given to the promotion workflow, which
+checks it.
 
 ### Server
 

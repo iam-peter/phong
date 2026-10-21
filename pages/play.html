@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- One CSS pixel is one Qt device independent pixel, also on phones -->
+<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, user-scalable=0">
+<title>P(H)ONG</title>
+<meta name="theme-color" content="#05091a">
+<link rel="icon" href="phong.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="phong.png">
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #05091a; }
+  #stars { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #screen { width: 100%; height: 100%; }
+  #loader {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 20px; padding: 16px; text-align: center;
+    color: #8f9cc6; font: 16px/1.5 "DejaVu Sans Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  #loader img { width: 140px; height: 140px; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse {
+    50% { transform: scale(1.04); filter: drop-shadow(0 0 24px rgb(41 230 255 / 0.45)); }
+  }
+  @media (prefers-reduced-motion: reduce) { #loader img { animation: none; } }
+  #version { font-size: 0.85rem; color: #6b7aa8; }
+  #status { text-transform: uppercase; letter-spacing: 0.08em; min-height: 1.5em; }
+  #loader a { color: #7fd8ff; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+<div id="loader">
+  <img src="phong.svg" alt="P(H)ONG">
+  <div id="status" role="status">Loading</div>
+  <div id="version">Version @PROJECT_VERSION@</div>
+  <noscript>The game needs JavaScript.</noscript>
+  <a id="again" href="" hidden>Start again</a>
+</div>
+<div id="screen" hidden></div>
+<script src="starfield.js"></script>
+<script>
+  // The stars of the game while it loads, it draws its own once it runs
+  const stars = document.getElementById("stars");
+  const field = startStarfield(stars);
+  const loader = document.getElementById("loader");
+  const screen = document.getElementById("screen");
+  const status = document.getElementById("status");
+
+  function fail(text) {
+    status.textContent = text;
+    document.getElementById("again").hidden = false;
+  }
+
+  async function start() {
+    if (!document.createElement("canvas").getContext("webgl2"))
+      return fail("This browser has no WebGL 2");
+    try {
+      await qtLoad({
+        qt: {
+          onLoaded: () => {
+            field.stop();
+            stars.hidden = true;
+            loader.hidden = true;
+            screen.hidden = false;
+          },
+          onExit: exit => {
+            screen.hidden = true;
+            loader.hidden = false;
+            fail(exit.code ? `The game stopped (${exit.text ?? exit.code})` : "The game has ended");
+          },
+          entryFunction: window.phong_entry,
+          containerElements: [screen]
+        }
+      });
+    } catch (error) {
+      console.error(error);
+      fail("The game could not be loaded");
+    }
+  }
+</script>
+<script src="phong.js"></script>
+<script src="qtloader.js" onload="start()"></script>
+</body>
+</html>
