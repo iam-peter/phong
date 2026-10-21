@@ -16,7 +16,7 @@ QString s_defaultSource = builtInSource;
 
 // Obstacles stay between the walls and paddles and away from the serve spot
 const QRectF field(-10.0, -9.5, 20.0, 19.0);
-constexpr qreal serveClearance = 1.8;
+constexpr qreal serveClearance = 1.35;
 
 bool blocksServe(const QRectF& rect)
 {
@@ -102,7 +102,7 @@ bool Arenas::loadJson(const QByteArray& json, QString* error)
         for (const QJsonValue& bumperValue : entry.value("bumpers").toArray()) {
             const QJsonObject object = bumperValue.toObject();
             const Bumper bumper = { object.value("x").toDouble(), object.value("y").toDouble(),
-                                    std::clamp(object.value("radius").toDouble(1.0), 0.3, 3.0),
+                                    std::clamp(object.value("radius").toDouble(0.75), 0.3, 3.0),
                                     readMotion(object.value("move")) };
             const QRectF rect = bumper.move.sweep(QRectF(bumper.x - bumper.radius, bumper.y - bumper.radius,
                                                          2.0 * bumper.radius, 2.0 * bumper.radius));
@@ -115,7 +115,7 @@ bool Arenas::loadJson(const QByteArray& json, QString* error)
 
         for (const QJsonValue& blockValue : entry.value("blocks").toArray()) {
             const QJsonObject object = blockValue.toObject();
-            const qreal width = std::clamp(object.value("width").toDouble(1.0), 0.2, 10.0);
+            const qreal width = std::clamp(object.value("width").toDouble(0.75), 0.2, 10.0);
             const qreal height = std::clamp(object.value("height").toDouble(1.0), 0.2, 10.0);
             const Block block = { QRectF(object.value("x").toDouble() - 0.5 * width,
                                          object.value("y").toDouble() - 0.5 * height, width, height),

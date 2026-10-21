@@ -76,8 +76,8 @@ public:
     static constexpr qreal maxServeAngle = 30.0;
     // Curve (radians per second) of a ball hit by a paddle at full speed,
     // and how fast the spin wears off
-    static constexpr qreal maxSpin = 1.2;
-    static constexpr qreal spinDecay = 0.6;
+    static constexpr qreal maxSpin = 0.9;
+    static constexpr qreal spinDecay = 0.45;
     // A fully charged smash is this much faster, also beyond the max speed
     static constexpr qreal smashBoost = 0.6;
     static constexpr qreal smashOverspeed = 0.25;

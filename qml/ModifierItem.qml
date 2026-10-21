@@ -7,7 +7,7 @@ Node {
 
     property color color: Theme.text
     property string glyph
-    property real radius: 0.9
+    property real radius: 0.675
     property bool wobbling: true
 
     Node {

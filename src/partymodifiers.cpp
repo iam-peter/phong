@@ -7,8 +7,8 @@
 namespace {
 // The well keeps this far from the items, and the items from the middle,
 // where the ball waits for the kickoff
-constexpr qreal wellClearance = 1.6;
-constexpr qreal middleClearance = 1.5;
+constexpr qreal wellClearance = 1.2;
+constexpr qreal middleClearance = 1.125;
 }
 
 bool PartyModifiers::isSupported(Modifiers::Effect effect)

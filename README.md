@@ -468,8 +468,8 @@ with `--arenas my-arenas.json`:
 
 ```json
 { "id": "bumpers", "name": "Bumpers",
-  "bumpers": [ { "x": 0, "y": 5, "radius": 1.3 } ],
-  "blocks": [ { "x": 0, "y": -7, "width": 1, "height": 5 } ] }
+  "bumpers": [ { "x": 0, "y": 5, "radius": 1.0 } ],
+  "blocks": [ { "x": 0, "y": -7, "width": 0.75, "height": 5 } ] }
 ```
 
 Bumpers and blocks may move, `move` swings them back and forth around their
@@ -477,7 +477,7 @@ position, `period` is the time of a swing in seconds and `phase` where it
 starts, from 0 to 1:
 
 ```json
-{ "x": -5, "y": 0, "radius": 1.1, "move": { "y": 5, "period": 4, "phase": 0.5 } }
+{ "x": -5, "y": 0, "radius": 0.8, "move": { "y": 5, "period": 4, "phase": 0.5 } }
 ```
 
 Obstacles outside the field or on the serve spot in the middle, also while

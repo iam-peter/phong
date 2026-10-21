@@ -30,7 +30,7 @@ const QHash<QString, Modifiers::Effect> effectNames = {
 };
 
 // Room the portals and the well keep from obstacles and items
-constexpr qreal portalClearance = 1.6;
+constexpr qreal portalClearance = 1.2;
 // The portals open on different halves, at least this far from the middle
 constexpr qreal portalMinX = 3.0;
 
@@ -779,7 +779,7 @@ void Modifiers::spawnRandom()
     // Keep items apart so a single pass doesn't collect two, and leave
     // room for the item itself
     bool found = false;
-    const QVector2D position = freePosition(m_spawnArea.left(), m_spawnArea.right(), 1.2, &found);
+    const QVector2D position = freePosition(m_spawnArea.left(), m_spawnArea.right(), 0.9, &found);
     if (found)
         spawn(definition, position);
 }

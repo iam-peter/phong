@@ -53,14 +53,14 @@ Scene {
     readonly property real stageHeight: 20.0
     readonly property real goalDepth: 4.0
     readonly property real wallThickness: 1.0
-    readonly property real ballRadius: 0.8
-    readonly property real paddleWidth: 1.0
-    readonly property real paddleSpeed: 24.0
+    readonly property real ballRadius: 0.6
+    readonly property real paddleWidth: 0.75
+    readonly property real paddleSpeed: 18.0
     readonly property real paddleX: 0.5 * stageWidth - goalDepth
     readonly property real uprightSpeed: 150.0 // degrees per second, after a spin
 
     // Shields sit a bit behind the paddles, the goal line behind them
-    readonly property real shieldWidth: 0.4
+    readonly property real shieldWidth: 0.3
     readonly property real shieldX: paddleX + 1.6
     readonly property real goalLine: shieldX + 0.5 * shieldWidth + ballRadius
 
@@ -119,8 +119,8 @@ Scene {
     property var arena: ({})
 
     // Bricks in the middle of the field, they break when hit
-    readonly property real brickWidth: 1.0
-    readonly property real brickHeight: 1.8
+    readonly property real brickWidth: 0.75
+    readonly property real brickHeight: 1.35
     property int nextBrickId: 1
     property var pendingBricks: []
 
@@ -261,7 +261,7 @@ Scene {
 
     function showEffect(event) {
         const paddle = event.side === Match.LeftSide ? leftPaddle : rightPaddle
-        const sparkX = paddle.x + (event.side === Match.LeftSide ? 0.6 : -0.6)
+        const sparkX = paddle.x + (event.side === Match.LeftSide ? 0.45 : -0.45)
         switch (event.e) {
             case "serve":
                 SoundEffects.play(SoundEffects.Serve)
@@ -957,7 +957,7 @@ Scene {
         for (const side of [1, -1]) {
             for (let i = 0; i < 4; ++i) {
                 const item = rules.modifiers && Math.random() < 1 / 3
-                brickModel.append({ brickId: nextBrickId++, brickY: side * (2.6 + 2.0 * i), item: item })
+                brickModel.append({ brickId: nextBrickId++, brickY: side * (1.95 + 1.5 * i), item: item })
             }
         }
     }
@@ -1073,7 +1073,7 @@ Scene {
         if (up || down)
             return (up ? 1 : 0) - (down ? 1 : 0)
         if (!isNaN(pointerY))
-            return Math.max(-1, Math.min(1, (pointerY - paddleY) / 0.5))
+            return Math.max(-1, Math.min(1, (pointerY - paddleY) / 0.375))
         return 0
     }
 
@@ -1195,7 +1195,7 @@ Scene {
     function placeHeld(body) {
         const left = body.ball.heldBy === Match.LeftSide
         const length = left ? leftPaddleLength : rightPaddleLength
-        const x = (left ? -1 : 1) * (paddleX - 0.5 * paddleWidth - ballRadius - 0.05)
+        const x = (left ? -1 : 1) * (paddleX - 0.5 * paddleWidth - ballRadius - 0.04)
         const y = (left ? leftPaddleY : rightPaddleY) + body.ball.holdOffset * 0.5 * length
         body.reset(Qt.vector3d(x, y, 0), Qt.vector3d(0, 0, 0))
     }
@@ -1214,7 +1214,7 @@ Scene {
         if (body.ball.heldBy !== Match.NoSide)
             return
         const limit = ballLimit
-        const outside = Math.abs(body.y) > limit + 0.1
+        const outside = Math.abs(body.y) > limit + 0.075
         for (const side of [Match.LeftSide, Match.RightSide]) {
             const left = side === Match.LeftSide
             const x = left ? -paddleX : paddleX
@@ -1223,12 +1223,12 @@ Scene {
             const across = Math.abs(body.x - x)
             const beside = across < 0.5 * paddleWidth + ballRadius
             // Into the paddle at the wall, deeper than a touch of its face
-            const pressed = across < 0.5 * paddleWidth + ballRadius - 0.15 && Math.abs(body.y) > limit - ballRadius
-                            && Math.abs(body.y - y) < 0.5 * length + ballRadius - 0.1
+            const pressed = across < 0.5 * paddleWidth + ballRadius - 0.11 && Math.abs(body.y) > limit - ballRadius
+                            && Math.abs(body.y - y) < 0.5 * length + ballRadius - 0.075
             if (!(beside && outside) && !pressed)
                 continue
             const passed = pastFace(body, side, x)
-            const clear = (left !== passed ? 1 : -1) * (0.5 * paddleWidth + ballRadius + 0.1)
+            const clear = (left !== passed ? 1 : -1) * (0.5 * paddleWidth + ballRadius + 0.075)
             body.reset(Qt.vector3d(x + clear, Math.max(-limit, Math.min(limit, body.y)), 0), Qt.vector3d(0, 0, 0))
             if (!passed)
                 match.deflect(body.ball, side, Qt.vector2d(left ? 1 : -1, 0))
@@ -2041,8 +2041,8 @@ Scene {
         enableCCD: true
         // A handful of bodies, and single-threaded wasm hangs waiting for workers
         numThreads: 0
-        typicalLength: 1.0
-        typicalSpeed: 20.0
+        typicalLength: 0.75
+        typicalSpeed: 15.0
 
         onFrameDone: (timeStep) => root.step(timeStep / 1000.0)
     }
@@ -2122,13 +2122,13 @@ Scene {
 
         Shadow {
             position: Qt.vector3d(leftPaddle.x + 0.3, leftPaddle.y - 0.6, 0)
-            scale: Qt.vector3d(1.4 / 100, (root.leftPaddleLength + 0.4) / 100, 0.001)
+            scale: Qt.vector3d((root.paddleWidth + 0.3) / 100, (root.leftPaddleLength + 0.3) / 100, 0.001)
             source: "#Cube"
         }
 
         Shadow {
             position: Qt.vector3d(rightPaddle.x + 0.3, rightPaddle.y - 0.6, 0)
-            scale: Qt.vector3d(1.4 / 100, (root.rightPaddleLength + 0.4) / 100, 0.001)
+            scale: Qt.vector3d((root.paddleWidth + 0.3) / 100, (root.rightPaddleLength + 0.3) / 100, 0.001)
             source: "#Cube"
         }
     }
@@ -2270,7 +2270,7 @@ Scene {
 
             Disc {
                 radius: bumper.modelData.radius * (1.0 + 0.15 * bumper.glow)
-                thickness: 1.0
+                thickness: 0.75
                 color: Qt.tint(Theme.bumper, Qt.rgba(1, 1, 1, 0.7 * bumper.glow))
                 glow: 0.2 + bumper.glow
                 shininess: 0.4
@@ -2313,7 +2313,7 @@ Scene {
 
             Model {
                 source: "#Cube"
-                scale: Qt.vector3d(block.modelData.width / 100, block.modelData.height / 100, 0.01)
+                scale: Qt.vector3d(block.modelData.width / 100, block.modelData.height / 100, 0.0075)
                 materials: PhongMaterial {
                     color: Qt.tint(Theme.block, Qt.rgba(1, 1, 1, 0.7 * block.glow))
                     glow: 0.3 + block.glow
@@ -2437,7 +2437,7 @@ Scene {
 
             Model {
                 source: "#Cube"
-                scale: Qt.vector3d(root.brickWidth / 100, (root.brickHeight - 0.1) / 100, 0.01)
+                scale: Qt.vector3d(root.brickWidth / 100, (root.brickHeight - 0.075) / 100, 0.0075)
                 materials: PhongMaterial {
                     color: brickBody.color
                     glow: brickBody.item ? 0.6 : 0.15
@@ -2448,8 +2448,8 @@ Scene {
             // Bricks with a modifier inside say so
             Text3D {
                 visible: brickBody.item
-                z: 0.5
-                scale: Qt.vector3d(0.7, 0.7, 0.7)
+                z: 0.375
+                scale: Qt.vector3d(0.525, 0.525, 0.525)
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 depth: 0.2
@@ -2528,7 +2528,7 @@ Scene {
 
             position: Qt.vector3d(itemX, itemY, 0)
             collisionShapes: SphereShape {
-                diameter: 1.8
+                diameter: 1.35
             }
             onBodyEntered: (body) => {
                 const ballBody = body as BallBody
@@ -2589,7 +2589,7 @@ Scene {
 
             position: Qt.vector3d(modelData.x, modelData.y, 0)
             collisionShapes: SphereShape {
-                diameter: 1.6
+                diameter: 1.2
             }
             onBodyEntered: (body) => {
                 const ballBody = body as BallBody
@@ -2603,17 +2603,17 @@ Scene {
             }
 
             Disc {
-                z: -0.3
-                radius: 1.25
-                thickness: 0.2
+                z: -0.225
+                radius: 0.94
+                thickness: 0.15
                 color: portal.color
                 glow: 0.9
             }
 
             Disc {
-                z: -0.15
-                radius: 0.95
-                thickness: 0.2
+                z: -0.11
+                radius: 0.71
+                thickness: 0.15
                 color: Theme.background
                 glow: 0.0
                 shininess: 0.0
@@ -2629,13 +2629,13 @@ Scene {
                 }
 
                 Discs {
-                    radius: 0.12
-                    thickness: 0.1
+                    radius: 0.09
+                    thickness: 0.075
                     items: {
                         const items = []
                         for (let index = 0; index < 6; ++index) {
                             const angle = index * Math.PI / 3
-                            items.push({ x: 0.7 * Math.cos(angle), y: 0.7 * Math.sin(angle), color: portal.color, glow: 1.0 })
+                            items.push({ x: 0.525 * Math.cos(angle), y: 0.525 * Math.sin(angle), color: portal.color, glow: 1.0 })
                         }
                         return items
                     }
@@ -2788,7 +2788,7 @@ Scene {
                 position: ball ? Qt.vector3d(ball.x, ball.y, -0.3) : Qt.vector3d(0, 0, 0)
                 opacity: 0.4 * (1.0 - index / 5) * (ball?.shown ?? 1.0)
                 radius: root.ballRadius * (1.0 - 0.1 * index)
-                thickness: 0.1
+                thickness: 0.075
                 color: Theme.ball
             }
         }
@@ -2861,14 +2861,14 @@ Scene {
 
         // A clock of dots going out one after another
         Discs {
-            radius: 0.15
-            thickness: 0.2
+            radius: 0.11
+            thickness: 0.15
             items: {
                 const items = []
                 const shown = Math.ceil(kickoff.fraction * kickoff.dots)
                 for (let index = 0; index < shown; ++index) {
                     const angle = 0.5 * Math.PI - index * 2.0 * Math.PI / kickoff.dots
-                    items.push({ x: 1.7 * Math.cos(angle), y: 1.7 * Math.sin(angle), color: Theme.text, glow: 0.25 })
+                    items.push({ x: 1.275 * Math.cos(angle), y: 1.275 * Math.sin(angle), color: Theme.text, glow: 0.25 })
                 }
                 return items
             }
@@ -2881,7 +2881,7 @@ Scene {
             Node {
                 id: arrow
                 property real pulse: 0.0
-                x: 3.4 + 0.5 * pulse
+                x: 2.55 + 0.375 * pulse
 
                 SequentialAnimation on pulse {
                     running: kickoff.visible
@@ -2893,16 +2893,16 @@ Scene {
                 Repeater3D {
                     // Shaft and the two strokes of the head, tip at the origin
                     model: [
-                        { x: -0.75, y: 0.0, length: 1.3, angle: 0 },
-                        { x: -0.38, y: 0.32, length: 1.0, angle: 140 },
-                        { x: -0.38, y: -0.32, length: 1.0, angle: -140 }
+                        { x: -0.56, y: 0.0, length: 0.975, angle: 0 },
+                        { x: -0.285, y: 0.24, length: 0.75, angle: 140 },
+                        { x: -0.285, y: -0.24, length: 0.75, angle: -140 }
                     ]
 
                     delegate: Model {
                         required property var modelData
                         position: Qt.vector3d(modelData.x, modelData.y, 0)
                         eulerRotation.z: modelData.angle
-                        scale: Qt.vector3d(modelData.length / 100, 0.0024, 0.003)
+                        scale: Qt.vector3d(modelData.length / 100, 0.0018, 0.00225)
                         source: "#Cube"
                         materials: PhongMaterial {
                             color: Theme.title

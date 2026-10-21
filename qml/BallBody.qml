@@ -11,11 +11,11 @@ DynamicRigidBody {
     id: root
 
     required property Ball ball
-    property real radius: 0.8
+    property real radius: 0.6
     // Slow motion, the rules keep the real velocity
     property real timeScale: 1.0
     // Speed from which the trail shows
-    property real trailSpeed: 16.0
+    property real trailSpeed: 12.0
 
     // Contact reports go to the game scene
     signal contact(var body, var normals)
@@ -105,7 +105,7 @@ DynamicRigidBody {
         Disc {
             position: Qt.vector3d(0.45 * root.radius, 0, 0.55 * root.radius)
             radius: 0.22 * root.radius
-            thickness: 0.3
+            thickness: 0.225
             color: Theme.ballMark
             glow: 0.8
         }
@@ -127,7 +127,7 @@ DynamicRigidBody {
     Discs {
         z: -0.3
         radius: root.radius
-        thickness: 0.1
+        thickness: 0.075
         items: {
             const items = []
             if (root.trailStrength <= 0.0)

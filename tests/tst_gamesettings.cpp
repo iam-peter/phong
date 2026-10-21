@@ -32,9 +32,9 @@ private slots:
         QCOMPARE(rules.value("pointsToWin").toInt(), 5);
         QCOMPARE(rules.value("setsToWin").toInt(), 1);
         QCOMPARE(rules.value("ballSpeed").toInt(), int(GameSettings::BallSpeed::Medium));
-        QCOMPARE(rules.value("serveSpeed").toReal(), 16.0);
-        QCOMPARE(rules.value("maxSpeed").toReal(), 32.0);
-        QCOMPARE(rules.value("paddleLength").toReal(), 4.0);
+        QCOMPARE(rules.value("serveSpeed").toReal(), 12.0);
+        QCOMPARE(rules.value("maxSpeed").toReal(), 24.0);
+        QCOMPARE(rules.value("paddleLength").toReal(), 3.0);
     }
 
     void rulesAreIsolatedByMode()
@@ -64,9 +64,9 @@ private slots:
         const QVariantMap rules = settings.rules(2);
         QCOMPARE(rules.value("pointsToWin").toInt(), GameSettings::minPointsToWin);
         QCOMPARE(rules.value("kickoffTime").toInt(), GameSettings::maxKickoffTime);
-        QCOMPARE(rules.value("serveSpeed").toReal(), 21.0);
-        QCOMPARE(rules.value("maxSpeed").toReal(), 42.0);
-        QCOMPARE(rules.value("paddleLength").toReal(), 5.0);
+        QCOMPARE(rules.value("serveSpeed").toReal(), 15.75);
+        QCOMPARE(rules.value("maxSpeed").toReal(), 31.5);
+        QCOMPARE(rules.value("paddleLength").toReal(), 3.75);
         QCOMPARE(changed.count(), 4);
     }
 

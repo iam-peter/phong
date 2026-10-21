@@ -9,8 +9,8 @@ DynamicRigidBody {
     property real paddleX: 0.0
     property real paddleY: 0.0
     property real angle: 0.0
-    property real length: 4.0
-    property real width: 1.0
+    property real length: 3.0
+    property real width: 0.75
     property color color: Theme.paddle
     // Smash wind up, 0 to 1, the paddle glows and trembles
     property real charge: 0.0
@@ -60,13 +60,13 @@ DynamicRigidBody {
         readonly property real fill: Math.max(0.0, Math.min(1.0, 1.0 - root.dashCooldown))
         readonly property real thickness: root.width * root.squash * (1.0 + 0.25 * root.charge)
 
-        x: root.charge > 0.05 ? 0.06 * root.charge * Math.sin(tremble.phase) : 0.0
+        x: root.charge > 0.05 ? 0.045 * root.charge * Math.sin(tremble.phase) : 0.0
 
         Model {
             visible: body.fill > 0.0
             y: -0.5 * root.length * (1.0 - body.fill)
             source: "#Cube"
-            scale: Qt.vector3d(body.thickness / 100, root.length * body.fill / 100, 0.01)
+            scale: Qt.vector3d(body.thickness / 100, root.length * body.fill / 100, 0.0075)
             materials: PhongMaterial {
                 id: material
                 color: root.color
@@ -80,7 +80,7 @@ DynamicRigidBody {
             visible: body.fill < 1.0
             y: 0.5 * root.length * body.fill
             source: "#Cube"
-            scale: Qt.vector3d(body.thickness / 100, root.length * (1.0 - body.fill) / 100, 0.01)
+            scale: Qt.vector3d(body.thickness / 100, root.length * (1.0 - body.fill) / 100, 0.0075)
             materials: PhongMaterial {
                 color: Qt.tint(root.color, Qt.rgba(Theme.background.r, Theme.background.g, Theme.background.b, 0.75))
                 glow: 0.0
@@ -97,11 +97,11 @@ DynamicRigidBody {
             required property int index
 
             visible: root.dash !== 0
-            y: -root.dash * (0.8 + 0.8 * index)
+            y: -root.dash * (0.6 + 0.6 * index)
             z: -0.2
             opacity: 0.35 - 0.1 * index
             source: "#Cube"
-            scale: Qt.vector3d(root.width / 100, root.length / 100, 0.01)
+            scale: Qt.vector3d(root.width / 100, root.length / 100, 0.0075)
             materials: PhongMaterial {
                 color: root.color
                 glow: 0.8
@@ -114,9 +114,9 @@ DynamicRigidBody {
         id: magnetFace
         visible: root.magnet
         property real pulse: 0.0
-        x: -root.back * (0.5 * root.width + 0.15)
+        x: -root.back * (0.5 * root.width + 0.11)
         source: "#Cube"
-        scale: Qt.vector3d(0.3 / 100, (root.length + 0.3) / 100, 0.014)
+        scale: Qt.vector3d(0.225 / 100, (root.length + 0.225) / 100, 0.0105)
         materials: PhongMaterial {
             color: Theme.tint(root.magnetColor)
             glow: 0.8 + 1.2 * magnetFace.pulse
@@ -134,7 +134,7 @@ DynamicRigidBody {
     Model {
         visible: root.frozen
         source: "#Cube"
-        scale: Qt.vector3d((root.width + 0.5) / 100, (root.length + 0.5) / 100, 0.012)
+        scale: Qt.vector3d((root.width + 0.375) / 100, (root.length + 0.375) / 100, 0.009)
         opacity: 0.55
         materials: PhongMaterial {
             color: Theme.tint("#ccf2ff")
@@ -146,8 +146,8 @@ DynamicRigidBody {
     // A question mark over a paddle with swapped controls
     Text3D {
         visible: root.reversed
-        y: 0.5 * root.length + 0.5
-        scale: Qt.vector3d(0.9, 0.9, 0.9)
+        y: 0.5 * root.length + 0.375
+        scale: Qt.vector3d(0.675, 0.675, 0.675)
         horizontalAlignment: Text.AlignHCenter
         color: Theme.tint("#cc66ff")
         glow: 0.6

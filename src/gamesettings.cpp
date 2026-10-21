@@ -21,12 +21,12 @@ qreal serveSpeed(GameSettings::BallSpeed speed)
 {
     switch (speed) {
         case GameSettings::BallSpeed::Slow:
-            return 12.0;
+            return 9.0;
         case GameSettings::BallSpeed::Fast:
-            return 21.0;
+            return 15.75;
         case GameSettings::BallSpeed::Medium:
         default:
-            return 16.0;
+            return 12.0;
     }
 }
 
@@ -34,12 +34,12 @@ qreal paddleLength(GameSettings::PaddleSize size)
 {
     switch (size) {
         case GameSettings::PaddleSize::Small:
-            return 3.0;
+            return 2.25;
         case GameSettings::PaddleSize::Large:
-            return 5.0;
+            return 3.75;
         case GameSettings::PaddleSize::Regular:
         default:
-            return 4.0;
+            return 3.0;
     }
 }
 

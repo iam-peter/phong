@@ -23,7 +23,7 @@ ComputerPlayer::ComputerPlayer(QObject* parent):
     m_smashing(false),
     m_brush(1),
     m_charging(false),
-    m_paddleSpeed(24.0),
+    m_paddleSpeed(18.0),
     m_wantsDash(false),
     m_confusion(0.0),
     m_blind(false),

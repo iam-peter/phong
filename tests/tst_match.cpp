@@ -551,12 +551,12 @@ private slots:
         QVERIFY(!hits.last().at(3).toBool());
 
         // At the top speed a perfect hit still goes a little faster
-        match.setMaxSpeed(20.0);
+        match.setMaxSpeed(10.0);
         side = Match::opponent(side);
         match.paddleHit(side, 0.0, 0.0);
         side = Match::opponent(side);
         match.paddleHit(side, 0.0, 0.0);
-        QVERIFY(qAbs(match.ballVelocity().length() - 20.0f * float(1.0 + Match::perfectOverspeed)) < 1e-3f);
+        QVERIFY(qAbs(match.ballVelocity().length() - 10.0f * float(1.0 + Match::perfectOverspeed)) < 1e-3f);
     }
 
     void catchAndRelease()

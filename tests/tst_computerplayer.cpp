@@ -313,7 +313,7 @@ private slots:
         }
         ComputerPlayer& spinner = players[1];
         const qreal lead = players[0].target() - spinner.target();
-        QVERIFY(qAbs(qAbs(lead) - 0.5 * 24.0 * ComputerPlayer::brushTime) < 1e-6);
+        QVERIFY(qAbs(qAbs(lead) - 0.5 * spinner.paddleSpeed() * ComputerPlayer::brushTime) < 1e-6);
 
         spinner.update(0.01, QVector2D(12.0 - 0.5 * 20 * ComputerPlayer::brushTime, 0), QVector2D(20, 0),
                        spinner.target());

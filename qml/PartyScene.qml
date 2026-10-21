@@ -326,7 +326,7 @@ Scene {
             if (input === 0 && pad && pad.direction.x !== 0)
                 input = Math.max(-1, Math.min(1, pad.direction.x * 1.4))
             else if (input === 0 && !isNaN(root.pointerX))
-                input = Math.max(-1, Math.min(1, (root.pointerX - (sides.objectAt(root.localSlot)?.offset ?? 0)) / 0.5))
+                input = Math.max(-1, Math.min(1, (root.pointerX - (sides.objectAt(root.localSlot)?.offset ?? 0)) / 0.375))
             const charging = root.keysCharging(0) || (pad?.isPressed(KeySettings.padButton(KeySettings.PadSmash)) ?? false)
 
             // The own paddle answers the input right away: the host's
@@ -534,10 +534,10 @@ Scene {
     readonly property real postLength: 0.22 * sideLength
     readonly property real goalWidth: sideLength - 2 * postLength
     readonly property real wallThickness: 1.0
-    readonly property real ballRadius: 0.7
-    readonly property real paddleLength: 3.2
-    readonly property real paddleWidth: 0.8
-    readonly property real paddleSpeed: 22.0
+    readonly property real ballRadius: 0.525
+    readonly property real paddleLength: 2.4
+    readonly property real paddleWidth: 0.6
+    readonly property real paddleSpeed: 16.5
     readonly property real paddleDistance: apothem - 1.4
     // Seconds to wind up a full smash, how fast keys slide a held ball
     // along the paddle and how long the computer holds one
@@ -867,7 +867,7 @@ Scene {
                 input = sign * along(i, keyVector(controller.keys ?? 0))
                 // A pointer steers the bottom side
                 if (input === 0 && i === 0 && !isNaN(pointerX))
-                    input = Math.max(-1, Math.min(1, (sign * pointerX - side.offset) / 0.5))
+                    input = Math.max(-1, Math.min(1, (sign * pointerX - side.offset) / 0.375))
             }
             else if (controller.kind === "remote") {
                 input = sign * (root.remoteInputs[controller.id] ?? 0)
@@ -919,7 +919,7 @@ Scene {
         if (match.heldBy >= 0) {
             const side = sides.objectAt(match.heldBy)
             if (side) {
-                ball.reset(sidePoint(match.heldBy, paddleDistance - 0.5 * paddleWidth - ballRadius - 0.05,
+                ball.reset(sidePoint(match.heldBy, paddleDistance - 0.5 * paddleWidth - ballRadius - 0.04,
                                      side.offset + match.holdOffset * 0.5 * side.length), Qt.vector3d(0, 0, 0))
             }
         }
@@ -1221,8 +1221,8 @@ Scene {
         gravity: Qt.vector3d(0, 0, 0)
         enableCCD: true
         numThreads: 0
-        typicalLength: 1.0
-        typicalSpeed: 20.0
+        typicalLength: 0.75
+        typicalSpeed: 15.0
 
         onFrameDone: (timeStep) => root.step(timeStep / 1000.0)
     }
@@ -1469,7 +1469,7 @@ Scene {
                     color: Theme.shield
                     glow: 1.0
                     distance: root.apothem - 0.35
-                    thickness: 0.3
+                    thickness: 0.225
                 }
 
                 TriggerBody {
@@ -1561,7 +1561,7 @@ Scene {
 
                 position: Qt.vector3d(itemX, itemY, 0)
                 collisionShapes: SphereShape {
-                    diameter: 1.8
+                    diameter: 1.35
                 }
                 onBodyEntered: (body) => {
                     if (body === ball)
@@ -1681,16 +1681,16 @@ Scene {
 
             Repeater3D {
                 model: [
-                    { x: 2.0, y: 0.0, length: 1.3, angle: 0 },
-                    { x: 2.37, y: 0.32, length: 1.0, angle: 140 },
-                    { x: 2.37, y: -0.32, length: 1.0, angle: -140 }
+                    { x: 1.5, y: 0.0, length: 0.975, angle: 0 },
+                    { x: 1.78, y: 0.24, length: 0.75, angle: 140 },
+                    { x: 1.78, y: -0.24, length: 0.75, angle: -140 }
                 ]
 
                 delegate: Model {
                     required property var modelData
-                    position: Qt.vector3d(modelData.x + 0.75, modelData.y, 0)
+                    position: Qt.vector3d(modelData.x + 0.56, modelData.y, 0)
                     eulerRotation.z: modelData.angle
-                    scale: Qt.vector3d(modelData.length / 100, 0.0024, 0.003)
+                    scale: Qt.vector3d(modelData.length / 100, 0.0018, 0.00225)
                     source: "#Cube"
                     materials: PhongMaterial {
                         color: Theme.title
