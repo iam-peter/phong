@@ -91,7 +91,8 @@ EM_JS(void, phong_setup_audio, (), {
     });
 });
 
-EM_JS(void, phong_play_tone, (int waveform, double start, double duration, double from,
+// start is seconds from now, or with absolute a time on the audio clock
+EM_JS(void, phong_play_tone, (int waveform, double start, int absolute, double duration, double from,
                               double to, double volume), {
     const context = globalThis.phongAudio;
     if (!context)
@@ -100,7 +101,7 @@ EM_JS(void, phong_play_tone, (int waveform, double start, double duration, doubl
     if (context.state !== "running")
         context.resume();
 
-    const time = context.currentTime + start;
+    const time = absolute ? Math.max(start, context.currentTime) : context.currentTime + start;
     let source;
     if (waveform === 4) {
         // Noise from a looped buffer, slower playback darkens it like the
@@ -147,8 +148,9 @@ public:
     Backend()
     {
         phong_setup_audio();
-        // The music is scheduled a little ahead on the audio clock, the
-        // timer only has to keep up
+        // The music is scheduled ahead on the audio clock, the timer only
+        // has to keep up. Firefox stalls the page now and then for longer
+        // than a frame, the lookahead bridges that.
         m_timer.setInterval(25);
         QObject::connect(&m_timer, &QTimer::timeout, [this] { scheduleMusic(); });
     }
@@ -158,10 +160,10 @@ public:
         return true;
     }
 
-    void play(const QList<Tone>& tones, qreal pitch, qreal start = 0.0)
+    void play(const QList<Tone>& tones, qreal pitch)
     {
         for (const Tone& tone : tones)
-            phong_play_tone(int(tone.waveform), start + tone.start, tone.duration, tone.from * pitch,
+            phong_play_tone(int(tone.waveform), tone.start, 0, tone.duration, tone.from * pitch,
                             tone.to * pitch, tone.volume * masterVolume);
     }
 
@@ -190,18 +192,32 @@ private:
         if (now < 0.0)
             return;
 
-        // Starting, or the tab was in the background
-        if (m_nextStep < now)
+        const qreal duration = Music::stepDuration(m_bpm);
+        if (m_nextStep < 0.0) {
             m_nextStep = now + 0.05;
+        }
+        else if (m_nextStep < now) {
+            // The page stalled for longer than the lookahead, or the tab was
+            // in the background. The steps that are past are dropped, the
+            // others stay on the beat.
+            const int missed = int(std::ceil((now - m_nextStep) / duration));
+            qCDebug(lcSound) << "Music fell behind by" << now - m_nextStep << "s, skipping" << missed
+                             << "steps";
+            m_step += missed;
+            m_nextStep += missed * duration;
+        }
 
+        // At absolute times, a step doesn't move with the time it takes
+        // to get here
         while (m_nextStep < now + lookahead) {
-            const qreal duration = Music::stepDuration(m_bpm);
-            play(Music::step(m_step++, m_intensity, duration, m_volume), 1.0, m_nextStep - now);
+            for (const Tone& tone : Music::step(m_step++, m_intensity, duration, m_volume))
+                phong_play_tone(int(tone.waveform), m_nextStep + tone.start, 1, tone.duration, tone.from,
+                                tone.to, tone.volume * masterVolume);
             m_nextStep += duration;
         }
     }
 
-    static constexpr qreal lookahead = 0.15;
+    static constexpr qreal lookahead = 0.4;
 
     QTimer m_timer;
     int m_intensity = 0;
