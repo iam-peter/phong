@@ -19,22 +19,20 @@ C++, the scenes are QML.
 
 ## Play
 
-The [website](https://iam-peter.github.io/phong/) has the stable browser
-version to play right away and the downloads. Its pages are in
+[Play it in the browser](https://iam-peter.github.io/phong/play/), or
+[download it](https://iam-peter.github.io/phong/#download) for Linux,
+Windows and macOS from the [website](https://iam-peter.github.io/phong/).
+The downloads there also have the server for games over the internet and
+the browser version to put on a web server of your own, from the stable
+or the nightly release. The macOS app isn't signed, it opens with a right
+click and Open the first time.
+
+### Releases
+
+Stable releases are promoted manually from a tested nightly build, the
+[nightly release](https://github.com/iam-peter/phong/releases/tag/nightly)
+has the latest development build. The website's pages are in
 [pages](pages), the promotion workflow publishes them with each release.
-
-### Downloads
-
-- [Linux AppImage](https://github.com/iam-peter/phong/releases/latest/download/Phong-linux-x64.AppImage)
-- [Windows](https://github.com/iam-peter/phong/releases/latest/download/Phong-windows-x64.zip)
-- [macOS](https://github.com/iam-peter/phong/releases/latest/download/Phong-macos.dmg)
-- [Linux server](https://github.com/iam-peter/phong/releases/latest/download/Phong-server-linux-x64.tar.gz)
-- [Web version ZIP](https://github.com/iam-peter/phong/releases/latest/download/Phong-web.zip)
-
-Stable releases are promoted manually from a tested nightly build. The
-[latest release](https://github.com/iam-peter/phong/releases/latest)
-contains the latest development build. The macOS app isn't signed, it opens
-with a right click and Open the first time.
 
 The [workflow](.github/workflows/nightly.yml) also runs the tests on all
 three systems. The nightly workflow can be started by hand under Actions,

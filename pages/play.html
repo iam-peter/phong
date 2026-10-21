@@ -18,9 +18,14 @@
     justify-content: center; gap: 20px; padding: 16px; text-align: center;
     color: #8f9cc6; font: 16px/1.5 "DejaVu Sans Mono", ui-monospace, Menlo, Consolas, monospace;
   }
-  #loader img { width: 140px; height: 140px; animation: pulse 1.6s ease-in-out infinite; }
+  /* Glows up and down in place, like the neon of the game */
+  #loader img {
+    width: 140px; height: 140px;
+    filter: brightness(1) drop-shadow(0 0 6px rgb(41 230 255 / 0.15));
+    animation: pulse 1.6s ease-in-out infinite;
+  }
   @keyframes pulse {
-    50% { transform: scale(1.04); filter: drop-shadow(0 0 24px rgb(41 230 255 / 0.45)); }
+    50% { filter: brightness(1.35) drop-shadow(0 0 26px rgb(41 230 255 / 0.6)); }
   }
   @media (prefers-reduced-motion: reduce) { #loader img { animation: none; } }
   #version { font-size: 0.85rem; color: #6b7aa8; }
